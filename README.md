@@ -1,6 +1,6 @@
 # arcajs
 
-arcajs is a simple and lightweight cross-platform JavaScript 2D multimedia/game
+arcajs is a simple and lightweight cross-platform Javascript 2D multimedia/game
 framework that runs both within a browser and on its own compact and optimized
 stand-alone runtime environment. This unique combination enables you to write
 portable games and multimedia apps that efficiently run on a wide range of

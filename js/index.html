@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>arcajs browser runtime</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="user-scalable=no, width=device-width" />
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+	<style type="text/css">
+body {
+	margin: 0;
+	-webkit-text-size-adjust: 100%;
+	background: black;
+	touch-action: none;
+}
+body > canvas {
+	display: block;
+	width: 100vw;
+	height: 100vh;
+}
+	</style>
+</head>
+<body
+	><canvas id="canvas">this webapp requires javascript to run.</canvas
+></body>
+<script id="vs" type="x-shader/x-vertex">
+attribute vec2 a_position;
+attribute vec4 a_color;
+attribute vec2 a_texCoord;
+
+varying vec4 vtxColor;
+varying vec2 texCoord;
+
+uniform vec2 u_resolution;
+//uniform vec2 u_texDims;
+
+void main() {
+	 // convert the rectangle from pixels to 0.0 to 1.0
+	 vec2 zeroToOne = a_position / u_resolution;
+
+	 // convert from 0->1 to 0->2
+	 vec2 zeroToTwo = zeroToOne * 2.0;
+
+	 // convert from 0->2 to -1->+1 (clipspace)
+	 vec2 clipSpace = zeroToTwo - 1.0;
+
+	 gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+	 vtxColor = a_color;
+	 texCoord = a_texCoord / vec2(16383.0,16383.0);
+}
+</script>
+<script id="fs" type="x-shader/x-fragment">
+precision mediump float;
+
+uniform sampler2D u_texUnit0;
+
+varying vec4 vtxColor;
+varying vec2 texCoord;
+
+void main() {
+	vec4 texColor = texture2D(u_texUnit0, texCoord);
+	gl_FragColor = vtxColor * texColor;
+}
+</script>
+<script type="text/javascript">arcajs={};</script>
+<script type="text/javascript" src="infra.js"></script>
+<script type="text/javascript" src="graphicsGL.js"></script>
+<script type="text/javascript" src="sprites.js"></script>
+<script type="text/javascript" src="audio.js"></script>
+<script type="text/javascript">
+"use strict";
+
+let app = arcajs.app = (function() {
+	let clearColor = [ 0,0,0 ]
+	let eventListeners = {};
+	let resources = {};
+	let resourcesLoading = 0;
+	let modules = { audio:arcajs.audio };
+	let gamepads = [];
+	let tLastFrame=0;
+
+	const canvas = document.getElementById('canvas');
+	let gfx = new arcajs.Graphics(canvas);
+
+	function createCircleResource(r, fill=[255,255,255,255], lineW, stroke=[0,0,0,0]) {
+		let canvas = document.createElement('canvas');
+		canvas.width = canvas.height = Math.ceil(2*r+lineW);
+
+		let ctx = canvas.getContext('2d');
+		ctx.lineWidth = lineW;
+		ctx.fillStyle = fill ?
+			'rgba('+fill[0]+','+fill[1]+','+fill[2]+','
+			+((typeof fill[3]==='number') ? fill[3]/255 : 1)+')' : 'transparent';
+		ctx.strokeStyle = lineW ?
+			'rgba('+stroke[0]+','+stroke[1]+','+stroke[2]+','
+			+((typeof stroke[3]==='number') ? stroke[3]/255 : 1)+')' : 'transparent';
+
+		ctx.beginPath();
+		ctx.arc(r+lineW/2,r+lineW/2, r, 0, 2*Math.PI, true);
+		ctx.closePath();
+		if(fill)
+			ctx.fill();
+		if(lineW)
+			ctx.stroke();
+		
+		const imgData = new Uint8Array(ctx.getImageData(0,0, canvas.width, canvas.height).data.buffer);
+		return gfx.createTexture(canvas.width, canvas.height, imgData);
+	}
+
+	function createPathResource(width, height, path, fill=[255,255,255,255], lineW=0, stroke=[255,255,255,255]) {
+		let canvas = document.createElement('canvas');
+		canvas.width = width;
+		canvas.height = height;
+		let ctx = canvas.getContext('2d');
+
+		ctx.lineWidth = lineW;
+		ctx.fillStyle = fill ?
+			'rgba('+fill[0]+','+fill[1]+','+fill[2]+','
+			+((typeof fill[3]==='number') ? fill[3]/255 : 1)+')' : 'transparent';
+		ctx.strokeStyle = lineW ?
+			'rgba('+stroke[0]+','+stroke[1]+','+stroke[2]+','
+			+((typeof stroke[3]==='number') ? stroke[3]/255 : 1)+')' : 'transparent';
+
+		let p = new Path2D(path);
+		if(fill)
+			ctx.fill(p);
+		if(lineW)
+			ctx.stroke(p);
+
+		const imgData = new Uint8Array(ctx.getImageData(0,0, width, height).data.buffer);
+		return gfx.createTexture(width, height, imgData);
+	}
+
+	function createSVGResource(svgStr, params) {
+		if(!svgStr.startsWith('<svg xmlns="http://www.w3.org/2000/svg"'))
+			svgStr = '<svg xmlns="http://www.w3.org/2000/svg"' + svgStr.substr(4);
+		let blob = new Blob([svgStr], {type: 'image/svg+xml'});
+		return gfx.loadTexture(URL.createObjectURL(blob), params);
+	}
+
+	function getGamepad(index) {
+		let gp = gamepads[index];
+		if(!gp || !gp.connected)
+			return { index:index, connected:false };
+		let state = navigator.getGamepads()[index];
+		let ret = { index:index, connected:true, buttons:[], axes:[] };
+		for(let i=0; i<state.buttons.length; ++i)
+			ret.buttons[i] = state.buttons[i].pressed;
+		for(let i=0; i<state.axes.length; ++i)
+			ret.axes[i] = state.axes[i];
+		return ret;
+	}
+
+	const emit = (event, ...args)=>{
+		if(event in eventListeners)
+			eventListeners[event](...args);
+		if('*' in eventListeners)
+			eventListeners['*'](event, ...args);
+	}
+
+	let app = {
+		version: 'v0.20200627a',
+		width: window.innerWidth,
+		height: window.innerHeight,
+		pixelRatio: 1, // todo, consider devicePixelRatio
+
+		setBackground: function(r,g,b) {
+			clearColor[0] = r/255;
+			clearColor[1] = g/255;
+			clearColor[2] = b/255;
+		},
+		close: function() {
+			history.back();
+		},
+		on: function(event, callback) {
+			if(!callback)
+				delete eventListeners[event];
+			else
+				eventListeners[event] = callback;
+		},
+		getResource: function(name, params={}) {
+			if(name in resources)
+				return resources[name];
+
+			const suffix = name.substr(name.lastIndexOf('.')+1).toLowerCase();
+			const readyCb = ()=>{
+				if(resourcesLoading<=0)
+					return;
+				if(--resourcesLoading===0)
+					setTimeout(()=>{ emit('ready'); }, 0);
+			}
+			let res = 0;
+			if(params.type=='font' || suffix=='ttf')
+				res = gfx.loadFont(name, params, readyCb);
+			else if(suffix=='png' || suffix=='jpg' || suffix=='svg')
+				res = gfx.loadTexture(name, params, readyCb);
+			else if(suffix=='mp3')
+				res = arcajs.audio.load(name, params, readyCb);
+			if(res) {
+				++resourcesLoading;
+				resources[name] = res;
+			}
+			return res;
+		},
+		createImageResource: function(...args) { return gfx.createTexture(...args); },
+		createCircleResource: function(r, fill=[255,255,255,255], lineW=0, stroke=[255,255,255,255]) {
+			return createCircleResource(r, fill, lineW, stroke); },
+		createPathResource: function(...args) { return createPathResource(...args); },
+		createSVGResource: function(svg, params) { return createSVGResource(svg, params); },
+		queryImage: function(texId) { return gfx.queryTexture(texId); },
+		queryFont: function(fontId, text) { return gfx.measureText(fontId, text); },
+		setPointer: function(onOrOff) {
+			document.querySelector('#canvas').style.cursor = onOrOff ? '' : 'none'; },
+		httpGet: function(url, callback) { arcajs.http.get(url, null, callback) },
+		httpPost: function(url, data, callback) { arcajs.http.post(url, data, callback) },
+		createSpriteSet: function(...args) { return arcajs.createSpriteSet(...args); },
+		require: function(name) { return modules[name]; },
+		exports: function(name, module) { modules[name] = module; },
+		getGamepad: function(id) { return getGamepad(id); }
+	}
+
+	function adjustCanvasSize(canvas, pixelRatio=1) {
+		var width  = canvas.clientWidth  * pixelRatio;
+		var height = canvas.clientHeight * pixelRatio;
+		if (canvas.width !== width || canvas.height !== height) {
+			canvas.width = width;
+			canvas.height = height;
+		}
+	}
+
+	const update = (now)=>{
+		now *= 0.001;
+		const deltaT = now-tLastFrame;
+		tLastFrame = now;
+		emit('update', deltaT, now);
+
+		let canvas = document.querySelector("#canvas");
+		adjustCanvasSize(canvas, /*window.devicePixelRatio || 1*/);
+		app.width = canvas.width;
+		app.height = canvas.height;
+
+		gfx._frameBegin(...clearColor);
+		emit('draw', gfx);
+		gfx._frameEnd();
+
+		requestAnimationFrame(update);
+	}
+	setTimeout(()=>{ requestAnimationFrame(update); }, 0);
+
+	document.body.addEventListener("touchmove", (evt)=>{ }, {passive: true});
+	window.addEventListener('unload', ()=>{ emit('close'); });
+	window.addEventListener('keydown', (evt)=>{ emit('keyboard', evt); });
+	window.addEventListener('keyup', (evt)=>{ emit('keyboard', evt); });
+	window.addEventListener("gamepadconnected", (evt)=>{
+		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:true };
+		emit('gamepad', { type:'connected', index:evt.gamepad.index });
+	});
+	window.addEventListener("gamepaddisconnected", (evt)=>{
+		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:false };
+		emit('gamepad', { type:'disconnected', index:evt.gamepad.index });
+	});
+	arcajs.infra.addPointerEventListener(canvas, (evt)=>{ emit('pointer', evt); });
+	setTimeout(()=>{ emit('resize', canvas.width, canvas.height); }, 0);
+	return app;
+})();
+	</script>
+	<script type="text/javascript" src="positionTest.js"></script>
+</html>

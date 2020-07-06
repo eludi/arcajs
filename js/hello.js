@@ -9,8 +9,10 @@ app.on('ready', function() {
 });
 
 app.on('update', function(deltaT, now) {
-    hello.setRot(now*Math.PI*0.5);
-    hello.setScale(Math.sin(now*3));
+    if(hello) {
+        hello.setRot(now*Math.PI*0.5);
+        hello.setScale(Math.sin(now*3));
+    }
 });
 
 app.on('draw', function(gfx) {

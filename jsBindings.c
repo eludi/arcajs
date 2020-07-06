@@ -259,7 +259,7 @@ static void bindConsole(duk_context *ctx) {
 /**
  * @function app.on
  * registers or removes an event listener callback for an application event.
- * The individual application events are described in [EVENTS.md].
+ * The individual application events are described in [EVENTS.md](EVENTS.md).
  * @param {string} name - event name
  * @param {function|null} callback - function to be executed when the event has happened, set null to remove
  */

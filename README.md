@@ -31,10 +31,12 @@ components, all written in portable and efficient C:
 
 ## Getting started
 
-Either check out the arcajs git archive, or preferably download the prepackaged
-browser runtime or a precompiled stand-alone executable from [](https://).
+Either check out the [arcajs git repository](https://github.com/eludi/arcajs),
+or download the prepackaged browser runtime or a precompiled stand-alone
+executable from the [dist folder](https://github.com/eludi/arcajs/tree/master/dist).
 
-A minimal hello world program using arcajs could look as follows:
+A [minimal hello world app](https://eludi.github.io/arcajs/js/) using arcajs
+could look as follows:
 
 ```javascript
 var audio = app.require('audio');
@@ -59,12 +61,12 @@ app.on('pointer', function(evt) {
 });
 ```
 
-As one can see in this little example, writing apps with arcajs requires a basic
-knowledge of Javascript.
+As one can see in this little example, writing apps with arcajs requires just a
+basic understanding of Javascript.
 
 The unified entry point to the entire arcajs API is the global app object. It
 provides functions for accessing modules, resources, and creating game
-entities. Furthermore the app object allows your program to register for
+entities. Furthermore, the app object allows your program to register for
 various events that are the core entry points for its interaction flow.
 
 ## Running your program

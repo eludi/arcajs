@@ -61,8 +61,8 @@ app.on('pointer', function(evt) {
 });
 ```
 
-As one can see in this little example, writing apps with arcajs requires just a
-basic understanding of Javascript.
+As one can see from this little example, writing apps with arcajs requires just
+a basic understanding of Javascript.
 
 The unified entry point to the entire arcajs API is the global app object. It
 provides functions for accessing modules, resources, and creating game
@@ -115,7 +115,8 @@ and [application events documentation](doc/EVENTS.md).
 
 ## Further examples
 
-For further examples please take a look at the examples and test folders within
+For further examples please take a look at the [examples](https://github.com/eludi/arcajs/tree/master/examples)
+and [test](https://github.com/eludi/arcajs/tree/master/test) folders within
 the repository.
 
 ## License

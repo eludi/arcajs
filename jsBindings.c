@@ -828,7 +828,7 @@ static duk_ret_t dk_gfxColorf(duk_context *ctx) {
  * sets current drawing color by hue, saturation, lightness, and optionally opacity.
  * @param {number} h - hue, value range 0.0..360.0
  * @param {number} s - saturation, value range 0.0..1.0
- * @param {number} l - lightnessn, value range 0.0..1.0
+ * @param {number} l - lightness, value range 0.0..1.0
  * @param {number} [a=1.0] - opacity, value between 0.0 (invisible) and 1.0 (opaque)
  * @returns {object} - this gfx object
  */

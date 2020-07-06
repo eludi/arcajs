@@ -16,7 +16,7 @@ similar format to
 one needs to be aware of the slight semantic and syntactic differences resulting
 from their different contexts. Arcajs interprets the following parameters:
 
-```JSON
+```javascript
 {
 	"name":"application window title",
 	"display":"fullscreen", // either "fullscreen" or "window" (default)
@@ -57,7 +57,7 @@ Finally, on Windows the arcajs.exe runtime and the application logic zip archive
 can be combined into a single executable file using the zzipsetstub utility from
 [lib_zzip](https://github.com/xriss/gamecake/blob/master/lib_zzip/test/zzipsetstub.c)
 and additional free command line tools ([upx](https://upx.github.io/) and
-[zip](ftp://ftp.info-zip.org/pub/infozip/win32/)). This compilation procedure
+[zip](http://http://infozip.sourceforge.net/)). This compilation procedure
 can be automized, the arcajs source contains an exemplary package.bat file
 demonstrating this, but this process likely requires manual tweaking, which is
 clearly beyond the supported scope of arcajs and of this document.

@@ -245,7 +245,7 @@ sets current drawing color by hue, saturation, lightness, and optionally opacity
 
 - {number} h - hue, value range 0.0..360.0
 - {number} s - saturation, value range 0.0..1.0
-- {number} l - lightnessn, value range 0.0..1.0
+- {number} l - lightness, value range 0.0..1.0
 - {number} [a=1.0] - opacity, value between 0.0 (invisible) and 1.0 (opaque)
 
 #### Returns:

@@ -18,8 +18,8 @@ components, all written in portable and efficient C:
 - [duktape](https://duktape.org) - embedded Javascript engine
 - [SDL](https://libsdl.org) - cross-platform layer providing unified access to
   graphics, audio, and input hardware
-- [stb\_image]((https://github.com/nothings/stb),
-  [stb\_truetype]((https://github.com/nothings/stb),
+- [stb\_image](https://github.com/nothings/stb),
+  [stb\_truetype](https://github.com/nothings/stb),
   [nano\_svg](https://github.com/memononen/nanosvg),
   [dr\_mp3](https://github.com/mackron/dr_libs/blob/master/dr_mp3.h) - resource
   loaders for PNG and JPG images, TTF fonts, SVG vector graphics primitives, and

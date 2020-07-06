@@ -1,8 +1,8 @@
-# Licensing information {#license}
+# Licensing information
 
-arcajs is released under the MIT license
+arcajs is released under the MIT license.
 
-Copyright (c) 2019 - 2019 Gerald Franz, https://eludi.net
+Copyright (c) 2019 - 2020 Gerald Franz, https://eludi.net
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -49,3 +49,8 @@ described below.
 (7) [gl3w](https://github.com/skaslev/gl3w) released into the public domain.
 
 (8) [rlgl](https://github.com/raysan5/raylib) released under the zlib license.
+
+(9) [zzipsetstub.c](https://github.com/xriss/gamecake/blob/master/lib_zzip/test/zzipsetstub.c)
+    released under GPL v2. This file is provided as part of the arcajs source
+    repository, but not linked with the arcajs executable, so its license terms
+    do not apply to arcajs itself.

@@ -68,6 +68,7 @@ void main() {
 <script type="text/javascript" src="graphicsGL.js"></script>
 <script type="text/javascript" src="sprites.js"></script>
 <script type="text/javascript" src="audio.js"></script>
+<script type="text/javascript" src="intersects.js"></script>
 <script type="text/javascript">
 "use strict";
 
@@ -76,7 +77,7 @@ let app = arcajs.app = (function() {
 	let eventListeners = {};
 	let resources = {};
 	let resourcesLoading = 0;
-	let modules = { audio:arcajs.audio };
+	let modules = { audio:arcajs.audio, intersects:arcajs.intersects };
 	let gamepads = [];
 	let tLastFrame=0;
 
@@ -265,5 +266,5 @@ let app = arcajs.app = (function() {
 	return app;
 })();
 	</script>
-	<script type="text/javascript" src="positionTest.js"></script>
+	<script type="text/javascript" src="hello.js"></script>
 </html>

@@ -33,7 +33,7 @@ components, all written in portable and efficient C:
 
 Either check out the [arcajs git repository](https://github.com/eludi/arcajs),
 or download the prepackaged browser runtime or a precompiled stand-alone
-executable from the [dist folder](https://github.com/eludi/arcajs/tree/master/dist).
+executable from the [releases](https://github.com/eludi/arcajs/releases/latest).
 
 A [minimal hello world app](https://eludi.github.io/arcajs/js/) using arcajs
 could look as follows:

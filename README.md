@@ -113,8 +113,8 @@ and [application events documentation](doc/EVENTS.md).
 
 ## Further examples
 
-For further examples please take a look at the examples folder within the
-repository.
+For further examples please take a look at the examples and test folders within
+the repository.
 
 ## License
 

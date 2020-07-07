@@ -395,7 +395,7 @@ int main(int argc, char **argv) {
 		ResourceArchiveClose();
 		return -5;
 	}
-	jsvmDispatchEvent(vm, "ready", NULL);
+	jsvmDispatchEvent(vm, "load", NULL);
 
 	// main loop:
 	Value* argUpdate = Value_float(0.0);

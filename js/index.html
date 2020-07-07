@@ -189,7 +189,7 @@ let app = arcajs.app = (function() {
 				if(resourcesLoading<=0)
 					return;
 				if(--resourcesLoading===0)
-					setTimeout(()=>{ emit('ready'); }, 0);
+					setTimeout(()=>{ emit('load'); }, 0);
 			}
 			let res = 0;
 			if(params.type=='font' || suffix=='ttf')
@@ -222,11 +222,12 @@ let app = arcajs.app = (function() {
 	}
 
 	function adjustCanvasSize(canvas, pixelRatio=1) {
-		var width  = canvas.clientWidth  * pixelRatio;
+		var width  = canvas.clientWidth * pixelRatio;
 		var height = canvas.clientHeight * pixelRatio;
 		if (canvas.width !== width || canvas.height !== height) {
 			canvas.width = width;
 			canvas.height = height;
+			emit('resize', canvas.clientWidth, canvas.clientHeight);
 		}
 	}
 
@@ -237,7 +238,7 @@ let app = arcajs.app = (function() {
 		emit('update', deltaT, now);
 
 		let canvas = document.querySelector("#canvas");
-		adjustCanvasSize(canvas, /*window.devicePixelRatio || 1*/);
+		adjustCanvasSize(canvas/*, window.devicePixelRatio || 1*/);
 		app.width = canvas.width;
 		app.height = canvas.height;
 

@@ -7,7 +7,7 @@ the single global entry point to the arcajs API. Always available.
 ### function app.on
 
 registers or removes an event listener callback for an application event.
-The individual application events are described in [EVENTS.md].
+The individual application events are described in [EVENTS.md](EVENTS.md).
 
 #### Parameters:
 

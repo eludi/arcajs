@@ -9,9 +9,9 @@ app.on('pointer', function(evt) {
 });
 ```
 
-## ready event
+## load event
 
-The ready event is triggered when the script code is initially interpreted and
+The load event is triggered when the script code is initially interpreted and
 all resource files are loaded and ready to be used.
 
 ### Callback function parameters:

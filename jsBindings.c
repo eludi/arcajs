@@ -1374,6 +1374,8 @@ static duk_ret_t dk_audioSound(duk_context *ctx) {
  * @function audio.melody
  * immediately plays an FM-generated melody based on a compact string notation
  * @param {string} melody - melody notated as a series of wave form descriptions and notes
+ * @param {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
+ * @param {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
  * @returns {number} track number playing this sound or UINT_MAX if no track is available
  */
 static duk_ret_t dk_audioMelody(duk_context *ctx) {
@@ -1404,6 +1406,12 @@ static duk_ret_t dk_audioSample(duk_context *ctx) {
 	return 1;
 }
 
+/// @property {number} audio.sampleRate - audio device sample rate in Hz
+static duk_ret_t dk_audioSampleRate(duk_context * ctx) {
+	duk_push_uint(ctx,AudioSampleRate());
+	return 1;
+}
+
 static void audio_exports(duk_context *ctx) {
 	duk_push_object(ctx);
 
@@ -1421,6 +1429,7 @@ static void audio_exports(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "melody");
 	duk_push_c_function(ctx, dk_audioSample, 2);
 	duk_put_prop_string(ctx, -2, "sample");
+	dk_defineReadOnlyProperty(ctx,"sampleRate", -1, dk_audioSampleRate);
 }
 
 //--- LocalStorage -------------------------------------------------
@@ -1492,7 +1501,6 @@ void LocalStoragePersistChanges(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, DUK_HIDDEN_SYMBOL("status"));
 	duk_pop(ctx);
 }
-
 
 void LocalStoragePush(duk_context* ctx) {
 	duk_get_global_string(ctx, "localStorage");

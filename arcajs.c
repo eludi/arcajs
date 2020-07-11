@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20200705a";
+const char* appVersion = "v0.20200711a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -230,6 +230,7 @@ int main(int argc, char **argv) {
 	char* windowTitle = NULL;
 	char* storageFileName = NULL;
 	char* iconName = NULL;
+	int isCalledWithScript = 0;
 
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
 	for(int i=1; i<argc; ++i) {
@@ -257,6 +258,7 @@ int main(int argc, char **argv) {
 	else if(archiveName[strlen(archiveName)-1]=='\\')
 		archiveName[strlen(archiveName)-1]=0;
 	else if(strcmp(ResourceSuffix(archiveName), "js")==0) {
+		isCalledWithScript = 1;
 		scriptName = archiveName;
 		size_t pos = strlen(scriptName)-1;
 		while(pos>0) {
@@ -283,7 +285,7 @@ int main(int argc, char **argv) {
 	char** scriptNames = NULL;
 	char* manifest = ResourceGetText("manifest.json");
 	unsigned audioFrequency = 44100, audioTracks = 8;
-	if(manifest) {
+	if(manifest && !isCalledWithScript) {
 		size_t json = jsonDecode(manifest);
 		windowTitle = jsonGetString(json, "name");
 		iconName = jsonGetString(json, "icon");
@@ -395,6 +397,7 @@ int main(int argc, char **argv) {
 		ResourceArchiveClose();
 		return -5;
 	}
+	WindowUpdateTimestamp();
 	jsvmDispatchEvent(vm, "load", NULL);
 
 	// main loop:

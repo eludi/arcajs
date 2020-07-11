@@ -418,6 +418,8 @@ immediately plays an FM-generated melody based on a compact string notation
 #### Parameters:
 
 - {string} melody - melody notated as a series of wave form descriptions and notes
+- {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
+- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
 
 #### Returns:
 
@@ -434,6 +436,10 @@ creates an audio sample from an array of floating point numbers
 #### Returns:
 
 - {number} sample handle to be used in audio.replay
+
+### Properties:
+
+- {number} audio.sampleRate - audio device sample rate in Hz
 
 ## module Sprite
 

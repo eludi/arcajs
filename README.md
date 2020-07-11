@@ -129,6 +129,17 @@ For further examples please take a look at the [examples](https://github.com/elu
 and [test](https://github.com/eludi/arcajs/tree/master/test) folders within
 the repository.
 
+## Status
+
+Arcajs has recently entered its beta stage. From our experience so far it runs
+fairly fast and stable and also scope-wise it is widely complete, so we consider
+it already now as a good basis for smaller projects.
+
+The current development focus is on ease of use, therefore some incompatible API changes are to be expected. Of course, any feedback and ideas are very welcome!
+Please contact us either using the
+[github issues tracker](https://github.com/eludi/arcajs/issues/new) or via
+[email](mailto:arcajs$AT$eludi.net).
+
 ## License
 
 This project is licensed under the permissive MIT License - see the

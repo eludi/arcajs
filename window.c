@@ -149,8 +149,7 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 			SDL_GL_SetSwapInterval(1);
 	}
 
-	wnd.timestamp = (double)SDL_GetTicks()/1000.0;
-	wnd.deltaT=0.0;
+	WindowUpdateTimestamp();
 	return 0;
 }
 
@@ -331,7 +330,6 @@ int WindowUpdate() {
 	if(wnd.vsync)
 		SDL_Delay(1);
 	wnd.timestamp = (double)SDL_GetTicks()/1000.0;
-	wnd.deltaT=wnd.timestamp-tPrev;
 	return 0;
 }
 
@@ -403,6 +401,12 @@ void WindowTitle(const char* str) {
 
 double WindowTimestamp() {
 	return wnd.timestamp;
+}
+
+void WindowUpdateTimestamp() {
+	double tPrev = wnd.timestamp;
+	wnd.timestamp = (double)SDL_GetTicks()/1000.0;
+	wnd.deltaT = wnd.timestamp-tPrev;
 }
 
 double WindowDeltaT() {

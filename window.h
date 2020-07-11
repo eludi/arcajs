@@ -39,6 +39,8 @@ float WindowPixelRatio();
 
 /// returns timestamp of last frame
 double WindowTimestamp();
+/// updates window timestamp
+void WindowUpdateTimestamp();
 /// returns time difference between last frames
 double WindowDeltaT();
 /// sleeps for at least n seconds

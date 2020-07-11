@@ -427,6 +427,10 @@ unsigned AudioTracks() {
 	return numTracks;
 }
 
+unsigned AudioSampleRate() {
+	return (unsigned)audioSpec.freq;
+}
+
 unsigned AudioSound(SoundWave waveForm, int freq, float duration, float volume, float balance) {
 	unsigned ret = UINT_MAX;
 	if(!devId)

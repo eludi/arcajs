@@ -22,6 +22,8 @@ void AudioSetVolume(float volume);
 float AudioGetVolume();
 /// returns total number of tracks
 unsigned AudioTracks();
+/// returns the device's sample rate
+unsigned AudioSampleRate();
 /// immediately plays a sound, balance 0.0 means center, -1.0 left, +1.0 right
 /** \return track number playing this sound or UINT_MAX if no track is available */
 unsigned AudioSound(SoundWave waveForm, int freq, float duration, float volume, float balance);

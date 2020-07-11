@@ -357,9 +357,10 @@ function Melody(melody) {
 	let notes = read(melody);
 	let melodyVolume = audioCtx.createGain();
 
-	this.replay = function(balance=0.0) {
+	this.replay = function(vol=1.0, balance=0.0) {
 		let params = initParams();
 		let t=0;
+		melodyVolume.gain.value = vol;
 		melodyVolume.connect(masterVolume);
 		for(let i=0; i<notes.length; ++i) {
 			let note = notes[i];
@@ -443,20 +444,21 @@ return {
 		source.start();
 		source.stop(audioCtx.currentTime + duration);
 	},
-	melody: function(melody, balance=0.0) {
+	melody: function(melody, vol=1.0, balance=0.0) {
 		let trackId = findAvailableTrack();
 		if(trackId === numTracksMax)
 			return 0xffffffff;
 
 		let m = tracks[trackId] = new Melody(melody);
-		let duration = m.replay();
+		let duration = m.replay(vol, balance);
 		setTimeout(()=>{ tracks[trackId].stop(); tracks[trackId]=null; }, duration*1000);
 	},
 	sample: function(data) {
 		let arr = Array.isArray(data) ? new Float32Array(data) : data;
 		samples.push({ id:samples.length+1, ready:true, url:'', buffer:arr.buffer });
 		return samples.length;
-	}
+	},
+	sampleRate: audioCtx.sampleRate
 }
 
 })();

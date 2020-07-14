@@ -704,7 +704,7 @@ static duk_ret_t dk_appVersion(duk_context *ctx) {
 	return 1;
 }
 
-/// @property {string} app.platform - arcajs platfrom, either 'browser' or 'standalone'
+/// @property {string} app.platform - arcajs platform, either 'browser' or 'standalone'
 static duk_ret_t dk_appPlatform(duk_context *ctx) {
 	duk_push_literal(ctx, "standalone");
 	return 1;

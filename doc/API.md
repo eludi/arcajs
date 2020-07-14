@@ -191,7 +191,7 @@ measures image dimensions.
 ### Properties:
 
 - {string} app.version - arcajs version
-- {string} app.platform - arcajs platfrom, either 'browser' or 'standalone'
+- {string} app.platform - arcajs platform, either 'browser' or 'standalone'
 - {number} app.width - window width in logical pixels
 - {number} app.height - window height in logical pixels
 - {number} app.pixelRatio - ratio physical to logical pixels

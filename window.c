@@ -330,6 +330,7 @@ int WindowUpdate() {
 	if(wnd.vsync)
 		SDL_Delay(1);
 	wnd.timestamp = (double)SDL_GetTicks()/1000.0;
+	wnd.deltaT = wnd.timestamp-tPrev;
 	return 0;
 }
 

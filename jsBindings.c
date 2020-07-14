@@ -220,9 +220,12 @@ static duk_ret_t dk_setTimeout(duk_context *ctx) {
 
 //--- console ------------------------------------------------------
 static duk_ret_t dk_fprintf(FILE* f, duk_context *ctx) {
-	int argc = duk_get_top(ctx);
-	for(int i=0; i<argc; ++i)
-		fprintf(f, "%s ",duk_to_string(ctx, i));
+	for(duk_idx_t i=0, argc = duk_get_top(ctx); i<argc; ++i) {
+		if(duk_is_array(ctx, i) || duk_is_object(ctx, i))
+			fprintf(f, "%s ", duk_json_encode(ctx, i));
+		else
+			fprintf(f, "%s ", duk_to_string(ctx, i));
+	}
 	fprintf(f, "\n");
 	fflush(f);
 	return 0;
@@ -701,6 +704,12 @@ static duk_ret_t dk_appVersion(duk_context *ctx) {
 	return 1;
 }
 
+/// @property {string} app.platform - arcajs platfrom, either 'browser' or 'standalone'
+static duk_ret_t dk_appPlatform(duk_context *ctx) {
+	duk_push_literal(ctx, "standalone");
+	return 1;
+}
+
 /// @property {number} app.width - window width in logical pixels
 static duk_ret_t dk_getWindowWidth(duk_context * ctx) {
 	duk_push_int(ctx, WindowWidth());
@@ -762,6 +771,7 @@ static void bindApp(duk_context *ctx, int bindGL) {
 	dk_defineReadOnlyProperty(ctx,"height", -1, dk_getWindowHeight);
 	dk_defineReadOnlyProperty(ctx,"pixelRatio", -1, dk_getWindowPixelRatio);
 	dk_defineReadOnlyProperty(ctx,"version", -1, dk_appVersion);
+	dk_defineReadOnlyProperty(ctx,"platform", -1, dk_appPlatform);
 
 	duk_put_global_string(ctx, "app");
 

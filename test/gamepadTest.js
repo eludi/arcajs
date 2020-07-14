@@ -3,7 +3,7 @@ var connected = [];
 var states = [];
 
 app.on('gamepad', function(evt) {
-    console.log(JSON.stringify(evt));
+    console.log(evt);
     if(evt.type=='connected')
         connected[evt.index]=true;
     else if(evt.type=='disconnected')

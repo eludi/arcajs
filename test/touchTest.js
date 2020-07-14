@@ -1,7 +1,7 @@
 var touches = {};
 
 app.on('pointer', function(evt) {
-	console.log(JSON.stringify(evt));
+	console.log(evt);
 	if(evt.device!='touch')
 		return;
 	if(evt.type=='start' || evt.type=='move') 

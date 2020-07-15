@@ -88,7 +88,7 @@ function Game(tilesX, tilesY, tileSet) {
 
         for(var i=0; i<shapes.length; ++i)
             shapes[i] = { shape:shapes[i], bg:[randi(2)*85,randi(2)*85,randi(2)*85],
-                fg:[randi(2,4)*85,randi(2,4)*t85,randi(2,4)*85] };
+                fg:[randi(2,4)*85,randi(2,4)*85,randi(2,4)*85] };
 
         shapes = shapes.concat(shapes);
         var tiles = [];

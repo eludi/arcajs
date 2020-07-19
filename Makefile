@@ -64,6 +64,10 @@ static: $(OBJ)
 zzipsetstub$(EXESUFFIX): zzipsetstub.o
 	$(CC) $(CFLAGS) $^ -o $@ -s
 
+dist: static
+	rcedit-x64.exe $(EXE) --set-icon doc\arcajs.ico
+	upx $(EXE)
+
 # modules:
 modules/dgram$(DLLSUFFIX): modules/dgram.o external/duktape.o
 	$(CC) -o $@ $(DLLFLAGS) $^ $(LIBS)

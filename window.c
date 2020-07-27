@@ -149,6 +149,7 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 			SDL_GL_SetSwapInterval(1);
 	}
 
+	SDL_StopTextInput();
 	WindowUpdateTimestamp();
 	return 0;
 }
@@ -368,6 +369,10 @@ void WindowTextInputStop() {
 int WindowTextInput(char str[256]) {
 	strncpy(str,wnd.inputText,wnd.inputTextSz+1);
 	return wnd.inputTextComplete;
+}
+
+int WindowTextInputActive() {
+	return SDL_IsTextInputActive();
 }
 
 void WindowEventHandler(int(*eventHandler)(), void* udata) {

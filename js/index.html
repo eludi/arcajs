@@ -223,6 +223,37 @@ let app = arcajs.app = (function() {
 		getGamepad: function(id) { return getGamepad(id); }
 	}
 
+	function emitTextInput(evt) {
+		if(!('textinput'in eventListeners))
+			return;
+		if(evt.key.length==1) {
+			const ch = evt.key.charCodeAt(0);
+			if(ch>=32 && ch<=127)
+				emit('textinput', { type:'textinput', char:evt.key });
+			else switch(ch) {
+				case 0xc4: emit('textinput', { type:'textinput', char:"Ae"}); break;
+				case 0xd6: emit('textinput', { type:'textinput', char:"Oe"}); break;
+				case 0xdc: emit('textinput', { type:'textinput', char:"Ue"}); break;
+				case 0xdf: emit('textinput', { type:'textinput', char:"ss"}); break;
+				case 0xe4: emit('textinput', { type:'textinput', char:"ae"}); break;
+				case 0xf6: emit('textinput', { type:'textinput', char:"oe"}); break;
+				case 0xfc: emit('textinput', { type:'textinput', char:"ue"}); break;
+				default:
+					return;
+			}
+		}
+		else switch(evt.key) {
+		case 'Alt':
+		case 'AltGraph':
+		case 'CapsLock':
+		case 'Control':
+		case 'Shift':
+			return;
+		default:
+			emit('textinput', { type:'textinput', key:evt.key });
+		}
+	}
+
 	function adjustCanvasSize(canvas, pixelRatio=1) {
 		var width  = canvas.clientWidth * pixelRatio;
 		var height = canvas.clientHeight * pixelRatio;
@@ -250,11 +281,15 @@ let app = arcajs.app = (function() {
 
 		requestAnimationFrame(update);
 	}
-	setTimeout(()=>{ requestAnimationFrame(update); }, 0);
+	setTimeout(()=>{
+		if(resourcesLoading===0 && Object.keys(resources).length===0)
+			emit('load');
+		requestAnimationFrame(update);
+	}, 0);
 
 	document.body.addEventListener("touchmove", (evt)=>{ }, {passive: true});
 	window.addEventListener('unload', ()=>{ emit('close'); });
-	window.addEventListener('keydown', (evt)=>{ emit('keyboard', evt); });
+	window.addEventListener('keydown', (evt)=>{ emit('keyboard', evt); emitTextInput(evt); });
 	window.addEventListener('keyup', (evt)=>{ emit('keyboard', evt); });
 	window.addEventListener("gamepadconnected", (evt)=>{
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:true };

@@ -370,7 +370,7 @@ return function (canvas, capacity=500) {
 		if(text!==undefined) {
 			metrics.width = 0;
 			for(let i=0; i<text.length; ++i) {
-				const ch = text.charCodeAt(i);
+				let ch = text.charCodeAt(i);
 				if(ch<32 || ch>126)
 					ch=32;
 				const glyph = font.glyphs[ch-32];

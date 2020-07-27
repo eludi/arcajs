@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20200720a";
+const char* appVersion = "v0.20200721a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -24,6 +24,19 @@ static void showError(const char* msg, ...) {
 	va_end(argptr);
 	if(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "arcajs Error", formattedMsg, NULL)!=0)
 		fprintf(stderr, "%s",formattedMsg);
+}
+
+static int isModifier(int sym) {
+	switch(sym) {
+	case SDLK_LALT:
+	case SDLK_RALT:
+	case SDLK_LSHIFT:
+	case SDLK_RSHIFT:
+	case SDLK_LCTRL:
+	case SDLK_RCTRL:
+		return 1;
+	}
+	return 0;
 }
 
 static const char* keySymToKey(int sym) {
@@ -175,18 +188,36 @@ int handleEvents(void* udata) {
 			ret = 1;
 		// NO break;
 	case SDL_KEYUP: {
-		const char* key = keySymToKey(evt.key.keysym.sym);
+		SDL_KeyCode sym = evt.key.keysym.sym;
+		const char* key = keySymToKey(sym);
+		//if(evt.type==SDL_KEYDOWN) printf("keydown %s\n", key);
 		if(key) {
+			int isShift = (evt.key.keysym.mod & KMOD_SHIFT);
 			Value* event = Value_new(VALUE_MAP, NULL);
 			Value_set(event, "evt", Value_str("keyboard"));
 			Value_set(event, "type", Value_str(evt.type==SDL_KEYDOWN ? "keydown" : "keyup"));
 			Value_set(event, "key", Value_str(key));
 			Value_set(event, "ctrlKey", Value_bool(evt.key.keysym.mod & KMOD_CTRL));
 			Value_set(event, "altKey", Value_bool(evt.key.keysym.mod & KMOD_ALT));
-			Value_set(event, "shiftKey", Value_bool(evt.key.keysym.mod & KMOD_SHIFT));
+			Value_set(event, "shiftKey", Value_bool(isShift));
 			Value_set(event, "metaKey", Value_bool(evt.key.keysym.mod & KMOD_GUI));
 			Value_set(event, "repeat", Value_bool(evt.key.repeat));
 			Value_append(events, event);
+
+			if(evt.type==SDL_KEYDOWN && WindowTextInputActive() && !isModifier(sym) && (sym<32||sym>127)) {
+				Value* event = Value_new(VALUE_MAP, NULL);
+				Value_set(event, "evt", Value_str("textinput"));
+				switch((int)sym) {
+					case 0xdf: if(!isShift) { Value_set(event, "char", Value_str("ss")); break; }
+						Value_delete(event, 1); continue;
+					case 0xe4: Value_set(event, "char", Value_str(isShift ? "Ae" : "ae")); break;
+					case 0xf6: Value_set(event, "char", Value_str(isShift ? "Oe" : "oe")); break;
+					case 0xfc: Value_set(event, "char", Value_str(isShift ? "Ue" : "ue")); break;
+				default:
+					Value_set(event, "key", Value_str(key));
+				}
+				Value_append(events, event);
+			}
 		}
 		break;
 	}
@@ -202,6 +233,19 @@ int handleEvents(void* udata) {
 		Value_set(event, "type", Value_str(evt.type==SDL_JOYDEVICEADDED ? "connected" : "disconnected"));
 		Value_set(event, "index", Value_int(evt.jdevice.which));
 		Value_append(events, event);
+		break;
+	}
+	case SDL_TEXTINPUT: {
+		const char* input = evt.text.text;
+		size_t sz = strlen(input);
+		if(sz>1)
+			break;
+
+		Value* event = Value_new(VALUE_MAP, NULL);
+		Value_set(event, "evt", Value_str("textinput"));
+		Value_set(event, "char", Value_str(input));
+		Value_append(events, event);
+		//printf("textinput %s\n", input);
 		break;
 	}
 	case SDL_QUIT:

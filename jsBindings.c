@@ -269,11 +269,16 @@ static void bindConsole(duk_context *ctx) {
 static duk_ret_t dk_onEvent(duk_context *ctx) {
 	const char* event = duk_to_string(ctx, 0);
 	duk_push_global_stash(ctx);
-	if(!duk_is_function(ctx, 1))
+	if(!duk_is_function(ctx, 1)) {
 		duk_del_prop_string(ctx, -1, event);
+		if(strcmp(event, "textinput")==0)
+			WindowTextInputStop();
+	}
 	else {
 		duk_dup(ctx, 1); // callback fn
 		duk_put_prop_string(ctx, -2, event);
+		if(strcmp(event, "textinput")==0)
+			WindowTextInputStart();
 	}
 	return 0;
 }

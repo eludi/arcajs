@@ -56,8 +56,8 @@ of events: start, move, end, and hover (the latter mouse only).
 
 ### Callback function parameters:
 
-- {object} evt - an event structure combining event type, event x and y position,
-  id (that is button or touch id), and pointerType (mouse or touch)
+- {object} evt - an event structure combining event type, event x and y
+  position, id (that is button or touch id), and pointerType (mouse or touch)
 
 ## keyboard event
 
@@ -68,6 +68,18 @@ The keyboard event is triggered when a key is pressed (keydown) or released
 
 - {object} evt - an event structure containing event type, key name, current
   state of modifier keys and number of repetitions
+
+## textinput event
+
+The experimental text input event is triggered when a key having a printable
+ASCII value is pressed. Currently it does not support virtual on-screen
+keyboards in the browser runtime.
+
+### Callback function parameters:
+
+- {object} evt - an event structure containing event type, char string value
+  for printable ASCII characters, or a key value for non-printable (navigation)
+  keys
 
 ## gamepad event
 

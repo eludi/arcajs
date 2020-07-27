@@ -53,13 +53,15 @@ uint32_t WindowGetClearColor();
 /// returns SDL renderer
 void* WindowRenderer();
 
+// mouse/keyboard input handling API
 /// starts the processing of text input
 void WindowTextInputStart();
-// mouse/keyboard input handling API
 /// returns user keyboard input text and true in case a string has been finished
 int WindowTextInput(char str[256]);
 /// stops the processing of text input
 void WindowTextInputStop();
+/// returns whether text input events are currently processed
+int WindowTextInputActive();
 /// returns current user input axes (mouse, arrow, pageup/dn keys) and buttons (mouse, F1..12 keys)
 void WindowInput(float axis[6], unsigned int button[1]);
 /// registers a custom event handler

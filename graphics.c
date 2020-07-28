@@ -17,17 +17,6 @@ static SDL_Texture* solidFill; /// solid fill texture
 static SDL_Rect viewport;
 static SDL_Texture* defaultFont;
 
-static size_t gfxImageCreate(int w, int h) {
-	SDL_Texture* texture = SDL_CreateTexture(
-		renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, w, h);
-	SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-	SDL_SetRenderTarget(renderer, texture);
-	SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
-	SDL_RenderClear(renderer);
-	SDL_SetRenderTarget(renderer, 0);
-	return (size_t)texture;
-}
-
 static size_t uploadDefaultFont(const unsigned char* font, unsigned char wChar, unsigned char hChar) {
 	const unsigned texW = 16*wChar, texH = 16*hChar, bytesPerRow = texW/8;
 	uint32_t* data = (uint32_t*)malloc(sizeof(uint32_t)*texW*texH);
@@ -271,17 +260,19 @@ size_t gfxFontUpload(void* fontData, unsigned dataSize, float fontHeight) {
 	stbtt_BakeFontBitmap(fontData,0, fontHeight, bitmap, texW, texH, GLYPH_MIN, GLYPH_COUNT, glyphData);
 
 	// transfer data/metrics to texture and font spec:
-	size_t texId = gfxImageCreate(texW, texH);
-	SDL_SetRenderTarget(renderer, (SDL_Texture*)texId);
-	for(unsigned y=0; y<texH; ++y)
-		for(unsigned x=0; x<texW; ++x) {
-			uint8_t px = bitmap[y*texW+x];
-			if(!px)
-				continue;
-			SDL_SetRenderDrawColor(renderer, 255, 255, 255, px);
-			SDL_RenderDrawPoint(renderer, x, y);
-		}
-	SDL_SetRenderTarget(renderer, 0);
+	uint8_t* pixels = malloc(texW*texH*4);
+	memset(pixels, 0, texW*texH*4);
+
+	for(unsigned y=0; y<texH; ++y) for(unsigned x=0; x<texW; ++x) {
+		size_t pos = y*texW+x;
+		uint8_t px = bitmap[pos];
+		if(!px)
+			continue;
+		pixels[pos*4+0] = pixels[pos*4+1] = pixels[pos*4+2] = 255;
+		pixels[pos*4+3] = px;
+	}
+	size_t texId = gfxImageUpload(pixels, texW, texH, 4);
+	free(pixels);
 	free(bitmap);
 
 	FontSpec* fnt = (FontSpec*)malloc(sizeof(FontSpec));

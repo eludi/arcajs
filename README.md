@@ -1,4 +1,4 @@
-# arcajs
+# ![](doc/arcajs.png "arcajs logo") arcajs
 
 arcajs is a simple and lightweight cross-platform Javascript 2D multimedia/game
 framework that runs both within a browser and on its own compact and optimized

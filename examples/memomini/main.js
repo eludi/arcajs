@@ -1,6 +1,8 @@
 var tileSet = app.getResource('basic_shapes.svg');
 var icons = app.getResource('icons.svg');
+var font = app.getResource('BebasNeue-Regular.ttf', {size:56});
 var circle = app.createCircleResource(128);
+const scorePerClick = [100,25,10,5,4,3,2,1];
 
 app.setBackground(0x33, 0x33, 0x33);
 var buttons = [];
@@ -13,36 +15,70 @@ function randi(v1, v2) {
     return v1+Math.floor(Math.random()*(v2-v1));
 }
 
-function Button(image, x,y,w,h, callback) {
-    this.color = [255,255,255,170];
-    this.isSelected = false;
-    var imgDims = app.queryImage(image);
-    var srcX = 0, srcY = 0, srcW=imgDims.width, srcH=imgDims.height;
+function padZeros(value, numDigits) {
+    var s = ''+value;
+    if(value>=0)
+        while(s.length<numDigits)
+            s = '0'+s;
+    return s;
+}
 
-    this.setSource = function(x,y,w,h) {
-        srcX=x;
-        srcY=y;
-        if(w!==undefined) {
-            srcW=w;
-            srcH=h;
-        }
-    }
+const UI = {
+    Button: function(image, x,y,w,h, callback) {
+        this.color = [255,255,255,170];
+        this.isSelected = false;
+        var imgDims = app.queryImage(image);
+        var srcX = 0, srcY = 0, srcW=imgDims.width, srcH=imgDims.height;
 
-    this.handlePointer = function(evt) {
-        if(evt.x<x || evt.y<y || evt.x >= x+w || evt.y>=y+h)
-            this.isSelected = false;
-        else
-            this.isSelected = true;
-        if(this.isSelected && evt.type=='start') {
-            callback();
-            return true;
+        this.setSource = function(x,y,w,h) {
+            srcX=x;
+            srcY=y;
+            if(w!==undefined) {
+                srcW=w;
+                srcH=h;
+            }
         }
-        return false;
-    }
-    this.draw = function(gfx) {
-        gfx.color(this.color[0],this.color[1],this.color[2],
-            this.color[3]*(this.isSelected ? 1 : 0.5))
-            .drawImage(image,srcX, srcY,srcW,srcH, x,y,w,h);
+
+        this.handlePointer = function(evt) {
+            if(evt.x<x || evt.y<y || evt.x >= x+w || evt.y>=y+h)
+                this.isSelected = false;
+            else
+                this.isSelected = true;
+            if(this.isSelected && evt.type=='start') {
+                callback();
+                return true;
+            }
+            return false;
+        }
+        this.update = function(deltaT, tNow) { }
+        this.draw = function(gfx) {
+            gfx.color(this.color[0],this.color[1],this.color[2],
+                this.color[3]*(this.isSelected ? 1 : 0.5))
+                .drawImage(image,srcX, srcY,srcW,srcH, x,y,w,h);
+        }
+    },
+
+    Label: function(font, x,y, text, align) {
+        this.color = [255,255,255,85];
+        this.selColor = [255,255,255,255];
+        this.text = text;
+        var hilighted = false, tHilighted=0;
+
+        this.setValue = function(text, hilight) {
+            this.text = text;
+            tHilighted = hilight/3;
+        }
+        this.handlePointer = function(evt) { }
+        this.update = function(deltaT, tNow) {
+            if(tHilighted<=0)
+                return;
+            tHilighted = Math.max(tHilighted-deltaT, 0);
+            hilighted = tHilighted*3-Math.floor(tHilighted*3)>0.5;
+        }
+        this.draw = function(gfx) {
+            var col = hilighted ? this.selColor : this.color;
+            gfx.color(col[0],col[1],col[2],col[3]).fillText(font,x,y, this.text, align);
+        }
     }
 }
 
@@ -66,11 +102,13 @@ initLayout(layout);
 
 function Game(tilesX, tilesY, tileSet) {
     const numPairs = Math.floor(tilesX*tilesY/2);
-    var numPairsRemaining = numPairs;
-    var state = 'input';
+    var numPairsFound = 0, clicks = 0, score=0;
+    var state = 'intro';
     var tiles=[], tilesSelected=[];
     var cursorX = 0, cursorY = 0, cursorVisible = true;
-    this.clicks = 0;
+    var backCol = [170,0,85];
+    var labelScore = new UI.Label(font, 4,0, '0000');
+    labelScore.selColor = [220,255,170,255];
 
     var numCirclesToDraw = 0;
     var circles = [];
@@ -101,41 +139,52 @@ function Game(tilesX, tilesY, tileSet) {
         if(tilesSelected.length!=2)
             return;
         state = 'evaluating';
-        ++this.clicks;
-        if(tilesSelected[0].shape === tilesSelected[1].shape) {
+        var t0 = tiles[tilesSelected[0].index], t1 = tiles[tilesSelected[1].index];
+        if(t0.shape === t1.shape) {
+            t0.tSelected = t1.tSelected = 0;
+            t0.state = t1.state = 'disappear';
+            ++numPairsFound;
+            const delta = clicks<scorePerClick.length ? scorePerClick[clicks] : 1;
+            score += delta;
+            labelScore.setValue(padZeros(score,4), delta>50 ? 3 : delta>=10 ? 2 : 1);
             setTimeout(function() {
-                tiles[tilesSelected[0].index] = tiles[tilesSelected[1].index] = null;
-                if(--numPairsRemaining==0) {
+                tiles[t0.index] = tiles[t1.index] = null;
+                if(numPairsFound==numPairs) {
                     state = 'over';
-                    setTimeout(start, 4000)
+                    setTimeout(start, 3000)
                 }
                 else
                     state = 'input';
                 tilesSelected.length = 0;
+                clicks = 0;
             }, 1200);
         }
         else {
+            ++clicks;
             setTimeout(function() {
-                tilesSelected[0].selected = tilesSelected[1].selected = false;
+                tilesSelected[0].state = tilesSelected[1].state = 'hidden';
                 tilesSelected.length = 0;
                 state = 'input';
             }, 1200);
         }
     }
 
-    function handleClick(x,y) {
+    function handleSelect(x,y) {
         if(state!='input')
             return;
         var tileId = y*tilesX+x, tile=tiles[tileId];
-        if(!tile || tilesSelected.length>1 || tile.selected)
+        if(!tile || tilesSelected.length>1 || tile.state!=='hidden')
             return;
-        tile.selected = !tile.selected;
+        tile.state = 'visible';
+        tile.tSelected = 0;
         tilesSelected.push(tile);
         if(tilesSelected.length>1)
             evaluateSelection();
     };
 
     this.handlePointer = function(evt) {
+        if(state==='intro')
+            return;
         cursorVisible = false;
         app.setPointer(true);
         if(evt.type!=='start')
@@ -143,7 +192,7 @@ function Game(tilesX, tilesY, tileSet) {
         var x = Math.floor((evt.x-layout.ox) / layout.gridSz);
         var y = Math.floor((evt.y-layout.oy) / layout.gridSz);
         if(x>=0 && y>=0 && x<tilesX && y<tilesY)
-            handleClick(x, y);
+            handleSelect(x, y);
     }
 
     this.handleKeyboard = function(evt) {
@@ -158,47 +207,107 @@ function Game(tilesX, tilesY, tileSet) {
             case 'ArrowUp': if(--cursorY<0) cursorY+=tilesY; break;
             case ' ':
             case 'Enter':
-                return handleClick(cursorX, cursorY);
+                return handleSelect(cursorX, cursorY);
         }
+    }
+
+    function update(deltaT, tNow) {
+        if(state==='intro')
+            tiles.forEach(function(tile) {
+                if(tile.z>1000)
+                    tile.z *= 0.95;
+            });
+        else tiles.forEach(function(tile) {
+            if(!tile)
+                return;
+            if(tile.state==='visible') {
+                if(tile.tSelected<0.5)
+                    tile.z = 1-0.1*Math.sin(tile.tSelected*2*Math.PI);
+                else
+                    tile.z = 1;
+                tile.tSelected += deltaT;
+            }
+            else if(tile.state==='disappear') {
+                if(tile.tSelected<0.5)
+                    tile.z = 1+0.1*Math.sin(tile.tSelected*2*Math.PI);
+                else if(tile.z>0) {
+                    tile.z -= deltaT*2;
+                    if(tile.z>0)
+                        tile.opacity -= 255*deltaT*2;
+                    else {
+                        tile.z = 0;
+                        tile.opacity = 0;
+                    }
+                }
+                tile.tSelected += deltaT;
+            }
+        });
+        labelScore.update(deltaT, tNow);
     }
 
     this.draw = function(gfx) {
         const l=layout;
+        if(state==='intro') {
+            var cx = app.width/2, cy = app.height/2;
+            for(var j=0, y=l.oy+l.borderSz, tileId=0; j<tilesY; ++j, y+=l.gridSz)
+                for(var i=0, x=l.ox+l.borderSz; i<tilesX; ++i, x+=l.gridSz, ++tileId) {
+                    const tile = tiles[tileId]
+                    if(tile.z>50000)
+                        continue;
+                    var tileX = x-cx, tileY = y-cy;
+                    var f = tile.z/1000;
+                    gfx.color(170,f>=1 ? 0: 255, 85, f>1?127:255)
+                        .fillRect(f*tileX+cx, f*tileY+cy, l.tileSz*f, l.tileSz*f);
+                    if(f<1)
+                        tile.z = 1000;
+                }
+            return;
+        }
         if(state==='over') {
-            gfx.color(255,255,255);
+            gfx.color(220,255,170);
             for(var i=0, end=Math.min(++numCirclesToDraw,circles.length) ; i<end; i+=2)
                 gfx.drawImage(circle, circles[i], circles[i+1], cd, cd);
             return;
         }
 
-        for(var j=0, y=l.oy+l.borderSz, tileId=0; j<tilesY; ++j, y+=l.gridSz)
-            for(var i=0, x=l.ox+l.borderSz; i<tilesX; ++i, x+=l.gridSz, ++tileId) {
+        for(var j=0, y=l.oy+l.gridSz/2, tileId=0; j<tilesY; ++j, y+=l.gridSz)
+            for(var i=0, x=l.ox+l.gridSz/2; i<tilesX; ++i, x+=l.gridSz, ++tileId) {
                 const tile = tiles[tileId]
                 if(!tile)
                     continue;
-                if(!tile.selected) {
-                    gfx.color(170,0,85).fillRect(x,y, l.tileSz, l.tileSz);
+                var sz = l.tileSz*tile.z, d=sz/2;
+                if(tile.state==='hidden') {
+                    gfx.color(backCol[0],backCol[1],backCol[2], tile.opacity);
+                    gfx.fillRect(x-d,y-d, sz, sz);
                     continue;
                 }
                 const shape = tile.shape;
                 const srcX = shape % tileSet.tilesX, srcY = Math.floor(shape/tileSet.tilesX), srcSz = tileSet.sz;
-                gfx.color(tile.bg[0],tile.bg[1],tile.bg[2]).fillRect(x,y, l.tileSz, l.tileSz);
-                gfx.color(tile.fg[0],tile.fg[1],tile.fg[2]).drawImage(
+                gfx.color(tile.bg[0],tile.bg[1],tile.bg[2], tile.opacity).fillRect(x-d,y-d, sz,sz);
+                gfx.color(tile.fg[0],tile.fg[1],tile.fg[2], tile.opacity).drawImage(
                     tileSet.img,
-                    srcX*srcSz,srcY*srcSz,tileSet.sz,tileSet.sz,
-                    x,y, l.tileSz,l.tileSz);
+                    srcX*srcSz,srcY*srcSz,tileSet.sz,tileSet.sz, x-d,y-d, sz,sz);
             }
 
         if(cursorVisible) {
-            gfx.color(255,255,255);
+            gfx.color(220,255,170);
             var x = l.ox+l.gridSz*cursorX, y=l.oy+l.gridSz*cursorY;
-            gfx.drawRect(x+1,y+1, l.gridSz-2, l.gridSz-2);
+            gfx.drawRect(x+2,y+2, l.gridSz-4, l.gridSz-4);
         }
+        labelScore.draw(gfx);
     }
 
     randomizeTiles(tileSet.tilesX*tileSet.tilesY, numPairs).forEach(function(tile, index) {
-        tiles.push({shape:tile.shape, index:index, selected:false, bg:tile.bg, fg:tile.fg });
+        tiles.push({shape:tile.shape, index:index, state:'hidden', bg:tile.bg, fg:tile.fg,
+            opacity:255, z:randi(10000,100000) });
     });
+
+    app.on('update', update);
+    app.setPointer(false);
+    setTimeout(function() {
+        cursorVisible = true; state = 'input'; 
+        tiles.forEach(function(tile) { tile.z = 1; });
+    }, 2000);
 }
 var game = null;
 
@@ -209,7 +318,7 @@ function start() {
 }
 
 app.on('load', function() {
-    var btnClose = new Button(icons,app.width-48,8,40,40, function() {
+    var btnClose = new UI.Button(icons,app.width-48,8,40,40, function() {
         app.close();
     });
     btnClose.setSource(0,128,128,128);

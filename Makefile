@@ -1,7 +1,7 @@
 CC     = gcc
 CFLAGS = -Wall -Wpedantic -Os
 
-SHARED = ../shared
+SDL = ../SDL2
 
 ifeq ($(OS),Windows_NT)
   OS            = win32
@@ -12,13 +12,13 @@ else
 endif
 
 ifeq ($(OS),Linux)
-  INCDIR        = -I$(SHARED)/SDL2/include -D_REENTRANT -Iexternal
+  INCDIR        = -I$(SDL)/include -D_REENTRANT -Iexternal
   ifeq ($(ARCH),Linux_armv6l)
     CFLAGS     += -DGRAPHICS_API_OPENGL_ES2
-    LIBS        = `sdl2-config --libs` -L/opt/vc/lib -lbrcmGLESv2 -lbrcmEGL -ldl -lcurl -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -lSDL2 -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -L/opt/vc/lib -lbrcmGLESv2 -lbrcmEGL -ldl -lcurl -lm
   else
     CFLAGS     += -DGRAPHICS_API_OPENGL_33
-    LIBS        = -L$(SHARED)/SDL2/lib/$(ARCH) -lSDL2 -lGL -ldl -lcurl -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -lSDL2 -lGL -ldl -lcurl -lm
   endif
   DLLFLAGS      = -fPIC -shared
   DLLSUFFIX     = .so
@@ -31,11 +31,11 @@ else
     DLLSUFFIX = .so
     EXESUFFIX = .app
   else # windows, MinGW
-    INCDIR        = -I$(SHARED)/SDL2/include -Iexternal
+    INCDIR        = -I$(SDL)/include -Iexternal
     CFLAGS       += -DGRAPHICS_API_OPENGL_33
-    LIBS          = -L$(SHARED)/SDL2/lib/$(ARCH) -lmingw32 -lSDL2main -lSDL2 -lwinmm -luser32 \
+    LIBS          = -L$(SDL)/lib/$(ARCH) -lmingw32 -lSDL2main -lSDL2 -lwinmm -luser32 \
                     -lopengl32 -lgdi32 -lkernel32 -lwininet -lwsock32 -lm -mconsole
-    STATIC_LIBS   = -L$(SHARED)/SDL2/lib/$(ARCH) -static -lmingw32 -lSDL2main -lSDL2 -Wl,--no-undefined -lm \
+    STATIC_LIBS   = -L$(SDL)/lib/$(ARCH) -static -lmingw32 -lSDL2main -lSDL2 -Wl,--no-undefined -lm \
                     -ldinput8 -ldxguid -ldxerr8 -luser32 -lopengl32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 \
                     -lshell32 -lsetupapi -lversion -luuid -lwininet -static-libgcc -mwindows
     DLLFLAGS      = -shared -s

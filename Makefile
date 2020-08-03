@@ -15,10 +15,10 @@ ifeq ($(OS),Linux)
   INCDIR        = -I$(SDL)/include -D_REENTRANT -Iexternal
   ifeq ($(ARCH),Linux_armv6l)
     CFLAGS     += -DGRAPHICS_API_OPENGL_ES2
-    LIBS        = -L$(SDL)/lib/$(ARCH) -lSDL2 -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -L/opt/vc/lib -lbrcmGLESv2 -lbrcmEGL -ldl -lcurl -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -L/opt/vc/lib -lbrcmGLESv2 -lbrcmEGL -ldl -lcurl -lm
   else
     CFLAGS     += -DGRAPHICS_API_OPENGL_33
-    LIBS        = -L$(SDL)/lib/$(ARCH) -lSDL2 -lGL -ldl -lcurl -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -lpthread -lrt -lGL -ldl -lcurl -lm
   endif
   DLLFLAGS      = -fPIC -shared
   DLLSUFFIX     = .so

@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+extern uint32_t array2color(duk_context *ctx, duk_idx_t idx);
+
 #define ERROR_MAXLEN 512
 static char s_lastError[ERROR_MAXLEN];
 
@@ -31,37 +33,44 @@ static duk_bool_t isPrototype(duk_context* ctx, int index, const char* name) {
 /**
  * @function Sprite.setColor
  * sets the sprite's color possibly blending with its pixel colors
- * @param {number} r - RGB red component in range 0..255
- * @param {number} g - RGB green component in range 0..255
- * @param {number} b - RGB blue component in range 0..255
+ * @param {number|array|buffer} r - RGB red component in range 0..255 or combined color array/array buffer
+ * @param {number} [g] - RGB green component in range 0..255
+ * @param {number} [b] - RGB blue component in range 0..255
  * @param {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
  */
 static duk_ret_t dk_SpriteSetColor(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
-	int r = duk_to_int(ctx, 0);
-	int g = duk_to_int(ctx, 1);
-	int b = duk_to_int(ctx, 2);
-	int a = duk_get_int_default(ctx, 3, 255);
-	SpriteColorRGBA(sprite, r,g,b,a);
+	if(duk_is_undefined(ctx, 1)) {
+		uint32_t color = array2color(ctx, 0);
+		uint8_t r = color >> 24, g = color >> 16, b = color >> 8, a = color;
+		SpriteColorRGBA(sprite, r,g,b,a);
+	}
+	else {
+		int r = duk_to_int(ctx, 0);
+		int g = duk_to_int(ctx, 1);
+		int b = duk_to_int(ctx, 2);
+		int a = duk_get_int_default(ctx, 3, 255);
+		SpriteColorRGBA(sprite, r,g,b,a);
+	}
 	return 0;
 }
 
 /**
  * @function Sprite.getColor
  * returns the sprite's RGBA color
- * @returns {object} color {r,g,b,a}, components in range 0..255
+ * @returns {array} color [r,g,b,a], components in range 0..255
  */
 static duk_ret_t dk_SpriteGetColor(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
-	duk_push_object(ctx);
+	duk_push_array(ctx);
 	duk_push_int(ctx, sprite->r);
-	duk_put_prop_literal(ctx, -2, "r");
+	duk_put_prop_index(ctx, -2, 0);
 	duk_push_int(ctx, sprite->g);
-	duk_put_prop_literal(ctx, -2, "g");
+	duk_put_prop_index(ctx, -2, 1);
 	duk_push_int(ctx, sprite->b);
-	duk_put_prop_literal(ctx, -2, "b");
+	duk_put_prop_index(ctx, -2, 2);
 	duk_push_int(ctx, sprite->a);
-	duk_put_prop_literal(ctx, -2, "a");
+	duk_put_prop_index(ctx, -2, 3);
 	return 1;
 }
 

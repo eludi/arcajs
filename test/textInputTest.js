@@ -72,7 +72,7 @@ function TextInput(font, x,y,w,h, callback) {
 
     this.draw = function(gfx) {
         if(this.bg[3])
-            gfx.color(this.bg[0], this.bg[1], this.bg[2], this.bg[3]).fillRect(x,y,w,h);
+            gfx.color(this.bg).fillRect(x,y,w,h);
         gfx.color(this.fg[0], this.fg[1], this.fg[2], this.fg[3]*(hasFocus?1:0.66));
         gfx.fillText(font, x,y, this.value.substr(originX));
         if(cursorVisible && hasFocus)

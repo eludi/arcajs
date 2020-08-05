@@ -4,7 +4,7 @@ var font = app.getResource('BebasNeue-Regular.ttf', {size:56});
 var circle = app.createCircleResource(128);
 const scorePerClick = [100,25,10,5,4,3,2,1];
 
-app.setBackground(0x33, 0x33, 0x33);
+app.setBackground([0x33, 0x33, 0x33]);
 var buttons = [];
 
 var numShapes = 12;
@@ -76,8 +76,7 @@ const UI = {
             hilighted = tHilighted*3-Math.floor(tHilighted*3)>0.5;
         }
         this.draw = function(gfx) {
-            var col = hilighted ? this.selColor : this.color;
-            gfx.color(col[0],col[1],col[2],col[3]).fillText(font,x,y, this.text, align);
+            gfx.color(hilighted ? this.selColor : this.color).fillText(font,x,y, this.text, align);
         }
     }
 }

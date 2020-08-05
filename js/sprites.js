@@ -52,12 +52,20 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 		getCenterY: function() { return this.cy; },
 	
 		setColor: function(r,g,b,a=255) {
-			this.r = r;
-			this.g = g;
-			this.b = b;
-			this.a = a;
+			if(g===undefined) {
+				this.r = r[0];
+				this.g = r[1];
+				this.b = r[2];
+				this.a = (r[3] !== undefined) ? r[3] : 255;
+			}
+			else {
+				this.r = r;
+				this.g = g;
+				this.b = b;
+				this.a = a;
+			}
 		},
-		getColor: function() { return {r:this.r, g:this.g, b:this.b, a:this.a}; },
+		getColor: function() { return [this.r, this.g, this.b, this.a]; },
 		getAlpha: function() { return this.a; },
 		setAlpha: function(a) { this.alpha = a; },
 		getRadius: function() { return this.radius; },

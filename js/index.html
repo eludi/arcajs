@@ -162,16 +162,23 @@ let app = arcajs.app = (function() {
 	}
 
 	let app = {
-		version: 'v0.20200727a',
+		version: 'v0.20200805a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
 		pixelRatio: 1, // todo, consider devicePixelRatio
 
 		setBackground: function(r,g,b) {
-			clearColor[0] = r/255;
-			clearColor[1] = g/255;
-			clearColor[2] = b/255;
+			if(g===undefined) {
+				clearColor[0] = r[0]/255;
+				clearColor[1] = r[1]/255;
+				clearColor[2] = r[2]/255;
+			}
+			else {
+				clearColor[0] = r/255;
+				clearColor[1] = g/255;
+				clearColor[2] = b/255;
+			}
 		},
 		close: function() {
 			history.back();

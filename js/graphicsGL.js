@@ -309,7 +309,10 @@ return function (canvas, capacity=500) {
 	}
 
 	this.color = function(r,g,b,a=255) {
-		color_f = fpack.rgba(r,g,b,a);
+		if(g===undefined)
+			color_f = fpack.rgba(r[0],r[1], r[2], r[3]);
+		else
+			color_f = fpack.rgba(r,g,b,a);
 		return this;
 	}
 	this.colorf = function(r,g,b,a=1.0) {

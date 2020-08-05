@@ -214,9 +214,9 @@ sets the current drawing color
 
 #### Parameters:
 
-- {number} r - RGB red component in range 0..255
-- {number} g - RGB green component in range 0..255
-- {number} b - RGB blue component in range 0..255
+- {number|array|buffer} r - RGB red component in range 0..255 or color array/array buffer
+- {number} [g] - RGB green component in range 0..255
+- {number} [b] - RGB blue component in range 0..255
 - {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
 
 #### Returns:
@@ -450,9 +450,9 @@ sets the sprite's color possibly blending with its pixel colors
 
 #### Parameters:
 
-- {number} r - RGB red component in range 0..255
-- {number} g - RGB green component in range 0..255
-- {number} b - RGB blue component in range 0..255
+- {number|array|buffer} r - RGB red component in range 0..255 or combined color array/array buffer
+- {number} [g] - RGB green component in range 0..255
+- {number} [b] - RGB blue component in range 0..255
 - {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
 
 ### function Sprite.getColor
@@ -461,7 +461,7 @@ returns the sprite's RGBA color
 
 #### Returns:
 
-- {object} color {r,g,b,a}, components in range 0..255
+- {array} color [r,g,b,a], components in range 0..255
 
 ### function Sprite.setAlpha
 

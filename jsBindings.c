@@ -485,15 +485,19 @@ static duk_ret_t dk_getGamepad(duk_context *ctx) {
 /**
  * @function app.setBackground
  * sets window background color
- * @param {number} r - RGB red component in range 0-255
- * @param {number} g - RGB green component in range 0-255
- * @param {number} b - RGB blue component in range 0-255
+ * @param {number|array|buffer} r - RGB red component in range 0-255 or color array / array buffer
+ * @param {number} [g] - RGB green component in range 0-255
+ * @param {number} [b] - RGB blue component in range 0-255
  */
 static duk_ret_t dk_appSetBackground(duk_context *ctx) {
-	uint32_t r = duk_to_uint(ctx, 0);
-	uint32_t g = duk_to_uint(ctx, 1);
-	uint32_t b = duk_to_uint(ctx, 2);
-	WindowClearColor((r<<24) + (g<<16) + (b<<8));
+	if(duk_is_undefined(ctx, 1))
+		WindowClearColor(array2color(ctx, 0));
+	else {
+		uint32_t r = duk_to_uint(ctx, 0);
+		uint32_t g = duk_to_uint(ctx, 1);
+		uint32_t b = duk_to_uint(ctx, 2);
+		WindowClearColor((r<<24) + (g<<16) + (b<<8));
+	}
 	return 0;
 }
 
@@ -803,18 +807,22 @@ static void bindApp(duk_context *ctx, int bindGL) {
 /**
  * @function gfx.color
  * sets the current drawing color
- * @param {number} r - RGB red component in range 0..255
- * @param {number} g - RGB green component in range 0..255
- * @param {number} b - RGB blue component in range 0..255
+ * @param {number|array|buffer} r - RGB red component in range 0..255 or color array/array buffer
+ * @param {number} [g] - RGB green component in range 0..255
+ * @param {number} [b] - RGB blue component in range 0..255
  * @param {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
  * @returns {object} - this gfx object
  */
 static duk_ret_t dk_gfxColor(duk_context *ctx) {
-	int r = duk_to_int(ctx, 0);
-	int g = duk_to_int(ctx, 1);
-	int b = duk_to_int(ctx, 2);
-	int a = duk_get_int_default(ctx, 3, 255);
-	gfxColorRGBA(r,g,b,a);
+	if(duk_is_undefined(ctx, 1))
+		gfxColor(array2color(ctx, 0));
+	else {
+		int r = duk_to_int(ctx, 0);
+		int g = duk_to_int(ctx, 1);
+		int b = duk_to_int(ctx, 2);
+		int a = duk_get_int_default(ctx, 3, 255);
+		gfxColorRGBA(r,g,b,a);
+	}
 	duk_push_this(ctx);
 	return 1;
 }
@@ -1073,11 +1081,15 @@ static void bindGraphics(duk_context *ctx) {
 //--- OpenGL graphics primitives -----------------------------------
 
 static duk_ret_t dk_gfxGlColor(duk_context *ctx) {
-	int r = duk_to_int(ctx, 0);
-	int g = duk_to_int(ctx, 1);
-	int b = duk_to_int(ctx, 2);
-	int a = duk_get_int_default(ctx, 3, 255);
-	gfxGlColorRGBA(r,g,b,a);
+	if(duk_is_undefined(ctx, 1))
+		gfxGlColor(array2color(ctx, 0));
+	else {
+		int r = duk_to_int(ctx, 0);
+		int g = duk_to_int(ctx, 1);
+		int b = duk_to_int(ctx, 2);
+		int a = duk_get_int_default(ctx, 3, 255);
+		gfxGlColorRGBA(r,g,b,a);
+	}
 	duk_push_this(ctx);
 	return 1;
 }

@@ -1,8 +1,15 @@
 var tileSet = app.getResource('basic_shapes.svg');
 var icons = app.getResource('icons.svg');
-var font = app.getResource('BebasNeue-Regular.ttf', {size:56});
 var circle = app.createCircleResource(128);
 const scorePerClick = [100,25,10,5,4,3,2,1];
+
+const styleUI = {
+    font: app.getResource('BebasNeue-Regular.ttf', {size:56}),
+    bg: [0,0,0,0],
+    fg: [255,255,255,85],
+    fgFocus: [220,255,170,255],
+    bgFocus: [0,0,0,0]
+};
 
 app.setBackground([0x33, 0x33, 0x33]);
 var buttons = [];
@@ -24,8 +31,7 @@ function padZeros(value, numDigits) {
 }
 
 const UI = {
-    Button: function(image, x,y,w,h, callback) {
-        this.color = [255,255,255,170];
+    Button: function(style, image, x,y,w,h, callback) {
         this.isSelected = false;
         var imgDims = app.queryImage(image);
         var srcX = 0, srcY = 0, srcW=imgDims.width, srcH=imgDims.height;
@@ -52,15 +58,12 @@ const UI = {
         }
         this.update = function(deltaT, tNow) { }
         this.draw = function(gfx) {
-            gfx.color(this.color[0],this.color[1],this.color[2],
-                this.color[3]*(this.isSelected ? 1 : 0.5))
+            gfx.color(this.isSelected ? style.fgFocus : style.fg)
                 .drawImage(image,srcX, srcY,srcW,srcH, x,y,w,h);
         }
     },
 
-    Label: function(font, x,y, text, align) {
-        this.color = [255,255,255,85];
-        this.selColor = [255,255,255,255];
+    Label: function(style, x,y, text, align) {
         this.text = text;
         var hilighted = false, tHilighted=0;
 
@@ -76,7 +79,7 @@ const UI = {
             hilighted = tHilighted*3-Math.floor(tHilighted*3)>0.5;
         }
         this.draw = function(gfx) {
-            gfx.color(hilighted ? this.selColor : this.color).fillText(font,x,y, this.text, align);
+            gfx.color(hilighted ? style.fgFocus : style.fg).fillText(style.font, x,y, this.text, align);
         }
     }
 }
@@ -106,8 +109,7 @@ function Game(tilesX, tilesY, tileSet) {
     var tiles=[], tilesSelected=[];
     var cursorX = 0, cursorY = 0, cursorVisible = true;
     var backCol = [170,0,85];
-    var labelScore = new UI.Label(font, 4,0, '0000');
-    labelScore.selColor = [220,255,170,255];
+    var labelScore = new UI.Label(styleUI, 4,0, '0000');
 
     var numCirclesToDraw = 0;
     var circles = [];
@@ -317,7 +319,7 @@ function start() {
 }
 
 app.on('load', function() {
-    var btnClose = new UI.Button(icons,app.width-48,8,40,40, function() {
+    var btnClose = new UI.Button(styleUI, icons,app.width-48,8,40,40, function() {
         app.close();
     });
     btnClose.setSource(0,128,128,128);

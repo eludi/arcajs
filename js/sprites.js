@@ -10,8 +10,6 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 		getY: function() { return this.y; },
 		getRot: function() { return this.rot; },
 		setRot: function(rot) { this.rot = rot; },
-		setFlipX: function(yesno) { if(yesno) this.flip |= 1; else if(this.flip%2) --this.flip; },
-		setFlipY: function(yesno) { if(yesno) this.flip |= 2; else if(this.flip>1) this.flip-=2; },
 		setSource: function(srcX,srcY,srcW,srcH) {
 			this.srcX = srcX;
 			this.srcY = srcY;
@@ -33,6 +31,8 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 			this.w = scX * this.srcW;
 			this.h = (scY===undefined?scX:scY) * this.srcH;
 		},
+		getScaleX: function() { return this.w / this.srcW; },
+		getScaleY: function() { return this.h / this.srcH; },
 		setDim: function(w,h) { this.w=w; this.h=h; },
 		getDimX: function() { return this.w; },
 		getDimY: function() { return this.h; },
@@ -89,7 +89,6 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 		this.srcY = srcY;
 		this.srcW = srcW;
 		this.srcH = srcH;
-		this.flip = 0;
 		this.index = sps.sprites.length;
 		this.parent = sps;
 		this.velX = this.velY = this.velRot = 0.0;

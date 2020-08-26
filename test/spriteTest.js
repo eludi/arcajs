@@ -7,10 +7,29 @@ function randi(lo, hi) {
 }
 
 var sprites = app.createSpriteSet(app.getResource('eludi.icon.svg'));
-var sprite = sprites.createSprite();
-sprite.setPos(randi(app.width), randi(app.height));
-sprite.setColor(randi(256), randi(256), randi(256));
-sprite.setVelRot(Math.random()*Math.PI - Math.PI*0.5);
+var spriteObjs = [];
+{
+	var sprite = sprites.createSprite();
+	sprite.setPos(randi(32,app.width-64), randi(32,app.height-64));
+	sprite.setColor(randi(256), randi(256), randi(256));
+	sprite.setVelRot(Math.random()*Math.PI - Math.PI*0.5);
+	spriteObjs.push(sprite);
+
+	sprite = sprites.createSprite();
+	sprite.setPos(64,32)
+	sprite.setScale(2,1);
+	spriteObjs.push(sprite);
+
+	sprite = sprites.createSprite();
+	sprite.setPos(32,96)
+	sprite.setScale(-1,1);
+	spriteObjs.push(sprite);
+
+	sprite = sprites.createSprite();
+	sprite.setPos(96,96)
+	sprite.setScale(1,-1);
+	spriteObjs.push(sprite);
+}
 
 //------------------------------------------------------------------
 var counter = 0, frames=0;
@@ -34,6 +53,6 @@ app.on('draw', function(gfx) {
 	gfx.drawSprites(sprites);
 
 	gfx.color(255,255,255,127).fillRect(0,app.height-20, app.width,20);
-	gfx.color(0,0,0).fillText(0, 0,app.height-18, "arcajs graphics experiments test");
+	gfx.color(0,0,0).fillText(0, 0,app.height-18, "arcajs sprites test");
 	gfx.color(255,0,0).fillText(0, app.width, app.height, fps, gfx.ALIGN_RIGHT | gfx.ALIGN_BOTTOM);
 });

@@ -480,7 +480,7 @@ return function (canvas, capacity=500) {
 			const cx = s.cx*s.w, cy = s.cy*s.h;
 			this.color(s.r, s.g, s.b, s.a).drawImage(
 				sps.texture, s.srcX, s.srcY, s.srcW, s.srcH,
-				s.x-cx, s.y-cy, s.w, s.h, cx, cy, s.rot, s.flip);
+				s.x-cx, s.y-cy, s.w, s.h, cx, cy, s.rot);
 		});
 	}
 

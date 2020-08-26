@@ -125,16 +125,60 @@ static duk_ret_t dk_SpriteSetPos(duk_context *ctx) {
 
 /**
  * @function Sprite.setScale
- * sets the sprite's output dimensions relative to its source dimensions
+ * sets the sprite's output dimensions relative to its source dimensions. Use
+ * negative scales for horizontal/vertical mirroring/flipping.
  * @param {number} scaleX - horizontal scale
  * @param {number} [scaleY=scaleX] - vertical scale
  */
 static duk_ret_t dk_SpriteSetScale(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
-	float scaleX =duk_to_number(ctx, 0);
+	float scaleX = duk_to_number(ctx, 0), scaleY = scaleX;
+	if(scaleX>=0.0f)
+		sprite->flip &= ~1;
+	else {
+		sprite->flip |= 1;
+		scaleX *= -1;
+	}
+	if(!duk_is_undefined(ctx, 1))
+		scaleY = duk_to_number(ctx, 1);
+	if(scaleY>=0.0f)
+		sprite->flip &= ~2;
+	else {
+		sprite->flip |= 2;
+		scaleY *= -1;
+	}
+
 	sprite->w = scaleX * sprite->srcW;
-	sprite->h = duk_get_number_default(ctx, 1, scaleX) * sprite->srcH;
+	sprite->h = scaleY * sprite->srcH;
 	return 0;
+}
+
+/**
+ * @function Sprite.getScaleX
+ * returns the sprite's horizontal scale relative to its source width
+ * @returns {number} - horizontal size
+ */
+static duk_ret_t dk_SpriteGetScaleX(duk_context *ctx) {
+	Sprite* sprite = getThisInstance(ctx);
+	float sc = sprite->w / sprite->srcW;
+	if(sprite->flip & 1)
+		sc *= -1.0f;
+	duk_push_number(ctx, sc);
+	return 1;
+}
+
+/**
+ * @function Sprite.getScaleY
+ * returns the sprite's vertical scale relative to its source height
+ * @returns {number} - vertical size
+ */
+static duk_ret_t dk_SpriteGetScaleY(duk_context *ctx) {
+	Sprite* sprite = getThisInstance(ctx);
+	float sc = sprite->h / sprite->srcH;
+	if(sprite->flip & 2)
+		sc *= -1.0f;
+	duk_push_number(ctx, sc);
+	return 1;
 }
 
 /**
@@ -290,38 +334,10 @@ static duk_ret_t dk_SpriteSetRot(duk_context *ctx) {
 }
 
 /**
- * @function Sprite.setFlipX
- * sets the sprite's horizontal mirroring
- * @param {boolean} flip
- */
-static duk_ret_t dk_SpriteSetFlipX(duk_context *ctx) {
-	Sprite* sprite = getThisInstance(ctx);
-	if(duk_to_boolean(ctx, 0))
-		sprite->flip |= 1;
-	else if(sprite->flip%2)
-		sprite->flip -= 1;
-	return 0;
-}
-
-/**
- * @function Sprite.setFlipY
- * sets the sprite's vertical mirroring
- * @param {boolean} flip
- */
-static duk_ret_t dk_SpriteSetFlipY(duk_context *ctx) {
-	Sprite* sprite = getThisInstance(ctx);
-	if(duk_to_boolean(ctx, 0))
-		sprite->flip |= 2;
-	else if(sprite->flip>2)
-		sprite->flip -= 2;
-	return 0;
-}
-
-/**
  * @function Sprite.setSource
  * sets the sprite's source dimensions
  * @param {number} x - source x origin in pixels
- * @param {number} y - source y origin  in pixels
+ * @param {number} y - source y origin in pixels
  * @param {number} w - source width in pixels
  * @param {number} h - source height in pixels
  */
@@ -595,10 +611,6 @@ void sprites_exports(duk_context *ctx, int bindGL) {
 	duk_put_prop_literal(ctx, -2, "getRot");
 	duk_push_c_function(ctx, dk_SpriteSetRot, 1);
 	duk_put_prop_literal(ctx, -2, "setRot");
-	duk_push_c_function(ctx, dk_SpriteSetFlipX, 1);
-	duk_put_prop_literal(ctx, -2, "setFlipX");
-	duk_push_c_function(ctx, dk_SpriteSetFlipY, 1);
-	duk_put_prop_literal(ctx, -2, "setFlipY");
 	duk_push_c_function(ctx, dk_SpriteSetSource, 4);
 	duk_put_prop_literal(ctx, -2, "setSource");
 	duk_push_c_function(ctx, dk_SpriteSetTile, 1);
@@ -606,6 +618,10 @@ void sprites_exports(duk_context *ctx, int bindGL) {
 
 	duk_push_c_function(ctx, dk_SpriteSetScale, 2);
 	duk_put_prop_literal(ctx, -2, "setScale");
+	duk_push_c_function(ctx, dk_SpriteGetScaleX, 0);
+	duk_put_prop_literal(ctx, -2, "getScaleX");
+	duk_push_c_function(ctx, dk_SpriteGetScaleY, 0);
+	duk_put_prop_literal(ctx, -2, "getScaleY");
 	duk_push_c_function(ctx, dk_SpriteSetDim, 2);
 	duk_put_prop_literal(ctx, -2, "setDim");
 	duk_push_c_function(ctx, dk_SpriteGetDimX, 0);

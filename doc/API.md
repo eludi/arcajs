@@ -107,9 +107,9 @@ sets window background color
 
 #### Parameters:
 
-- {number} r - RGB red component in range 0-255
-- {number} g - RGB green component in range 0-255
-- {number} b - RGB blue component in range 0-255
+- {number|array|buffer} r - RGB red component in range 0-255 or color array / array buffer
+- {number} [g] - RGB green component in range 0-255
+- {number} [b] - RGB blue component in range 0-255
 
 ### function app.setPointer
 
@@ -499,12 +499,29 @@ sets the sprite's position
 
 ### function Sprite.setScale
 
-sets the sprite's output dimensions relative to its source dimensions
+sets the sprite's output dimensions relative to its source dimensions. Use
+negative scales for horizontal/vertical mirroring/flipping.
 
 #### Parameters:
 
 - {number} scaleX - horizontal scale
 - {number} [scaleY=scaleX] - vertical scale
+
+### function Sprite.getScaleX
+
+returns the sprite's horizontal scale relative to its source width
+
+#### Returns:
+
+- {number} - horizontal size
+
+### function Sprite.getScaleY
+
+returns the sprite's vertical scale relative to its source height
+
+#### Returns:
+
+- {number} - vertical size
 
 ### function Sprite.setDim
 
@@ -614,22 +631,6 @@ sets the sprite's rotation
 
 - {number} rot - rotation in radians
 
-### function Sprite.setFlipX
-
-sets the sprite's horizontal mirroring
-
-#### Parameters:
-
-- {boolean} flip
-
-### function Sprite.setFlipY
-
-sets the sprite's vertical mirroring
-
-#### Parameters:
-
-- {boolean} flip
-
 ### function Sprite.setSource
 
 sets the sprite's source dimensions
@@ -637,7 +638,7 @@ sets the sprite's source dimensions
 #### Parameters:
 
 - {number} x - source x origin in pixels
-- {number} y - source y origin  in pixels
+- {number} y - source y origin in pixels
 - {number} w - source width in pixels
 - {number} h - source height in pixels
 

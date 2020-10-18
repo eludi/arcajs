@@ -68,3 +68,5 @@ extern void SpriteSetAppend(SpriteSet* sps, Sprite* sprite);
 extern void SpriteSetUpdate(SpriteSet* sps, double deltaT);
 extern void SpriteSetDraw(SpriteSet* sps);
 extern void SpriteSetDraw_gl(SpriteSet* sps);
+extern void SpriteSetDrawTile(SpriteSet* sps, uint16_t tile, float x, float y);
+extern void SpriteSetDrawTile_gl(SpriteSet* sps, uint16_t tile, float x, float y);

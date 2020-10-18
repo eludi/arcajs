@@ -13,7 +13,6 @@
 extern const unsigned char font12x16[];
 
 static SDL_Renderer* renderer = NULL;
-static SDL_Texture* solidFill; /// solid fill texture
 static SDL_Rect viewport;
 static SDL_Texture* defaultFont;
 
@@ -39,10 +38,6 @@ void gfxInit(void* render) {
 	SDL_RenderGetViewport(renderer, &viewport);
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
-	solidFill = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR888, SDL_TEXTUREACCESS_STATIC, 1, 1);
-	unsigned char data[] = {255,255,255};
-	SDL_UpdateTexture(solidFill,0, data, 3);
-
 	defaultFont = (SDL_Texture*)uploadDefaultFont(font12x16, 12, 16);
 }
 
@@ -53,7 +48,6 @@ void* gfxRenderer() {
 void gfxClose() {
 	if(!renderer)
 		return;
-	SDL_DestroyTexture(solidFill);
 	SDL_DestroyTexture(defaultFont);
 	renderer = NULL;
 }

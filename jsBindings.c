@@ -1351,15 +1351,17 @@ static duk_ret_t dk_audioStop(duk_context *ctx) {
  * @param {number} sample - sample handle
  * @param {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
  * @param {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+ * @param {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less
  * @returns {number} track number playing this sound or UINT_MAX if no track is available
  */
 static duk_ret_t dk_audioReplay(duk_context *ctx) {
 	size_t sample = duk_to_number(ctx, 0);
 	if(!sample)
 		return 0;
-	float volume = duk_get_number_default(ctx, 3, 1.0);
-	float balance = duk_get_number_default(ctx, 4, 0.0);
-	duk_push_number(ctx, AudioReplay(sample, volume, balance));
+	float volume = duk_get_number_default(ctx, 1, 1.0);
+	float balance = duk_get_number_default(ctx, 2, 0.0);
+	float detune = duk_get_number_default(ctx, 3, 0.0);
+	duk_push_number(ctx, AudioReplay(sample, volume, balance, detune));
 	return 1;
 }
 
@@ -1448,7 +1450,7 @@ static void audio_exports(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "playing");
 	duk_push_c_function(ctx, dk_audioStop, 1);
 	duk_put_prop_string(ctx, -2, "stop");
-	duk_push_c_function(ctx, dk_audioReplay, 3);
+	duk_push_c_function(ctx, dk_audioReplay, 4);
 	duk_put_prop_string(ctx, -2, "replay");
 	duk_push_c_function(ctx, dk_audioSound, 5);
 	duk_put_prop_string(ctx, -2, "sound");

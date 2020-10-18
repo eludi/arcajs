@@ -483,7 +483,14 @@ return function (canvas, capacity=500) {
 				s.x-cx, s.y-cy, s.w, s.h, cx, cy, s.rot);
 		});
 	}
-
+	this.drawTile = function(sps, tile, x, y) {
+		let srcW = sps.imgW/sps.tilesX, srcH=sps.imgH/sps.tilesY;
+		const srcX = (tile%sps.tilesX)*srcW + sps.border;
+		const srcY = (tile/sps.tilesX)*srcH + sps.border;
+		srcW -= 2*sps.border;
+		srcH -= 2*sps.border;
+		this.drawImage( sps.texture, srcX, srcY, srcW, srcH, x, y, srcW, srcH);
+	}
 	function initBuf() {
 		// Create a buffer for vertex attribute data:
 		let glBuf = gl.createBuffer();

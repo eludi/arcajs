@@ -391,6 +391,7 @@ immediately plays a buffered PCM sample
 - {number} sample - sample handle
 - {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
 - {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+- {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less
 
 #### Returns:
 
@@ -715,6 +716,21 @@ removes a sprite from this sprite set
 ### function gfx.drawSprites
 
 draws the contained sprites in sequence of their insertion
+
+#### Parameters:
+
+- {object} spriteset - SpriteSet instance
+
+### function gfx.drawTile
+
+draws a tile of a tiled sprite set
+
+#### Parameters:
+
+- {object} spriteset - SpriteSet instance
+- {number} tile - tile number
+- {number} x - X ordinate
+- {number} y - Y ordinate
 
 ### function app.createSpriteSet
 

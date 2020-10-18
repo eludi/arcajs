@@ -526,6 +526,8 @@ duk_ret_t dk_removeSprite(duk_context *ctx) {
 /**
  * @function gfx.drawSprites
  * draws the contained sprites in sequence of their insertion 
+ * 
+ *  @param {object} spriteset - SpriteSet instance
  */
 duk_ret_t dk_SpriteSetDraw(duk_context *ctx) {
 	if(!duk_is_object(ctx, 0) || !isPrototype(ctx, 0, DUK_HIDDEN_SYMBOL("SpriteSet_prototype")))
@@ -546,6 +548,43 @@ duk_ret_t dk_SpriteSetGlDraw(duk_context *ctx) {
 	duk_get_prop_literal(ctx, 0, DUK_HIDDEN_SYMBOL("instance"));
 	SpriteSet* sps = (SpriteSet*)duk_get_buffer(ctx, -1, NULL);
 	SpriteSetDraw_gl(sps);
+	return 0;
+}
+
+/**
+ * @function gfx.drawTile
+ * draws a tile of a tiled sprite set
+ *
+ * @param {object} spriteset - SpriteSet instance
+ * @param {number} tile - tile number
+ * @param {number} x - X ordinate
+ * @param {number} y - Y ordinate
+ */
+duk_ret_t dk_SpriteSetDrawTile(duk_context *ctx) {
+	if(!duk_is_object(ctx, 0) || !isPrototype(ctx, 0, DUK_HIDDEN_SYMBOL("SpriteSet_prototype")))
+		return duk_error(ctx, DUK_ERR_SYNTAX_ERROR,
+			"SpriteSet expected as first argument of drawTile");
+
+	duk_get_prop_literal(ctx, 0, DUK_HIDDEN_SYMBOL("instance"));
+	SpriteSet* sps = (SpriteSet*)duk_get_buffer(ctx, -1, NULL);
+	uint16_t tile = duk_to_uint16(ctx, 1);
+	float x = duk_to_number(ctx, 2);
+	float y = duk_to_number(ctx, 3);
+	SpriteSetDrawTile(sps, tile, x,y);
+	return 0;
+}
+
+duk_ret_t dk_SpriteSetGlDrawTile(duk_context *ctx) {
+	if(!duk_is_object(ctx, 0) || !isPrototype(ctx, 0, DUK_HIDDEN_SYMBOL("SpriteSet_prototype")))
+		return duk_error(ctx, DUK_ERR_SYNTAX_ERROR,
+			"SpriteSet expected as first argument of drawTile");
+
+	duk_get_prop_literal(ctx, 0, DUK_HIDDEN_SYMBOL("instance"));
+	SpriteSet* sps = (SpriteSet*)duk_get_buffer(ctx, -1, NULL);
+	uint16_t tile = duk_to_uint16(ctx, 1);
+	float x = duk_to_number(ctx, 2);
+	float y = duk_to_number(ctx, 3);
+	SpriteSetDrawTile_gl(sps, tile, x,y);
 	return 0;
 }
 
@@ -686,4 +725,10 @@ void sprites_exports(duk_context *ctx, int bindGL) {
 	else
 		duk_push_c_function(ctx, dk_SpriteSetDraw, 1);
 	duk_put_prop_literal(ctx, -2, "drawSprites"); // set method of gfx object, which is on the stack
+
+	if(bindGL)
+		duk_push_c_function(ctx, dk_SpriteSetGlDrawTile, 4);
+	else
+		duk_push_c_function(ctx, dk_SpriteSetDrawTile, 4);
+	duk_put_prop_literal(ctx, -2, "drawTile"); // set method of gfx object, which is on the stack
 }

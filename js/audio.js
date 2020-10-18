@@ -41,7 +41,7 @@ function loadSample(url, id, callback) {
 	request.send();
 }
 
-function createNoiseSource() {
+function createNoiseSource(freq=2093) {
 	if(noiseBuffer===null) {
 		const bufferSize = 2 * audioCtx.sampleRate;
 		noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
@@ -53,6 +53,8 @@ function createNoiseSource() {
 	let whiteNoise = audioCtx.createBufferSource();
 	whiteNoise.buffer = noiseBuffer;
 	whiteNoise.loop = true;
+	if(freq>0)
+		whiteNoise.playbackRate.value = freq/2093;
 	return whiteNoise;
 }
 
@@ -66,7 +68,7 @@ function findAvailableTrack() {
 
  function createSource(wave, freq) {
 	 if(wave==='noi')
-	 	return createNoiseSource();
+		 return createNoiseSource(freq);
 	
 	let source = audioCtx.createOscillator();
 	if (!source.start)
@@ -125,8 +127,16 @@ function connectSource(source, gain, pan) {
 		pred = gainNode;
 	}
 	if(pan) {
-		let panNode = audioCtx.createStereoPanner();
-		panNode.pan.value = pan;
+		let panNode;
+		if (audioCtx.createStereoPanner) {
+			panNode = audioCtx.createStereoPanner();
+			panNode.pan.value = pan;
+		}
+		else {
+			panNode = audioCtx.createPanner();
+			panNode.panningModel = 'equalpower';
+			panNode.setPosition(pan, 0, 1 - Math.abs(pan));
+		}
 		pred.connect(panNode);
 		pred = panNode;
 	}
@@ -148,13 +158,7 @@ function Melody(melody) {
 		};
 	}
 
-	function readSubsequentFloat(melody, pos, p, key) {
-		++pos;
-		if(melody.charAt(pos)===':')
-			++pos;
-		while(/\s/.test(melody.charAt(pos)))
-			++pos;
-
+	function readFloatAt(melody, pos, p, key) {
 		let sign = 1;
 		if(melody.charAt(pos) in {'-':true, '+':true}) {
 			if(melody.charAt(pos)==='-')
@@ -191,6 +195,15 @@ function Melody(melody) {
 			--pos;
 		}
 		return pos;
+	}
+
+	function readSubsequentFloat(melody, pos, p, key) {
+		++pos;
+		if(melody.charAt(pos)===':')
+			++pos;
+		while(/\s/.test(melody.charAt(pos)))
+			++pos;
+		return readFloatAt(melody, pos, p, key);
 	}
 
 	function readParams(melody, pos, p) {
@@ -281,34 +294,47 @@ function Melody(melody) {
 			if(/\s/.test(ch))
 				continue;
 
-			if(!(ch in {'-':true, 'A':true, 'B':true, 'C':true, 'D':true, 'E':true, 'F':true, 'G':true}))
-				return console.error("invalid note", ch, "at pos", pos);
-			const noteCh = ch;
-			if(++pos>=melody.length)
-				return;
-			ch = melody.charAt(pos);
-			const accidental = (ch == '#' || ch=='b') ? ch : ' ';
-			if(accidental!=' ') {
+			let freq = -1;
+			if((ch >= '0' && ch <= '9')||ch==='.') {
+				let obj = {};
+				pos = readFloatAt(melody, pos, obj, 'v');
+				freq = obj.v;
 				if(++pos>=melody.length)
 					return;
 				ch = melody.charAt(pos);
 			}
-			if(noteCh!='-' && !/\d/.test(ch))
-				return console.error("invalid octave", ch, "at pos", pos);
-			const octave = ch.charCodeAt(0) - '0'.charCodeAt(0);
-			if(noteCh!='-') {
+			else {
+				if(!(ch in {'-':true, 'A':true, 'B':true, 'C':true, 'D':true, 'E':true, 'F':true, 'G':true}))
+					return console.error("invalid note", ch, "at pos", pos);
+				const noteCh = ch;
 				if(++pos>=melody.length)
 					return;
 				ch = melody.charAt(pos);
+				const accidental = (ch == '#' || ch=='b') ? ch : ' ';
+				if(accidental!=' ') {
+					if(++pos>=melody.length)
+						return;
+					ch = melody.charAt(pos);
+				}
+				if(noteCh!='-' && !/\d/.test(ch))
+					return console.error("invalid octave", ch, "at pos", pos);
+				const octave = ch.charCodeAt(0) - '0'.charCodeAt(0);
+				if(noteCh!='-') {
+					if(++pos>=melody.length)
+						return;
+					ch = melody.charAt(pos);
+				}
+				freq = note2freq(noteCh, accidental, octave);
 			}
+
 			if(ch!='/' && ch!='*')
 				return console.error("invalid duration signifier at pos", pos);
 			const isDivision = ch=='/';
 
-			let obj={};
+			let obj = {};
 			pos = readSubsequentFloat(melody, pos, obj, 'v');
 			if(('v' in obj) && obj.v>0.0) {
-				note.push(note2freq(noteCh, accidental, octave));
+				note.push(freq);
 				note.push(isDivision ? 1.0/obj.v : obj.v);
 			}
 			break;
@@ -385,7 +411,7 @@ return {
 		loadSample(url, sample.id, callback);
 		return sample.id;
 	},
-	replay: function(id, gain=1.0, pan=0, deltaT=0) {
+	replay: function(id, gain=1.0, pan=0, detune=0, deltaT=0) {
 		if(id===0 || id>samples.length)
 			return;
 		const sample = samples[id-1];
@@ -396,6 +422,8 @@ return {
 			return 0xffffffff;
 	
 		let source = tracks[trackId] = audioCtx.createBufferSource();
+		if(detune!==0)
+			source.playbackRate.value = Math.pow(2, detune/12);
 		source.buffer = sample.buffer;
 		connectSource(source, gain, pan);
 		source.start(audioCtx.currentTime + deltaT);
@@ -453,9 +481,12 @@ return {
 		let duration = m.replay(vol, balance);
 		setTimeout(()=>{ tracks[trackId].stop(); tracks[trackId]=null; }, duration*1000);
 	},
-	sample: function(data) {
-		let arr = Array.isArray(data) ? new Float32Array(data) : data;
-		samples.push({ id:samples.length+1, ready:true, url:'', buffer:arr.buffer });
+	sample: function(data, sampleRate=audioCtx.sampleRate) {
+		var buffer = audioCtx.createBuffer(1, data.length, sampleRate);
+		var channel = buffer.getChannelData(0);
+		for (let i = 0, end=data.length; i < end; ++i)
+			channel[i] = data[i];
+		samples.push({ id:samples.length+1, ready:true, url:'', buffer:buffer });
 		return samples.length;
 	},
 	sampleRate: audioCtx.sampleRate

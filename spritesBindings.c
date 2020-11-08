@@ -736,8 +736,8 @@ void sprites_exports(duk_context *ctx, int bindGL) {
 	duk_put_prop_literal(ctx, -2, "drawSprites"); // set method of gfx object, which is on the stack
 
 	if(bindGL)
-		duk_push_c_function(ctx, dk_SpriteSetGlDrawTile, 6);
+		duk_push_c_function(ctx, dk_SpriteSetGlDrawTile, 7);
 	else
-		duk_push_c_function(ctx, dk_SpriteSetDrawTile, 6);
+		duk_push_c_function(ctx, dk_SpriteSetDrawTile, 7);
 	duk_put_prop_literal(ctx, -2, "drawTile"); // set method of gfx object, which is on the stack
 }

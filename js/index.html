@@ -162,7 +162,7 @@ let app = arcajs.app = (function() {
 	}
 
 	let app = {
-		version: 'v0.20201018a',
+		version: 'v0.20201108a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -227,7 +227,13 @@ let app = arcajs.app = (function() {
 		createSpriteSet: function(...args) { return arcajs.createSpriteSet(...args); },
 		require: function(name) { return modules[name]; },
 		exports: function(name, module) { modules[name] = module; },
-		getGamepad: function(id) { return getGamepad(id); }
+		getGamepad: function(id) { return getGamepad(id); },
+		vibrate: function(duration) {
+			if('vibrate' in navigator)
+				navigator.vibrate(duration*1000);
+			else if('mozVibrate' in navigator)
+				navigator.mozVibrate(duration*1000);
+		}
 	}
 
 	function emitTextInput(evt) {

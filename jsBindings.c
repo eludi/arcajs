@@ -512,6 +512,15 @@ static duk_ret_t dk_appSetPointer(duk_context *ctx) {
 }
 
 /**
+ * @function app.vibrate
+ * vibrates the device, if supported by the platform, likely on mobile browsers only
+ * @param {Number} duration - duration in seconds
+ */
+static duk_ret_t dk_appVibrate(duk_context *ctx) {
+	return 0;
+}
+
+/**
  * @function app.close
  * closes window and application
  */
@@ -776,6 +785,8 @@ static void bindApp(duk_context *ctx, int bindGL) {
 	duk_put_prop_string(ctx, -2, "require");
 	duk_push_c_function(ctx, dk_appExports, 2);
 	duk_put_prop_string(ctx, -2, "exports");
+	duk_push_c_function(ctx, dk_appVibrate, 1);
+	duk_put_prop_string(ctx, -2, "vibrate");
 	dk_defineReadOnlyProperty(ctx,"width", -1, dk_getWindowWidth);
 	dk_defineReadOnlyProperty(ctx,"height", -1, dk_getWindowHeight);
 	dk_defineReadOnlyProperty(ctx,"pixelRatio", -1, dk_getWindowPixelRatio);

@@ -34,7 +34,13 @@ arcajs.infra = {
 		if(window.PointerEvent) { // pointer events
 			let id, type = null;
 			if(e.type in {'pointerdown':true, 'pointerenter':true}) {
-				id = (e.pointerType=='mouse') ? e.button : writePointerId(e.pointerId);
+				if(e.pointerType!=='mouse')
+					id = writePointerId(e.pointerId);
+				else switch(e.button) {
+					case 1: id = 2; break;
+					case 2: id = 1; break;
+					default: id = e.button;
+				}
 				if(id>=0) {
 					type = 'start';
 					pointersDown[id] = e.pointerId;

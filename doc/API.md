@@ -119,6 +119,14 @@ turns mouse pointer visiblity on or off
 
 - {Number} state - visible (1) invisible (0)
 
+### function app.vibrate
+
+vibrates the device, if supported by the platform, likely on mobile browsers only
+
+#### Parameters:
+
+- {Number} duration - duration in seconds
+
 ### function app.close
 
 closes window and application
@@ -731,6 +739,9 @@ draws a tile of a tiled sprite set
 - {number} tile - tile number
 - {number} x - X ordinate
 - {number} y - Y ordinate
+- {number} [align=gfx.ALIGN_LEFT|gfx.ALIGN_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
+- {number} [angle=0] - rotation angle in radians
+- {number} [flip=gfx.FLIP_NONE] - flip tile in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions
 
 ### function app.createSpriteSet
 

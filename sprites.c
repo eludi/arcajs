@@ -198,7 +198,9 @@ void SpriteSetDraw(SpriteSet* sps) {
 	}
 }
 
-void SpriteSetDrawTile(SpriteSet* sps, uint16_t tile, float x, float y) {
+void SpriteSetDrawTile(
+	SpriteSet* sps, uint16_t tile, float x, float y, int align, float rot, int flip)
+{
 	if(tile >= sps->tilesX*sps->tilesY)
 		return;
 
@@ -207,5 +209,6 @@ void SpriteSetDrawTile(SpriteSet* sps, uint16_t tile, float x, float y) {
 	float srcY = (tile/sps->tilesX)*srcH + sps->border;
 	srcW -= 2*sps->border;
 	srcH -= 2*sps->border;
-	gfxDrawImageEx(sps->img, srcX, srcY, srcW, srcH, x, y, srcW, srcH, 0,0,0,0);
+	float cx = srcW*0.5f*(align%4), cy = srcH*0.5f*(int)(align/4);
+	gfxDrawImageEx(sps->img, srcX, srcY, srcW, srcH, x-cx, y-cy, srcW, srcH, cx,cy,rot,flip);
 }

@@ -22,6 +22,8 @@ from their different contexts. Arcajs interprets the following parameters:
 	"display":"fullscreen", // either "fullscreen" or "window" (default)
 	"window_width": 640, // window width, only relevant if display is "window"
 	"window_height": 480, // window height, only relevant if display is "window"
+	"console_y": 0, // overlay console vertical position
+	"console_height": 448, // overlay debug console height, set 0 to disable
 	"background_color" : "#000", // initial background color
 	"icon": "icon.svg", // window icon displayed during startup
 	"scripts":[ "main.js" ] // the script files containing the application logic

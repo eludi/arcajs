@@ -21,7 +21,7 @@ extern void ResourceArchiveClose();
 extern const char* ResourceSuffix(const char* fname);
 /// returns a duplicate of a resource's or file's basename (without suffix and path)
 extern char* ResourceBaseName(const char* fname);
-/// return1 if graphics resources are uploaded to OpenGL
+/// returns 1 if graphics resources are uploaded to OpenGL
 extern int ResourceUploadsToGL();
 
 /// returns handle to an image resource

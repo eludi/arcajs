@@ -1,5 +1,21 @@
 # arcajs API
 
+## module console
+
+console input output
+
+### function console.visible
+
+sets or gets console visibility
+
+#### Parameters:
+
+- {boolean} [isVisible] - new console visibility
+
+#### Returns:
+
+- {boolean|undefined} current console visibility if called without argument
+
 ## module app
 
 the single global entry point to the arcajs API. Always available.

@@ -135,6 +135,7 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 		return 1;
 	}
 
+	//printf("%s ", SDL_GetCurrentVideoDriver());
 	SDL_GetWindowSize(wnd.window, &wnd.szX, &wnd.szY);
 	if(!(sdlFlags & SDL_WINDOW_OPENGL)) {
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
@@ -143,6 +144,10 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 			renderFlags |= SDL_RENDERER_PRESENTVSYNC;
 		wnd.renderer = SDL_CreateRenderer(wnd.window, -1, renderFlags);
 		SDL_SetRenderDrawBlendMode(wnd.renderer, SDL_BLENDMODE_BLEND);
+
+		//SDL_RendererInfo renderInfo;
+		//if(SDL_GetRendererInfo(wnd.renderer, &renderInfo)==0)
+		//	printf("%s %u ",renderInfo.name, renderInfo.flags);
 	}
 	else {
 		wnd.glctx = SDL_GL_CreateContext(wnd.window);

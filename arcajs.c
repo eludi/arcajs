@@ -2,6 +2,7 @@
 #include "graphics.h"
 #include "graphicsGL.h"
 #include "audio.h"
+#include "console.h"
 #include "resources.h"
 #include "jsBindings.h"
 #include "value.h"
@@ -14,7 +15,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20201108a";
+const char* appVersion = "v0.20201121a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -22,6 +23,7 @@ static void showError(const char* msg, ...) {
 	va_start(argptr, msg);
 	vsnprintf(formattedMsg, 1024, msg, argptr);
 	va_end(argptr);
+	ConsoleError(formattedMsg);
 	if(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "arcajs Error", formattedMsg, NULL)!=0)
 		fprintf(stderr, "%s",formattedMsg);
 }
@@ -277,6 +279,7 @@ int main(int argc, char **argv) {
 	int isCalledWithScript = 0;
 
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
+	int consoleY=0, consoleSzY = winSzY-32;
 	for(int i=1; i<argc; ++i) {
 		if(strcmp(argv[i],"-g")==0)
 			windowFlags |= WINDOW_GL;
@@ -335,6 +338,8 @@ int main(int argc, char **argv) {
 		iconName = jsonGetString(json, "icon");
 		winSzX = jsonGetNumber(json, "window_width", winSzX);
 		winSzY = jsonGetNumber(json, "window_height", winSzY);
+		consoleY = jsonGetNumber(json, "console_y", consoleY);
+		consoleSzY = jsonGetNumber(json, "console_height", consoleSzY);
 		audioFrequency = jsonGetNumber(json, "audio_frequency", audioFrequency);
 		audioTracks = jsonGetNumber(json, "audio_tracks", audioTracks);
 		scriptNames = jsonGetStringArray(json, "scripts");
@@ -383,6 +388,8 @@ int main(int argc, char **argv) {
 		gfxGlInit(winSzX, winSzY);
 	else
 		gfxInit(WindowRenderer());
+	if(consoleSzY)
+		ConsoleCreate(0,0,consoleY, winSzX, consoleSzY);
 
 	if(iconName) { // show splash screen:
 		size_t icon = ResourceGetImage(iconName, 1.0f, 1);
@@ -454,6 +461,12 @@ int main(int argc, char **argv) {
 		argUpdate->next->f = now;
 		jsvmDispatchEvent(vm, "update", argUpdate);
 		jsvmDispatchDrawEvent(vm);
+		if(consoleSzY) {
+			if(windowFlags & WINDOW_GL)
+				ConsoleDraw_gl();
+			else
+				ConsoleDraw();
+		}
 		if(WindowUpdate()!=0) // swap buffers
 			break;
 
@@ -475,6 +488,7 @@ int main(int argc, char **argv) {
 		gfxGlClose();
 	else
 		gfxClose();
+	ConsoleDelete();
 	printf(" window..."); fflush(stdout);
 	if(WindowIsOpen())
 		WindowClose();

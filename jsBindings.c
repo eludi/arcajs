@@ -4,6 +4,7 @@
 #include "graphicsGL.h"
 #include "resources.h"
 #include "audio.h"
+#include "console.h"
 #include "httpRequest.h"
 
 #include "external/duk_config.h"
@@ -219,15 +220,32 @@ static duk_ret_t dk_setTimeout(duk_context *ctx) {
 }
 
 //--- console ------------------------------------------------------
+/** @module console
+ *
+ * console input output
+ */
+
 static duk_ret_t dk_fprintf(FILE* f, duk_context *ctx) {
+	static char msg[256];
+	size_t len = 0;
 	for(duk_idx_t i=0, argc = duk_get_top(ctx); i<argc; ++i) {
+		const char* s;
 		if(duk_is_array(ctx, i) || duk_is_object(ctx, i))
-			fprintf(f, "%s ", duk_json_encode(ctx, i));
+			s = duk_json_encode(ctx, i);
 		else
-			fprintf(f, "%s ", duk_to_string(ctx, i));
+			s = duk_to_string(ctx, i);
+		fprintf(f, "%s ", s);
+		if(len<255) {
+			snprintf(msg+len, 255-len, "%s ", s);
+			len += strlen(s) + 1;
+		}
 	}
 	fprintf(f, "\n");
 	fflush(f);
+	if(f==stdout)
+		ConsoleLog(msg);
+	else
+		ConsoleError(msg);
 	return 0;
 }
 
@@ -239,6 +257,26 @@ static duk_ret_t dk_consoleErr(duk_context *ctx) {
 	return dk_fprintf(stderr, ctx);
 }
 
+/**
+ * @function console.visible
+ *
+ * sets or gets console visibility
+ *
+ * @param {boolean} [isVisible] - new console visibility
+ * @returns {boolean|undefined} current console visibility if called without argument
+ */
+static duk_ret_t dk_consoleVisible(duk_context *ctx) {
+	if(!duk_is_undefined(ctx, 0)) {
+		if(duk_to_boolean(ctx,0))
+			ConsoleShow();
+		else
+			ConsoleHide();
+		return 0;
+	}
+	duk_push_boolean(ctx, ConsoleVisible());
+	return 1;
+}
+
 static void bindConsole(duk_context *ctx) {
 	duk_push_object(ctx);
 
@@ -248,13 +286,14 @@ static void bindConsole(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "error");
 	duk_push_c_function(ctx, dk_consoleErr, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "warn");
-
+	duk_push_c_function(ctx, dk_consoleVisible, 1);
+	duk_put_prop_string(ctx, -2, "visible");
 	duk_put_global_string(ctx, "console");
 }
 
 //--- app bindings -------------------------------------------------
 /** @module app
- * 
+ *
  * the single global entry point to the arcajs API. Always available.
  */
 
@@ -803,9 +842,9 @@ static void bindApp(duk_context *ctx, int bindGL) {
 
 //--- SDL graphics primitives --------------------------------------
 /** @module gfx
- * 
+ *
  * drawing functions, only available within the  draw event callback function
- * 
+ *
  * ```javascript
  * app.on('draw', function(gfx) {
  *     gfx.color(255, 0, 0);
@@ -942,10 +981,10 @@ static duk_ret_t dk_gfxDrawPoints(duk_context *ctx) {
 
 /**
  * @function gfx.drawImage
- * 
+ *
  * gfx.drawImage(dstX, dstY[, dstW, dstH])(dstX, dstY[, dstW, dstH])
  * gfx.drawImage(srcX,srcY, srcW, srcH, dstX, dstY, dstW, dstH[, cX, cY, angle, flip])
- * 
+ *
  * draws an image or part of an image at a given target position, optionally scaled
  * @param {number} img - image handle
  * @param {number} dstX - destination X position
@@ -1300,9 +1339,9 @@ static void bindGraphicsGL(duk_context *ctx) {
 //--- audio bindings -----------------------------------------------
 
 /** @module audio
- * 
+ *
  * a collection of basic sound synthesis and replay functions
- * 
+ *
  * ```javascript
  * var audio = app.require('audio');
  * ```
@@ -1694,7 +1733,7 @@ size_t jsvmInit(const char* storageFileName, int bindGL) {
 	bindApp(ctx, bindGL);
 	if(bindGL)
 		bindGraphicsGL(ctx);
-	else 
+	else
 		bindGraphics(ctx);
 
 	bindConsole(ctx);
@@ -1892,5 +1931,5 @@ double jsonGetNumber(size_t json, const char* key, double defaultValue) {
 void jsonClose(size_t json) {
 	duk_context *ctx = (duk_context*)json;
 	if(ctx)
-		duk_destroy_heap(ctx);	
+		duk_destroy_heap(ctx);
 }

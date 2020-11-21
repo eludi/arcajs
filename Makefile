@@ -13,12 +13,12 @@ endif
 
 ifeq ($(OS),Linux)
   INCDIR        = -I$(SDL)/include -D_REENTRANT -Iexternal
-  ifeq ($(ARCH),Linux_armv6l)
-    CFLAGS     += -DGRAPHICS_API_OPENGL_ES2
-    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -L/opt/vc/lib -lbrcmGLESv2 -lbrcmEGL -ldl -lcurl -lm
-  else
+  ifeq ($(ARCH),Linux_x86_64)
     CFLAGS     += -DGRAPHICS_API_OPENGL_33
     LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -lpthread -lrt -lGL -ldl -lcurl -lm
+  else
+    CFLAGS     += -DGRAPHICS_API_OPENGL_ES2
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -L/opt/vc/lib -lbrcmGLESv2 -lbrcmEGL -ldl -lcurl -lm
   endif
   DLLFLAGS      = -fPIC -shared
   DLLSUFFIX     = .so
@@ -47,7 +47,7 @@ else
 endif
 
 SRC = arcajs.c window.c graphics.c graphicsGL.c graphicsUtils.c sprites.c spritesGl.c spritesBindings.c \
-  audio.c resources.c archive.c jsBindings.c value.c httpRequest.c \
+  audio.c console.c resources.c archive.c jsBindings.c value.c httpRequest.c \
   modules/intersects.c modules/intersectsBindings.c external/miniz.c external/duktape.c external/gl3w.c
 OBJ = $(SRC:.c=.o)
 EXE = arcajs$(EXESUFFIX)
@@ -75,7 +75,7 @@ modules/fs$(DLLSUFFIX): modules/fs.o external/duktape.o
 	$(CC) -o $@ $(DLLFLAGS) $^ $(LIBS)
 
 # compilation dependencies:
-arcajs.o: arcajs.c window.h graphics.h graphicsGL.h audio.h resources.h archive.h jsBindings.h value.h
+arcajs.o: arcajs.c window.h graphics.h graphicsGL.h audio.h console.h resources.h archive.h jsBindings.h value.h
 resources.o: resources.c resources.h archive.h graphics.h graphicsGL.h graphicsUtils.h \
   external/stb_image.h external/nanosvg.h external/nanosvgrast.h
 archive.o: archive.c archive.h external/miniz.h
@@ -89,7 +89,8 @@ sprites.o: sprites.c sprites.h graphics.h modules/intersects.h
 spritesGl.o: spritesGl.c sprites.c sprites.h graphicsGL.h modules/intersects.h
 spritesBindings.o: spritesBindings.c sprites.h external/duktape.h external/duk_config.h
 audio.o: audio.c audio.h external/dr_mp3.h
-jsBindings.o: jsBindings.c jsBindings.h window.h graphics.h graphicsGL.h audio.h value.h httpRequest.h \
+console.o: console.c console.h graphics.h graphicsGL.h
+jsBindings.o: jsBindings.c jsBindings.h window.h graphics.h graphicsGL.h audio.h console.h value.h httpRequest.h \
   external/duktape.h external/duk_config.h
 external/duktape.o: external/duktape.c external/duktape.h 
 value.o: value.c value.h

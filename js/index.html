@@ -82,6 +82,9 @@ let app = arcajs.app = (function() {
 	let gamepads = [];
 	let tLastFrame=0;
 
+	if(!('visible' in window.console))
+		window.console.visible = function() {}; // dummy
+
 	const canvas = document.getElementById('canvas');
 	let gfx = new arcajs.Graphics(canvas);
 

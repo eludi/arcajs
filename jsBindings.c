@@ -1759,10 +1759,20 @@ int jsvmEval(size_t vm, const char* src, const char* fname) {
 	if(!src || !vm)
 		return -1;
 	duk_context *ctx = (duk_context*)vm;
-	int ret = duk_peval_string(ctx, src);
-	if (ret != 0) {
+	duk_push_string(ctx, fname);
+	if (duk_pcompile_string_filename(ctx, 0, src) != 0) {
+		duk_get_prop_string(ctx, -1, "lineNumber");
 		snprintf(s_lastError, ERROR_MAXLEN,
-			"JavaScript eval error in %s: %s\n", fname, duk_safe_to_string(ctx, -1));
+			"compile time error at %s:%i: %s\n", fname, duk_to_int(ctx, -1), duk_safe_to_string(ctx, -2));
+		duk_pop_2(ctx);
+		return -1;
+	}
+	int ret = duk_pcall(ctx, 0);
+	if (ret != 0) {
+		duk_get_prop_string(ctx, -1, "lineNumber");
+		snprintf(s_lastError, ERROR_MAXLEN,
+			"runtime error at %s:%i: %s\n", fname, duk_to_int(ctx, -1), duk_safe_to_string(ctx, -2));
+		duk_pop_2(ctx);
 	}
 	return ret;
 }
@@ -1781,10 +1791,14 @@ void jsvmDispatchEvent(size_t vm, const char* event, const Value* data) {
 		dk_push_value(ctx, arg);
 
 	if(duk_pcall(ctx, nargs)!=0) {
+		duk_get_prop_string(ctx, -1, "lineNumber");
+		duk_get_prop_string(ctx, -2, "fileName");
+
 		snprintf(s_lastError, ERROR_MAXLEN,
-			"js runtime error while handling event '%s': %s\n", event, duk_safe_to_string(ctx, -1));
+			"runtime error during '%s' event at %s:%i: %s\n", event, duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), duk_safe_to_string(ctx, -3));
+		duk_pop_2(ctx);
 	}
-	duk_pop_n(ctx, 2); // pop result and global stash
+	duk_pop_2(ctx); // pop result and global stash
 }
 
 void jsvmDispatchDrawEvent(size_t vm) {
@@ -1794,9 +1808,14 @@ void jsvmDispatchDrawEvent(size_t vm) {
 	duk_push_global_stash(ctx);
 	if(duk_get_prop_string(ctx, -1, "draw") && duk_is_function(ctx, -1)) { // no function listening
 		duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("gfx"));
-		if(duk_pcall(ctx, 1)!=0)
+		if(duk_pcall(ctx, 1)!=0) {
+			duk_get_prop_string(ctx, -1, "lineNumber");
+			duk_get_prop_string(ctx, -2, "fileName");
+
 			snprintf(s_lastError, ERROR_MAXLEN,
-				"js runtime error while handling draw event: %s\n", duk_safe_to_string(ctx, -1));
+				"runtime error during 'draw' event at %s:%i: %s\n", duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), duk_safe_to_string(ctx, -3));
+			duk_pop_3(ctx);
+		}
 	}
 	duk_pop_2(ctx); // pop result or "draw" and global stash
 

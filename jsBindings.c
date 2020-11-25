@@ -916,6 +916,22 @@ static duk_ret_t dk_gfxColorHSL(duk_context *ctx) {
 }
 
 /**
+ * @function gfx.lineWidth
+ * sets current drawing line width in pixels.
+ * @param {number} [w] - line width in pixels
+ * @returns {object|number} - this gfx object or current line width, if called without width parameter
+ */
+static duk_ret_t dk_gfxLineWidth(duk_context *ctx) {
+	if(duk_is_undefined(ctx, 0)) {
+		duk_push_number(ctx, gfxGetLineWidth());
+		return 1;
+	}
+	gfxLineWidth(duk_to_number(ctx, 0));
+	duk_push_this(ctx);
+	return 1;
+}
+
+/**
  * @function gfx.drawRect
  * draws a rectangular boundary line identified by a left upper coordinate, width, and height.
  * @param {number} x - X ordinate
@@ -1111,6 +1127,8 @@ static void bindGraphics(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "colorf");
 	duk_push_c_function(ctx, dk_gfxColorHSL, 4);
 	duk_put_prop_string(ctx, -2, "colorHSL");
+	duk_push_c_function(ctx, dk_gfxLineWidth, 1);
+	duk_put_prop_string(ctx, -2, "lineWidth");
 	duk_push_c_function(ctx, dk_gfxDrawRect, 4);
 	duk_put_prop_string(ctx, -2, "drawRect");
 	duk_push_c_function(ctx, dk_gfxFillRect, 4);
@@ -1319,6 +1337,8 @@ static void bindGraphicsGL(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "colorf");
 	duk_push_c_function(ctx, dk_gfxGlColorHSL, 4);
 	duk_put_prop_string(ctx, -2, "colorHSL");
+	duk_push_c_function(ctx, dk_dummy, 1);
+	duk_put_prop_string(ctx, -2, "lineWidth"); // not implemented
 	duk_push_c_function(ctx, dk_gfxGlDrawLine, 4);
 	duk_put_prop_string(ctx, -2, "drawLine");
 	duk_push_c_function(ctx, dk_gfxGlDrawRect, 4);

@@ -120,7 +120,7 @@ void ConsoleDraw() {
 void ConsoleDraw_gl() {
 	if(!console || !console->visible)
 		return;
-	gfxColor(console->bgColor);
+	gfxGlColor(console->bgColor);
 	gfxGlFillRect(console->x, console->y, console->w, console->h);
 	gfxGlColor(console->fgColor);
 	float y = console->y;

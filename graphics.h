@@ -18,6 +18,10 @@ extern void gfxColorRGBA(unsigned char r, unsigned char g, unsigned char b, unsi
 /// sets current color to a HSLA color value with alpha transparency
 /** the function expects hue values between 0.0..360.0, other values between 0.0..1.0 */
 extern void gfxColorHSLA(float h, float s, float l, float a);
+/// sets current line width
+extern void gfxLineWidth(float w);
+/// returns current line width
+extern float gfxGetLineWidth();
 
 /// draws a rectangle outline
 extern void gfxDrawRect(float x,float y, float w, float h);

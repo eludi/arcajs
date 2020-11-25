@@ -324,6 +324,13 @@ return function (canvas, capacity=500) {
 		color_f = fpack.rgba(colorConv.r, colorConv.g, colorConv.b, a*255);
 		return this;
 	}
+	this.lineWidth = function(w) {
+		if(w===undefined)
+			return lineWidth;
+		lineWidth = Number(w);
+		return this;
+	}
+
 	this.fillText = function(fontId, x,y, text, align=0) {
 		const font = fonts[fontId];
 		if(font===undefined || font.texture===null)
@@ -391,25 +398,29 @@ return function (canvas, capacity=500) {
 			this.flush();
 	}
 	this.drawRect = function(x1, y1, w, h) {
-		const x2 = x1 + w, y2 = y1 + h;
+		const lw2 = lineWidth/2;
+		y1 += lw2;
+		const x2 = x1 + w, y2 = y1 + h - lineWidth;
 		this.drawLine(x1,y1,x2,y1);
-		this.drawLine(x2,y1,x2,y2);
+		this.drawLine(x2-lw2,y1+lw2,x2-lw2,y2-lw2);
 		this.drawLine(x2,y2,x1,y2);
-		this.drawLine(x1,y2,x1,y1);
+		this.drawLine(x1+lw2,y2-lw2,x1+lw2,y1+lw2);
 	}
 	this.drawLine = function(x1,y1, x2,y2) {
 		setTexture(texWhite);
 		const dx = x2-x1, dy=y2-y1, d=Math.sqrt(dx*dx+dy*dy);
-		const nx = lineWidth*-dy/d, ny=lineWidth*dx/d;
+		const lw2 = lineWidth/2, nx = lw2*-dy/d, ny=lw2*dx/d;
 		const x3=x1+nx, y3=y1+ny, x4=x2+nx, y4=y2+ny;
+		x1-=nx; y1-=ny; x2-=nx; y2-=ny;
 		vertex(x1,y1); vertex(x2,y2); vertex(x3,y3);
 		vertex(x3,y3); vertex(x2,y2); vertex(x4,y4);
 		if(++sz==capacity)
 			this.flush();
 	}
 	this.drawPoints = function(arr) {
+		const lw2 = lineWidth/2;
 		for(let i=0, end=arr.length-1; i<end; i+=2)
-			this.fillRect(arr[i],arr[i+1],lineWidth,lineWidth);
+			this.fillRect(arr[i]-lw2,arr[i+1]-lw2, lineWidth,lineWidth);
 	}
 
 	this.drawImage = function(texId, x1, y1, w1, h1, x2, y2, w2, h2, cx=0,cy=0,rot=0, flip=0) {

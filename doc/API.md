@@ -277,6 +277,18 @@ sets current drawing color by hue, saturation, lightness, and optionally opacity
 
 - {object} - this gfx object
 
+### function gfx.lineWidth
+
+sets current drawing line width in pixels.
+
+#### Parameters:
+
+- {number} [w] - line width in pixels
+
+#### Returns:
+
+- {object|number} - this gfx object or current line width, if called without width parameter
+
 ### function gfx.drawRect
 
 draws a rectangular boundary line identified by a left upper coordinate, width, and height.

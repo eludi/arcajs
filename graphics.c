@@ -15,6 +15,7 @@ extern const unsigned char font12x16[];
 static SDL_Renderer* renderer = NULL;
 static SDL_Rect viewport;
 static SDL_Texture* defaultFont;
+static float lineWidth = 1.0f;
 
 static size_t uploadDefaultFont(const unsigned char* font, unsigned char wChar, unsigned char hChar) {
 	const unsigned texW = 16*wChar, texH = 16*hChar, bytesPerRow = texW/8;
@@ -80,11 +81,37 @@ void gfxColorHSLA(float h, float s, float l, float a) {
 	gfxColor(hsla2rgba(h, s, l, a));
 }
 
+void gfxLineWidth(float w) {
+	lineWidth = w;
+}
+
+float gfxGetLineWidth() {
+	return lineWidth;
+}
+
 //--- primitives ---------------------------------------------------
 
+void gfxDrawRectW(float x, float y, float w, float h, float lw) {
+	SDL_FRect pos={x,y,w,lw};
+	SDL_RenderFillRectF(renderer, &pos);
+	pos.y += h-lw;
+	SDL_RenderFillRectF(renderer, &pos);
+	pos.y = y+lw;
+	pos.x = x;
+	pos.w = lw;
+	pos.h = h-2*lw;
+	SDL_RenderFillRectF(renderer, &pos);
+	pos.x += w-lw;
+	SDL_RenderFillRectF(renderer, &pos);
+}
+
 void gfxDrawRect(float x, float y, float w, float h) {
-	SDL_FRect pos={x,y,w,h};
-	SDL_RenderDrawRectF(renderer, &pos);
+	if(lineWidth!=1.0f)
+		gfxDrawRectW(x, y, w, h, lineWidth);
+	else {
+		SDL_FRect pos={x,y,w,h};
+		SDL_RenderDrawRectF(renderer, &pos);
+	}
 }
 
 void gfxFillRect(float x, float y, float w, float h) {
@@ -93,11 +120,62 @@ void gfxFillRect(float x, float y, float w, float h) {
 }
 
 void gfxDrawPoints(unsigned n, const float* coords) {
-	SDL_RenderDrawPointsF(renderer, (const SDL_FPoint*)coords, n);
+	if(lineWidth==1.0f)
+		SDL_RenderDrawPointsF(renderer, (const SDL_FPoint*)coords, n);
+	else {
+		const float lw2 = lineWidth/2;	
+		SDL_FRect pos = {0,0,lineWidth,lineWidth};
+		for(unsigned i=0; i<n; ++i) {
+			pos.x = coords[i*2] - lw2;
+			pos.y = coords[i*2+1] - lw2;
+			SDL_RenderFillRectF(renderer, &pos);
+		}
+	}
+}
+
+void gfxDrawLineW(float x1, float y1, float x2, float y2, float lw) {
+	const float lw2 = lw/2;
+	SDL_FRect dest;
+	if(x1==x2) {
+		dest.x = x1-lw2+1;
+		dest.w = lw;
+		if(y1==y2) {
+			dest.y = y1-lw2;
+			dest.h = lw;
+		}
+		else {
+			dest.y = y1<y2 ? y1 : y2;
+			dest.h = abs(y2-y1);
+		}
+		SDL_RenderFillRectF(renderer, &dest);
+	}
+	else if(y1==y2) {
+		dest.x = x1 < x2 ? x1: x2;
+		dest.y = y1-lw2+1;
+		dest.w = abs(x2-x1);
+		dest.h = lw;
+		SDL_RenderFillRectF(renderer, &dest);
+	}
+	else {
+	uint8_t r, g, b, a;
+		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+		SDL_SetTextureColorMod(defaultFont, r, g, b);
+		SDL_SetTextureAlphaMod(defaultFont, a);
+		static SDL_Rect src = { 134,212,1,1 };
+		double angle = SDL_atan2(y2 - y1, x2 - x1) * 180.0 / M_PI;
+		dest.x = x1; dest.y = y1-lw2;
+		dest.w = SDL_sqrt(SDL_pow(x2-x1,2)+SDL_pow(y2-y1,2));
+		dest.h = lw;
+		SDL_FPoint center = {0,lw2};
+		SDL_RenderCopyExF(renderer, defaultFont, &src, &dest, angle, &center, SDL_FLIP_NONE);
+	}
 }
 
 void gfxDrawLine(float x0, float y0, float x1, float y1) {
-	SDL_RenderDrawLineF(renderer, x0,y0, x1,y1);
+	if(lineWidth==1.0f)
+		SDL_RenderDrawLineF(renderer, x0,y0, x1,y1);
+	else
+		gfxDrawLineW(x0,y0,x1,y1, lineWidth);
 }
 
 size_t gfxImageUpload(const unsigned char* data, int w, int h, int d) {

@@ -19,6 +19,7 @@
 #include <SDL_loadso.h>
 
 extern float clampf(float f, float min, float max);
+extern float randf();
 extern const char* appVersion;
 extern void sprites_exports(duk_context *ctx, int bindGL);
 extern void intersects_exports(duk_context *ctx);
@@ -35,6 +36,20 @@ static void dk_defineReadOnlyProperty(duk_context* ctx, const char* key, duk_idx
 	duk_def_prop(ctx, idx < 0 ? idx-2 : idx,
 		DUK_DEFPROP_HAVE_GETTER |
 		DUK_DEFPROP_HAVE_CONFIGURABLE | DUK_DEFPROP_HAVE_ENUMERABLE | DUK_DEFPROP_ENUMERABLE);
+}
+
+const char* dk_join_array(duk_context *ctx, duk_idx_t idx, const char* sep) {
+	duk_size_t sz = duk_get_length(ctx, idx);
+	if(sep)
+		duk_push_string(ctx, sep);
+	for(duk_size_t i=0; i<sz; ++i)
+		duk_get_prop_index(ctx, idx, i);
+	if(sep)
+		duk_join(ctx, sz);
+	else
+		duk_concat(ctx, sz);
+	duk_replace(ctx, idx);
+	return duk_get_string(ctx, idx);
 }
 
 uint32_t readFloatArray(duk_context *ctx, duk_idx_t idx, float** arr, float** buf) {
@@ -80,6 +95,44 @@ uint32_t array2color(duk_context *ctx, duk_idx_t idx) {
 		return rgbaColor(arr[0], arr[1], arr[2], arr[3]);
 	}
 	return 0xffffffff;
+}
+
+Value* readValue(duk_context *ctx, duk_idx_t objIdx) {
+	Value* obj = Value_new(VALUE_MAP, NULL);
+	duk_enum(ctx, objIdx, DUK_ENUM_OWN_PROPERTIES_ONLY);
+	duk_idx_t enumIdx = duk_get_top_index(ctx);
+	while (duk_next(ctx, enumIdx, 1 /*get_value*/)) {
+		duk_idx_t keyIdx = duk_get_top_index(ctx)-1, valueIdx = keyIdx+1;
+
+		switch(duk_get_type(ctx, valueIdx)) {
+		case DUK_TYPE_STRING:
+			Value_set(obj, duk_to_string(ctx, keyIdx), Value_str(duk_to_string(ctx, valueIdx)));
+			break;
+		case DUK_TYPE_NUMBER: {
+			double f = duk_get_number(ctx, valueIdx);
+			signed long long i = f;
+			if(f==(double)i)
+				Value_set(obj, duk_to_string(ctx, keyIdx), Value_int(i));
+			else
+				Value_set(obj, duk_to_string(ctx, keyIdx), Value_float(f));
+			break;
+		}
+		case DUK_TYPE_BOOLEAN:
+			Value_set(obj, duk_to_string(ctx, keyIdx), Value_bool(duk_to_boolean(ctx, valueIdx)));
+			break;
+		case DUK_TYPE_NULL:
+			Value_set(obj, duk_to_string(ctx, keyIdx), Value_new(VALUE_NONE, NULL));
+			break;
+		default:
+			if(duk_is_array(ctx, valueIdx) || duk_is_buffer_data(ctx, valueIdx))
+				Value_set(obj, duk_to_string(ctx, keyIdx), Value_int(array2color(ctx, valueIdx)));
+		}
+		//printf("%s -> %s\n", duk_to_string(ctx, keyIdx), duk_to_string(ctx, valueIdx));
+		duk_pop_2(ctx);
+	}
+	//duk_push_context_dump(ctx); printf("%s\n", duk_to_string(ctx, -1)); duk_pop(ctx);
+	duk_pop(ctx); // pop enum obj
+	return obj;
 }
 
 static duk_ret_t tryJsonDecode(duk_context *ctx, void* udata) {
@@ -153,7 +206,6 @@ static void dk_encodeURI(duk_context *ctx, duk_idx_t objIdx) {
 	//duk_push_context_dump(ctx); printf("%s\n", duk_to_string(ctx, -1)); duk_pop(ctx);
 	duk_replace(ctx, objIdx); // replace object by concat string
 	duk_pop_2(ctx); // pop enum obj and funcIdx
-
 }
 
 static duk_ret_t dk_dummy(duk_context *ctx) {
@@ -298,27 +350,99 @@ static void bindConsole(duk_context *ctx) {
  */
 
 
-/**
- * @function app.on
- * registers or removes an event listener callback for an application event.
- * The individual application events are described in [EVENTS.md](EVENTS.md).
- * @param {string} name - event name
- * @param {function|null} callback - function to be executed when the event has happened, set null to remove
- */
-static duk_ret_t dk_onEvent(duk_context *ctx) {
-	const char* event = duk_to_string(ctx, 0);
+static void updateEventHandler(const char* event, duk_context *ctx, duk_idx_t handlerIdx) {
 	duk_push_global_stash(ctx);
-	if(!duk_is_function(ctx, 1)) {
+	if(!duk_is_function(ctx, handlerIdx)) {
 		duk_del_prop_string(ctx, -1, event);
 		if(strcmp(event, "textinput")==0)
 			WindowTextInputStop();
 	}
 	else {
-		duk_dup(ctx, 1); // callback fn
+		duk_dup(ctx, handlerIdx); // callback fn
 		duk_put_prop_string(ctx, -2, event);
 		if(strcmp(event, "textinput")==0)
 			WindowTextInputStart();
 	}
+	duk_pop(ctx);
+}
+
+/**
+ * @function app.on
+ * registers or removes an event listener callback for an application event.
+ * The individual application events are described in [EVENTS.md](EVENTS.md).
+ * @param {string|object} name - event name or object consisting of name:eventHandler function pairs
+ * @param {function|null} callback - function to be executed when the event has happened, set null to remove
+ */
+static duk_ret_t dk_onEvent(duk_context *ctx) {
+	if(!duk_is_object(ctx,0))
+		updateEventHandler(duk_to_string(ctx, 0), ctx, 1);
+	else {
+		if(duk_get_prop_string(ctx, 0, "load"))
+			updateEventHandler("load", ctx, duk_get_top_index(ctx));
+		duk_pop(ctx);
+		if(duk_get_prop_string(ctx, 0, "close"))
+			updateEventHandler("close", ctx, duk_get_top_index(ctx));
+		duk_pop(ctx);
+		duk_set_top(ctx, 1);
+		duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("nextListeners"));
+	}
+	return 0;
+}
+
+/**
+ * @function app.emit
+ * emits an event
+ * @param {string} name - event name
+ * @param {any} [args] - an arbitrary number of additional arguments to be passed to the event handler
+ */
+static duk_ret_t dk_appEmit(duk_context *ctx) {
+	int argc = duk_get_top(ctx);
+	if(argc<1) {
+		snprintf(s_lastError, ERROR_MAXLEN,
+			"app.emit(evtName[, args...]) expects at at least a single string argument\n");
+		return duk_error(ctx, DUK_ERR_ERROR, s_lastError);
+	}
+	Value* args = NULL, *pred=NULL;
+	for(int i=1; i<argc; ++i) {
+		Value* arg = NULL;
+		switch(duk_get_type(ctx, i)) {
+		case DUK_TYPE_STRING:
+			arg = Value_str(duk_get_string(ctx, i));
+			break;
+		case DUK_TYPE_NUMBER: {
+			double f = duk_get_number(ctx, i);
+			signed long long i = f;
+			arg = (f==(double)i) ? Value_int(i) : Value_float(f);
+			break;
+		}
+		case DUK_TYPE_BOOLEAN:
+			arg = Value_bool(duk_to_boolean(ctx, i));
+			break;
+		case DUK_TYPE_NULL:
+			arg = Value_new(VALUE_NONE, NULL); break;
+		default:
+			if(duk_is_array(ctx, i) || duk_is_buffer_data(ctx, i))
+				break;
+			else if(duk_is_object(ctx, i))
+				arg = readValue(ctx, i);
+		}
+
+		if(!arg) {
+			Value_delete(args, 1);
+			snprintf(s_lastError, ERROR_MAXLEN,
+				"app.emit(evtName[, args...]) unhandled argument type as argument %i\n", i);
+			return duk_error(ctx, DUK_ERR_ERROR, s_lastError);
+		}
+
+		if(!pred)
+			pred = arg;
+		else {
+			pred->next = arg;
+			pred = arg;
+		}
+	}
+	jsvmDispatchEvent((size_t)ctx, duk_to_string(ctx,0), args);
+	Value_delete(args, 1);
 	return 0;
 }
 
@@ -339,16 +463,7 @@ static void readImageResourceParams(
 	}
 }
 
-/**
- * @function app.getResource
- * returns handle to an image/audio/font or text resource
- * @param {string} name - resource file name
- * @param {object} [params] - optional additional parameters as key-value pairs such as
- *   filtering for all images, scale for SVG images, or size for font resources
- * @returns {number} resource handle
- */
-static duk_ret_t dk_getResource(duk_context *ctx) {
-	const char* name = duk_to_string(ctx, 0);
+static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 	int filtering = 1;
 	float scale = 1.0;
 	readImageResourceParams(ctx, 1, &scale, &filtering);
@@ -376,6 +491,32 @@ static duk_ret_t dk_getResource(duk_context *ctx) {
 	}
 	snprintf(s_lastError, ERROR_MAXLEN, "app.getResource(\"%s\") failed\n", name);
 	return duk_error(ctx, DUK_ERR_REFERENCE_ERROR, s_lastError);
+}
+
+/**
+ * @function app.getResource
+ * returns handle to an image/audio/font or text resource or array of handles
+ * @param {string|array} name - resource file name or list of resource file names
+ * @param {object} [params] - optional additional parameters as key-value pairs such as
+ *   filtering for images, scale for SVG images, or size for font resources
+ * @returns {number} resource handle
+ */
+static duk_ret_t dk_getResource(duk_context *ctx) {
+	if(!duk_is_array(ctx,0)) {
+		const char* name = duk_to_string(ctx, 0);
+		return dk_getNamedResource(name, ctx);
+	}
+	uint32_t len = duk_get_length(ctx, 0);
+	duk_idx_t arr = duk_push_array(ctx);
+
+	for(uint32_t idx=0; idx<len; ++idx) {
+		duk_get_prop_index(ctx, 0, idx);
+		const char* name = duk_to_string(ctx, -1);
+		duk_pop(ctx);
+		dk_getNamedResource(name, ctx);
+		duk_put_prop_index(ctx, arr, idx);
+	}
+	return 1;
 }
 
 /**
@@ -541,6 +682,16 @@ static duk_ret_t dk_appSetBackground(duk_context *ctx) {
 }
 
 /**
+ * @function app.setTitle
+ * sets window title
+ * @param {string} title - new title
+ */
+static duk_ret_t dk_appSetTitle(duk_context *ctx) {
+	WindowTitle(duk_to_string(ctx, 0));
+	return 0;
+}
+
+/**
  * @function app.setPointer
  * turns mouse pointer visiblity on or off
  * @param {Number} state - visible (1) invisible (0)
@@ -556,6 +707,62 @@ static duk_ret_t dk_appSetPointer(duk_context *ctx) {
  * @param {Number} duration - duration in seconds
  */
 static duk_ret_t dk_appVibrate(duk_context *ctx) {
+	return 0;
+}
+
+/**
+ * @function app.prompt
+ *
+ * reads a string from a modal window
+ *
+ * @param {string|array} message - (multi-line) message to be displayed
+ * @param {string} [initialValue] - optional prefilled value
+ * @param {string} [options] - display options
+ * @returns {string} entered string
+ */
+static duk_ret_t dk_appPrompt(duk_context *ctx) {
+	const char *msg = duk_is_array(ctx, 0) ? dk_join_array(ctx, 0, "\n") : duk_to_string(ctx, 0);
+	const char* initialValue = (duk_is_undefined(ctx, 1)||duk_is_null(ctx, 1))
+		? NULL : duk_to_string(ctx, 1);
+	Value* options = NULL;
+	if(duk_is_object(ctx, 2))
+		options = readValue(ctx, 2);
+
+	char value[256];
+	if(initialValue) {
+		strncpy(value, initialValue, 255);
+		value[255]=0;
+	}
+	else value[0] = 0;
+
+	int ret = DialogMessageBox(msg, value, options);
+
+	if(options)
+		Value_delete(options, 1);
+	if(ret!=0)
+		return 0;
+	duk_push_string(ctx, value);
+	return 1;
+}
+
+/**
+ * @function app.message
+ *
+ * displays a modal message window
+ *
+ * @param {string|array} message - (multi-line) message to be displayed
+ * @param {string} [options] - display options
+ */
+static duk_ret_t dk_appMessage(duk_context *ctx) {
+	const char *msg = duk_is_array(ctx, 0) ? dk_join_array(ctx, 0, "\n") : duk_to_string(ctx, 0);
+	Value* options = NULL;
+	if(duk_is_object(ctx, 1))
+		options = readValue(ctx, 1);
+
+	DialogMessageBox(msg, NULL, options);
+
+	if(options)
+		Value_delete(options, 1);
 	return 0;
 }
 
@@ -793,6 +1000,8 @@ static void bindApp(duk_context *ctx, int bindGL) {
 
 	duk_push_c_function(ctx, dk_onEvent, 2);
 	duk_put_prop_string(ctx, -2, "on");
+	duk_push_c_function(ctx, dk_appEmit, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "emit");
 	duk_push_c_function(ctx, dk_getResource, 2);
 	duk_put_prop_string(ctx, -2, "getResource");
 	duk_push_c_function(ctx, dk_createCircleResource, DUK_VARARGS);
@@ -812,8 +1021,14 @@ static void bindApp(duk_context *ctx, int bindGL) {
 	duk_put_prop_string(ctx, -2, "getGamepad");
 	duk_push_c_function(ctx, dk_appSetBackground, 3);
 	duk_put_prop_string(ctx, -2, "setBackground");
+	duk_push_c_function(ctx, dk_appSetTitle, 1);
+	duk_put_prop_string(ctx, -2, "setTitle");
 	duk_push_c_function(ctx, dk_appSetPointer, 1);
 	duk_put_prop_string(ctx, -2, "setPointer");
+	duk_push_c_function(ctx, dk_appPrompt, 3);
+	duk_put_prop_string(ctx, -2, "prompt");
+	duk_push_c_function(ctx, dk_appMessage, 2);
+	duk_put_prop_string(ctx, -2, "message");
 	duk_push_c_function(ctx, dk_appClose, 0);
 	duk_put_prop_string(ctx, -2, "close");
 	duk_push_c_function(ctx, dk_httpGet, 2);
@@ -932,12 +1147,65 @@ static duk_ret_t dk_gfxLineWidth(duk_context *ctx) {
 }
 
 /**
+ * @function gfx.origin
+ * sets drawing origin
+ * @param {number} ox - horizontal origin
+ * @param {number} oy - vertical origin
+ * @param {boolean} [isScreen=true] - flag switching between screen and model space
+ * @returns {object} - this gfx object
+ */
+static duk_ret_t dk_gfxOrigin(duk_context *ctx) {
+	float scx = duk_to_number(ctx, 0);
+	float scy = duk_to_number(ctx, 1);
+	int isScreen = duk_get_boolean_default(ctx, 2, 1);
+	if(isScreen)
+		gfxOriginScreen(scx,scy);
+	else
+		gfxOrigin(scx,scy);
+	duk_push_this(ctx);
+	return 1;
+}
+
+/**
+ * @function gfx.scale
+ * sets drawing scale
+ * @param {number} sc - scale
+ * @returns {object} - this gfx object
+ */
+static duk_ret_t dk_gfxScale(duk_context *ctx) {
+	gfxScale(duk_to_number(ctx, 0));
+	duk_push_this(ctx);
+	return 1;
+}
+
+/**
+ * @function gfx.clipRect
+ * sets viewport/clipping rectangle (in screen coordinates) or turns clipping off if called without parameters
+ * @param {number} [x] - X ordinate
+ * @param {number} [y] - Y ordinate
+ * @param {number} [w] - width
+ * @param {number} [h] - height
+ */
+static duk_ret_t dk_gfxClipRect(duk_context *ctx) {
+	if(duk_is_undefined(ctx, 0)) {
+		gfxClipDisable();
+		return 0;
+	}
+	int x = duk_to_int(ctx, 0);
+	int y = duk_to_int(ctx, 1);
+	int w = duk_to_int(ctx, 2);
+	int h = duk_to_int(ctx, 3);
+	gfxClipRect(x,y,w,h);
+	return 0;
+}
+
+/**
  * @function gfx.drawRect
  * draws a rectangular boundary line identified by a left upper coordinate, width, and height.
  * @param {number} x - X ordinate
  * @param {number} y - Y ordinate
- * @param {number} w - X width
- * @param {number} h - Y height
+ * @param {number} w - width
+ * @param {number} h - height
  */
 static duk_ret_t dk_gfxDrawRect(duk_context *ctx) {
 	float x = duk_to_number(ctx, 0);
@@ -953,8 +1221,8 @@ static duk_ret_t dk_gfxDrawRect(duk_context *ctx) {
  * fills a rectangular screen area identified by a left upper coordinate, width, and height.
  * @param {number} x - X ordinate
  * @param {number} y - Y ordinate
- * @param {number} w - X width
- * @param {number} h - Y height
+ * @param {number} w - width
+ * @param {number} h - height
  */
 static duk_ret_t dk_gfxFillRect(duk_context *ctx) {
 	float x = duk_to_number(ctx, 0);
@@ -1119,6 +1387,10 @@ static void bindGraphicsCommon(duk_context* ctx, int bindGL) {
 static void bindGraphics(duk_context *ctx) {
 	duk_push_object(ctx);
 
+	duk_push_c_function(ctx, dk_gfxOrigin, 3);
+	duk_put_prop_string(ctx, -2, "origin");
+	duk_push_c_function(ctx, dk_gfxScale, 1);
+	duk_put_prop_string(ctx, -2, "scale");
 	duk_push_c_function(ctx, dk_dummy, 0);
 	duk_put_prop_string(ctx, -2, "flush");
 	duk_push_c_function(ctx, dk_gfxColor, 4);
@@ -1129,6 +1401,8 @@ static void bindGraphics(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "colorHSL");
 	duk_push_c_function(ctx, dk_gfxLineWidth, 1);
 	duk_put_prop_string(ctx, -2, "lineWidth");
+	duk_push_c_function(ctx, dk_gfxClipRect, 4);
+	duk_put_prop_string(ctx, -2, "clipRect");
 	duk_push_c_function(ctx, dk_gfxDrawRect, 4);
 	duk_put_prop_string(ctx, -2, "drawRect");
 	duk_push_c_function(ctx, dk_gfxFillRect, 4);
@@ -1418,14 +1692,24 @@ static duk_ret_t dk_audioStop(duk_context *ctx) {
 /**
  * @function audio.replay
  * immediately plays a buffered PCM sample
- * @param {number} sample - sample handle
+ * @param {number|array} sample - sample handle or array of alternative samples (randomly chosen)
  * @param {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
  * @param {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
  * @param {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less
  * @returns {number} track number playing this sound or UINT_MAX if no track is available
  */
 static duk_ret_t dk_audioReplay(duk_context *ctx) {
-	size_t sample = duk_to_number(ctx, 0);
+	size_t sample;
+	if(!duk_is_array(ctx,0))
+		sample = duk_to_number(ctx, 0);
+	else {
+		uint32_t len = duk_get_length(ctx, 0);
+		uint32_t idx = randf() * len;
+		duk_get_prop_index(ctx, 0, idx);
+		sample = duk_to_number(ctx, -1);
+		//printf("random sample (%u/%u): %u\n", idx, len, (unsigned)sample);
+		duk_pop(ctx);
+	}
 	if(!sample)
 		return 0;
 	float volume = duk_get_number_default(ctx, 1, 1.0);
@@ -1500,7 +1784,7 @@ static duk_ret_t dk_audioSample(duk_context *ctx) {
 		buf = (float*)malloc(sampleLen*sizeof(float));
 		memcpy(buf, waveData, sampleLen*sizeof(float));
 	}
-	size_t sample = AudioSample(buf, sampleLen);
+	size_t sample = AudioSample(buf, sampleLen, 0);
 	duk_push_number(ctx, sample);
 	return 1;
 }
@@ -1783,7 +2067,7 @@ int jsvmEval(size_t vm, const char* src, const char* fname) {
 	if (duk_pcompile_string_filename(ctx, 0, src) != 0) {
 		duk_get_prop_string(ctx, -1, "lineNumber");
 		snprintf(s_lastError, ERROR_MAXLEN,
-			"compile time error at %s:%i: %s\n", fname, duk_to_int(ctx, -1), duk_safe_to_string(ctx, -2));
+			"%s:%i: compile time error: %s\n", fname, duk_to_int(ctx, -1), duk_safe_to_string(ctx, -2));
 		duk_pop_2(ctx);
 		return -1;
 	}
@@ -1791,7 +2075,7 @@ int jsvmEval(size_t vm, const char* src, const char* fname) {
 	if (ret != 0) {
 		duk_get_prop_string(ctx, -1, "lineNumber");
 		snprintf(s_lastError, ERROR_MAXLEN,
-			"runtime error at %s:%i: %s\n", fname, duk_to_int(ctx, -1), duk_safe_to_string(ctx, -2));
+			"%s:%i: runtime error: %s\n", fname, duk_to_int(ctx, -1), duk_safe_to_string(ctx, -2));
 		duk_pop_2(ctx);
 	}
 	return ret;
@@ -1815,7 +2099,7 @@ void jsvmDispatchEvent(size_t vm, const char* event, const Value* data) {
 		duk_get_prop_string(ctx, -2, "fileName");
 
 		snprintf(s_lastError, ERROR_MAXLEN,
-			"runtime error during '%s' event at %s:%i: %s\n", event, duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), duk_safe_to_string(ctx, -3));
+			"%s:%i: runtime error during '%s' event: %s\n", duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), event, duk_safe_to_string(ctx, -3));
 		duk_pop_2(ctx);
 	}
 	duk_pop_2(ctx); // pop result and global stash
@@ -1833,7 +2117,7 @@ void jsvmDispatchDrawEvent(size_t vm) {
 			duk_get_prop_string(ctx, -2, "fileName");
 
 			snprintf(s_lastError, ERROR_MAXLEN,
-				"runtime error during 'draw' event at %s:%i: %s\n", duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), duk_safe_to_string(ctx, -3));
+				"%s:%i: runtime error during 'draw' event: %s\n", duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), duk_safe_to_string(ctx, -3));
 			duk_pop_3(ctx);
 		}
 	}
@@ -1841,6 +2125,29 @@ void jsvmDispatchDrawEvent(size_t vm) {
 
 	if(++frameCounter%30==0)
 		LocalStoragePersistChanges(ctx);
+}
+
+void jsvmUpdateEventListeners(size_t vm) {
+	duk_context *ctx = (duk_context*)vm;
+	duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("nextListeners"));
+	if(duk_is_object(ctx, -1)) {
+		jsvmDispatchEvent(vm, "leave", NULL);
+		// update listeners:
+		static const char* events[] = {
+			"update", "draw", "resize", "keyboard", "pointer", "gamepad", "enter", "leave", NULL
+		};
+		for(const char**evt = events; *evt; ++evt) {
+			duk_get_prop_string(ctx,-1, *evt);
+			updateEventHandler(*evt, ctx, -1);
+			duk_pop(ctx);
+		}
+		jsvmDispatchEvent(vm, "enter", NULL);
+		// cleanup next listeners:
+		duk_push_global_object(ctx);
+		duk_del_prop_literal(ctx, -1, DUK_HIDDEN_SYMBOL("nextListeners"));
+		duk_pop(ctx);
+	}
+	duk_pop(ctx);
 }
 
 void jsvmAsyncCalls(size_t vm, double timestamp) {

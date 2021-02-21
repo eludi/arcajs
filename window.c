@@ -386,6 +386,10 @@ void WindowEventHandler(int(*eventHandler)(), void* udata) {
 	wnd.eventHandlerUserData = udata;
 }
 
+void* WindowEventData() {
+	return wnd.eventHandlerUserData;
+}
+
 void WindowInput(float axis[6], unsigned int button[1]) {
 	*button = wnd.inputButtons;
 	memcpy(axis,wnd.inputAxis,6*sizeof(float));

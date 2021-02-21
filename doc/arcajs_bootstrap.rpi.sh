@@ -2,9 +2,9 @@
 # arcajs bootstrap script for Raspberry Pi Zero, 4, and likely others on Raspberry Pi OS
 
 sudo apt -y install libudev-dev libasound2-dev libsamplerate-dev libsndio-dev libdbus-1-dev libx11-dev
-wget https://www.libsdl.org/release/SDL2-2.0.12.tar.gz
-tar xvfz SDL2-2.0.12.tar.gz
-mv SDL2-2.0.12 SDL2
+wget https://www.libsdl.org/release/SDL2-2.0.14.tar.gz
+tar xvfz SDL2-2.0.14.tar.gz
+mv SDL2-2.0.14 SDL2
 cd SDL2 && mkdir build && cd build
 MACHINE=`uname -m`
 if [ $MACHINE = 'armv6l' ]; then

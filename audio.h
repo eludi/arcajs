@@ -38,11 +38,13 @@ uint32_t AudioMelody(const char* melody, float volume, float balance);
 int AudioPlaying(uint32_t track);
 /// stops a currently playing track
 void AudioStop(uint32_t track);
-/// uploads mono audio file data (mp3) and returns handle for later playback
-size_t AudioUpload(void* mp3data, uint32_t numBytes);
+/// uploads mono audio MP3 sample and returns handle for later playback
+size_t AudioUploadMP3(void* mp3data, uint32_t numBytes);
+/// uploads mono audio WAV sample and returns handle for later playback
+size_t AudioUploadWAV(void* wavdata, uint32_t numBytes);
 /// buffers a mono wave data sample for later playback
 /** wave data memory ownership is passed to the function */
-size_t AudioSample(float* waveData, uint32_t numSamples);
+size_t AudioSample(float* waveData, uint32_t numSamples, uint32_t offset);
 /// immediately plays previously uploaded sample data
 /** \return track number playing this sound or UINT_MAX if no track is available */
 uint32_t AudioReplay(size_t sample, float volume, float balance, float detune);

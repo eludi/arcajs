@@ -1,6 +1,6 @@
 # application events
 
-The global app object provides several application events. Callback
+The global app object provides several application events. Individual callback
 functions for them can be registered using the app.on function:
 
 ```javascript
@@ -9,10 +9,40 @@ app.on('pointer', function(evt) {
 });
 ```
 
+Alternatively, several callback functions can be registered or switched at once
+via an event handler object:
+
+```javascript
+app.on({
+  pointer: function(evt) { /*...*/ },
+  keyboard: function(evt) { /*...*/ },
+  update: function(deltaT, now) { /*...*/ },
+  draw: function(gfx) { /*...*/ },
+  // ...
+});
+```
+
 ## load event
 
-The load event is triggered when the script code is initially interpreted and
-all resource files are loaded and ready to be used.
+The load event is triggered once when the script code is initially interpreted
+and all resource files are loaded and ready to be used.
+
+### Callback function parameters:
+
+- none
+
+## enter event
+
+The entered event is triggered after a new event handler object is registered 
+before the next frame.
+
+### Callback function parameters:
+
+- none
+
+## leave event
+
+The entered event is triggered before switching to a new event handler object.
 
 ### Callback function parameters:
 

@@ -26,19 +26,21 @@ body > canvas {
 	><canvas id="canvas">this webapp requires javascript to run.</canvas
 ></body>
 <script id="vs" type="x-shader/x-vertex">
+// input from vertex buffer:
 attribute vec2 a_position;
 attribute vec4 a_color;
 attribute vec2 a_texCoord;
-
+// output to fragment shader:
 varying vec4 vtxColor;
 varying vec2 texCoord;
-
+// context shared across all vertices in this batch:
 uniform vec2 u_resolution;
-//uniform vec2 u_texDims;
+uniform vec2 u_cam;
+uniform vec2 u_scale;
 
 void main() {
 	 // convert the rectangle from pixels to 0.0 to 1.0
-	 vec2 zeroToOne = a_position / u_resolution;
+	 vec2 zeroToOne = (a_position-u_cam)*u_scale / u_resolution;
 
 	 // convert from 0->1 to 0->2
 	 vec2 zeroToTwo = zeroToOne * 2.0;
@@ -74,8 +76,8 @@ void main() {
 "use strict";
 
 let app = arcajs.app = (function() {
-	let clearColor = [ 0,0,0 ]
-	let eventListeners = {};
+	let clearColor = [ 0,0,0 ];
+	let eventListeners = {}, nextListeners = null;
 	let resources = {};
 	let resourcesLoading = 0;
 	let modules = { audio:arcajs.audio, intersects:arcajs.intersects };
@@ -157,15 +159,8 @@ let app = arcajs.app = (function() {
 		return ret;
 	}
 
-	const emit = (event, ...args)=>{
-		if(event in eventListeners)
-			eventListeners[event](...args);
-		if('*' in eventListeners)
-			eventListeners['*'](event, ...args);
-	}
-
 	let app = {
-		version: 'v0.20201125a',
+		version: 'v0.202102221a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -187,12 +182,32 @@ let app = arcajs.app = (function() {
 			history.back();
 		},
 		on: function(event, callback) {
+			if(typeof event === 'object') {
+				if('load' in event) // usually only one per app, must become effective immediately
+					this.on('load', event.load);
+				if('close' in event) // usually only one per app, must become effective immediately
+					this.on('close', event.close);
+				nextListeners = event;
+				return;
+			}
 			if(!callback)
 				delete eventListeners[event];
 			else
 				eventListeners[event] = callback;
 		},
+		emit: function(evt, ...args) {
+			if(evt in eventListeners)
+				eventListeners[evt](...args);
+			if('*' in eventListeners)
+				eventListeners['*'](evt, ...args);
+		},
 		getResource: function(name, params={}) {
+			if(Array.isArray(name)) {
+				let ret = [];
+				for(let i=0; i<name.length; ++i)
+					ret.push(this.getResource(name[i], params));
+				return ret;
+			}
 			if(name in resources)
 				return resources[name];
 
@@ -201,14 +216,14 @@ let app = arcajs.app = (function() {
 				if(resourcesLoading<=0)
 					return;
 				if(--resourcesLoading===0)
-					setTimeout(()=>{ emit('load'); }, 0);
+					setTimeout(()=>{ this.emit('load'); }, 0);
 			}
 			let res = 0;
 			if(params.type=='font' || suffix=='ttf')
 				res = gfx.loadFont(name, params, readyCb);
 			else if(suffix=='png' || suffix=='jpg' || suffix=='svg')
 				res = gfx.loadTexture(name, params, readyCb);
-			else if(suffix=='mp3')
+			else if(suffix=='mp3' || suffix=='wav')
 				res = arcajs.audio.load(name, params, readyCb);
 			if(res) {
 				++resourcesLoading;
@@ -236,7 +251,19 @@ let app = arcajs.app = (function() {
 				navigator.vibrate(duration*1000);
 			else if('mozVibrate' in navigator)
 				navigator.mozVibrate(duration*1000);
-		}
+		},
+		prompt: function(msg, initialValue, options) {
+			if(Array.isArray(msg))
+				msg = msg.join('\n');
+			return window.prompt(msg, initialValue);
+		},
+		message: function(msg, options) {
+			if(Array.isArray(msg))
+				msg = msg.join('\n');
+			if(options && ('button1' in options))
+				return window.confirm(msg);
+			return window.alert(msg);
+		},
 	}
 
 	function emitTextInput(evt) {
@@ -244,19 +271,8 @@ let app = arcajs.app = (function() {
 			return;
 		if(evt.key.length==1) {
 			const ch = evt.key.charCodeAt(0);
-			if(ch>=32 && ch<=127)
-				emit('textinput', { type:'textinput', char:evt.key });
-			else switch(ch) {
-				case 0xc4: emit('textinput', { type:'textinput', char:"Ae"}); break;
-				case 0xd6: emit('textinput', { type:'textinput', char:"Oe"}); break;
-				case 0xdc: emit('textinput', { type:'textinput', char:"Ue"}); break;
-				case 0xdf: emit('textinput', { type:'textinput', char:"ss"}); break;
-				case 0xe4: emit('textinput', { type:'textinput', char:"ae"}); break;
-				case 0xf6: emit('textinput', { type:'textinput', char:"oe"}); break;
-				case 0xfc: emit('textinput', { type:'textinput', char:"ue"}); break;
-				default:
-					return;
-			}
+			if(ch>=32 && ch<256)
+				app.emit('textinput', { type:'textinput', char:evt.key });
 		}
 		else switch(evt.key) {
 		case 'Alt':
@@ -266,7 +282,7 @@ let app = arcajs.app = (function() {
 		case 'Shift':
 			return;
 		default:
-			emit('textinput', { type:'textinput', key:evt.key });
+			app.emit('textinput', { type:'textinput', key:evt.key });
 		}
 	}
 
@@ -276,15 +292,31 @@ let app = arcajs.app = (function() {
 		if (canvas.width !== width || canvas.height !== height) {
 			canvas.width = width;
 			canvas.height = height;
-			emit('resize', canvas.clientWidth, canvas.clientHeight);
+			app.emit('resize', canvas.clientWidth, canvas.clientHeight);
 		}
 	}
 
+	function updateListeners() {
+		app.emit('leave');
+		const listener = nextListeners;
+		['update', 'draw', 'resize', 'keyboard', 'pointer', 'gamepad', 'enter', 'leave'].forEach(function(evt) {
+			if(evt in listener)
+				app.on(evt, function(...args) { listener[evt](...args); });
+			else
+				app.on(evt);
+		});
+		app.emit('enter');
+		nextListeners = null;
+	}
+
 	const update = (now)=>{
+		if(nextListeners)
+			updateListeners();
+
 		now *= 0.001;
 		const deltaT = now-tLastFrame;
 		tLastFrame = now;
-		emit('update', deltaT, now);
+		app.emit('update', deltaT, now);
 
 		let canvas = document.querySelector("#canvas");
 		adjustCanvasSize(canvas/*, window.devicePixelRatio || 1*/);
@@ -292,31 +324,31 @@ let app = arcajs.app = (function() {
 		app.height = canvas.height;
 
 		gfx._frameBegin(...clearColor);
-		emit('draw', gfx);
+		app.emit('draw', gfx);
 		gfx._frameEnd();
 
 		requestAnimationFrame(update);
 	}
 	setTimeout(()=>{
 		if(resourcesLoading===0 && Object.keys(resources).length===0)
-			emit('load');
+			app.emit('load');
 		requestAnimationFrame(update);
 	}, 0);
 
 	document.body.addEventListener("touchmove", (evt)=>{ }, {passive: true});
-	window.addEventListener('unload', ()=>{ emit('close'); });
-	window.addEventListener('keydown', (evt)=>{ emit('keyboard', evt); emitTextInput(evt); });
-	window.addEventListener('keyup', (evt)=>{ emit('keyboard', evt); });
+	window.addEventListener('unload', ()=>{ app.emit('close'); });
+	window.addEventListener('keydown', (evt)=>{ app.emit('keyboard', evt); emitTextInput(evt); });
+	window.addEventListener('keyup', (evt)=>{ app.emit('keyboard', evt); });
 	window.addEventListener("gamepadconnected", (evt)=>{
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:true };
-		emit('gamepad', { type:'connected', index:evt.gamepad.index });
+		app.emit('gamepad', { type:'connected', index:evt.gamepad.index });
 	});
 	window.addEventListener("gamepaddisconnected", (evt)=>{
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:false };
-		emit('gamepad', { type:'disconnected', index:evt.gamepad.index });
+		app.emit('gamepad', { type:'disconnected', index:evt.gamepad.index });
 	});
-	arcajs.infra.addPointerEventListener(canvas, (evt)=>{ emit('pointer', evt); });
-	setTimeout(()=>{ emit('resize', canvas.width, canvas.height); }, 0);
+	arcajs.infra.addPointerEventListener(canvas, (evt)=>{ app.emit('pointer', evt); });
+	setTimeout(()=>{ app.emit('resize', canvas.width, canvas.height); }, 0);
 	return app;
 })();
 	</script>

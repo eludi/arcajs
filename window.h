@@ -66,6 +66,8 @@ int WindowTextInputActive();
 void WindowInput(float axis[6], unsigned int button[1]);
 /// registers a custom event handler
 void WindowEventHandler(int(*eventHandler)(void*), void* udata);
+/// allows accessing data of a custom event handler
+void* WindowEventData();
 
 /// returns number of available game controllers
 size_t WindowNumControllers();

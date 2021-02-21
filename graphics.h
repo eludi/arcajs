@@ -9,6 +9,13 @@ extern void* gfxRenderer();
 extern void gfxClose();
 extern void gfxTextureFiltering(int level);
 
+/// sets origin in model coordinates
+extern void gfxOrigin(float ox, float oy);
+/// sets origin in screen coordinates
+extern void gfxOriginScreen(float ox, float oy);
+/// sets global scale
+extern void gfxScale(float sc);
+
 /// sets current color
 extern void gfxColor(uint32_t color);
 /// sets current color to an opaque RGB color value
@@ -22,7 +29,10 @@ extern void gfxColorHSLA(float h, float s, float l, float a);
 extern void gfxLineWidth(float w);
 /// returns current line width
 extern float gfxGetLineWidth();
-
+/// disables clipping
+extern void gfxClipDisable();
+/// sets viewport / clipping rectangle (in screen coordinates)
+extern void gfxClipRect(int x, int y, int w, int h);
 /// draws a rectangle outline
 extern void gfxDrawRect(float x,float y, float w, float h);
 /// draws a filled rectangle

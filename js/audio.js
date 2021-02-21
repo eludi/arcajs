@@ -27,6 +27,13 @@ function loadSample(url, id, callback) {
 				let sample = samples[id-1];
 				sample.buffer = buffer;
 				sample.ready = true;
+				const arr = buffer.getChannelData(0);
+				for(let i=0; i<arr.length; ++i)
+					if(arr[i]>0.002 || arr[i]<-0.002) {
+						sample.offset = i/buffer.sampleRate;
+						//console.log(sample.url, 'offset:', sample.offset);
+						break;
+					}
 				if(callback)
 					callback(sample);
 			},
@@ -67,8 +74,8 @@ function findAvailableTrack() {
  }
 
  function createSource(wave, freq) {
-	 if(wave==='noi')
-		 return createNoiseSource(freq);
+	if(wave==='noi')
+		return createNoiseSource(freq);
 	
 	let source = audioCtx.createOscillator();
 	if (!source.start)
@@ -406,12 +413,20 @@ function Melody(melody) {
 
 return {
 	load: function(url, params, callback) {
-		let sample = { id:samples.length+1, ready:false, url:url, buffer:null };
+		if(Array.isArray(url)) {
+			let samples = [];
+			for(let i=0; i<url.length; ++i)
+				samples.push(this.load(url[i], params, callback));
+			return samples; 
+		}
+		let sample = { id:samples.length+1, ready:false, url:url, buffer:null, offset:0 };
 		samples.push(sample);
 		loadSample(url, sample.id, callback);
 		return sample.id;
 	},
 	replay: function(id, gain=1.0, pan=0, detune=0, deltaT=0) {
+		if(Array.isArray(id))
+			id = id[Math.floor(Math.random()*id.length)];
 		if(id===0 || id>samples.length)
 			return;
 		const sample = samples[id-1];
@@ -426,7 +441,7 @@ return {
 			source.playbackRate.value = Math.pow(2, detune/12);
 		source.buffer = sample.buffer;
 		connectSource(source, gain, pan);
-		source.start(audioCtx.currentTime + deltaT);
+		source.start(audioCtx.currentTime + deltaT, sample.offset || 0);
 		source.addEventListener('ended', ()=>{ tracks[trackId]=null; })
 		return trackId;
 	},
@@ -486,7 +501,7 @@ return {
 		var channel = buffer.getChannelData(0);
 		for (let i = 0, end=data.length; i < end; ++i)
 			channel[i] = data[i];
-		samples.push({ id:samples.length+1, ready:true, url:'', buffer:buffer });
+		samples.push({ id:samples.length+1, ready:true, url:'', buffer:buffer, offset:0 });
 		return samples.length;
 	},
 	sampleRate: audioCtx.sampleRate

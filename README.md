@@ -23,7 +23,7 @@ components, all written in portable and efficient C:
   [nano\_svg](https://github.com/memononen/nanosvg),
   [dr\_mp3](https://github.com/mackron/dr_libs/blob/master/dr_mp3.h) - resource
   loaders for PNG and JPG images, TTF fonts, SVG vector graphics primitives, and
-  MP3 audio samples
+  MP3 or WAV audio samples
 - [miniz](https://github.com/richgel999/miniz) - for accessing apps bundled as
   single zip or exe files
 - own simplified graphics, sprites, collision, audio, and input APIs

@@ -15,6 +15,7 @@
 #endif
 
 //--- low-level functions ------------------------------------------
+float randf() { return rand() / ((float)RAND_MAX+1.0f); }
 float oscSilence(float phase) { (void)phase; return 0; }
 float oscSine(float phase) { return sin(2.0f * M_PI * phase); }
 float oscTriangle(float phase) {
@@ -24,7 +25,7 @@ float oscTriangle(float phase) {
 }
 float oscSquare(float phase) { return fmod(phase, 1.0f)<0.5 ? 1.0 : -1.0; }
 float oscSawtooth(float phase) { return 2.0f * fmod(phase, 1.0f) - 1.0f; }
-float oscNoise(float phase) { (void)phase; return rand() / (float)RAND_MAX; }
+float oscNoise(float phase) { (void)phase; return randf(); }
 
 static Oscillator_t Oscs[] = { oscSilence, oscSine, oscTriangle, oscSquare, oscSawtooth, oscNoise };
 
@@ -298,6 +299,7 @@ static SDL_AudioSpec audioSpec;
 typedef struct {
 	float* waveData;
 	uint32_t waveLen;
+	uint32_t offset;
 } SampleSpec;
 
 static SampleSpec* samples=NULL;
@@ -534,7 +536,7 @@ void AudioStop(uint32_t track) {
 	SDL_UnlockAudioDevice(devId);
 }
 
-size_t AudioUpload(void* mp3data, uint32_t numBytes) {
+size_t AudioUploadMP3(void* mp3data, uint32_t numBytes) {
 	drmp3_config cfg = { 1, audioSpec.freq };
 	uint64_t pcmSamples;
 
@@ -543,10 +545,34 @@ size_t AudioUpload(void* mp3data, uint32_t numBytes) {
 		drmp3_free(pcmData);
 		return 0;
 	}
-	return AudioSample(pcmData, pcmSamples);
+	// skip initial silence of MP3:
+	uint32_t offset=0;
+	for(; offset<pcmSamples; ++offset)
+		if(pcmData[offset]>0.002 || pcmData[offset]<-0.002)
+			break;
+	//printf("offset:%u %f secs\n", offset, (float)offset/audioSpec.freq);
+	return AudioSample(pcmData, pcmSamples, offset);
 }
 
-size_t AudioSample(float* waveData, uint32_t waveLen) {
+size_t AudioUploadWAV(void* wavdata, uint32_t numBytes) {
+	SDL_RWops* rwo = SDL_RWFromConstMem(wavdata, (int)numBytes);
+	SDL_AudioSpec wavSpec;
+	uint8_t* buf;
+	uint32_t buflen;
+	if(!SDL_LoadWAV_RW(rwo, 1, &wavSpec, &buf, &buflen))
+		return 0;
+
+	SDL_AudioCVT cvt;
+	SDL_BuildAudioCVT(&cvt, wavSpec.format, wavSpec.channels, wavSpec.freq, AUDIO_F32, 1, audioSpec.freq);
+	cvt.len = buflen;
+	cvt.buf = malloc(cvt.len * cvt.len_mult);
+	memcpy(cvt.buf, buf, buflen);
+	SDL_FreeWAV(buf);
+	SDL_ConvertAudio(&cvt);
+	return AudioSample((float*)cvt.buf, cvt.len_cvt/sizeof(float), 0);
+}
+
+size_t AudioSample(float* waveData, uint32_t waveLen, uint32_t offset) {
 	if(numSamplesMax==0) {
 		numSamplesMax=4;
 		samples = (SampleSpec*)malloc(numSamplesMax*sizeof(SampleSpec));
@@ -557,6 +583,7 @@ size_t AudioSample(float* waveData, uint32_t waveLen) {
 	}
 	samples[numSamples].waveData = waveData;
 	samples[numSamples].waveLen = waveLen;
+	samples[numSamples].offset = offset;
 	return ++numSamples;
 }
 
@@ -564,5 +591,6 @@ uint32_t AudioReplay(size_t sample, float volume, float balance, float detune) {
 	if(!sample || sample>numSamples)
 		return UINT_MAX;
 	--sample;
-	return AudioPlay(samples[sample].waveData, samples[sample].waveLen, volume, balance, detune);
+	uint32_t offset = samples[sample].offset;
+	return AudioPlay(samples[sample].waveData+offset, samples[sample].waveLen-offset, volume, balance, detune);
 }

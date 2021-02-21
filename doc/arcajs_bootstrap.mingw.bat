@@ -1,8 +1,8 @@
-Rem arcajs bootstrap script for Windows 10 using the MinGW compiler
+Rem arcajs bootstrap script for Windows 10 using the MinGW-w64 compiler, obtainable at https://sourceforge.net/projects/mingw-w64/
 
-curl.exe http://libsdl.org/release/SDL2-devel-2.0.12-mingw.tar.gz -o SDL2-devel-2.0.12-mingw.tar.gz
-tar.exe -xf .\SDL2-devel-2.0.12-mingw.tar.gz
-ren SDL2-2.0.12 SDL2
+curl.exe http://libsdl.org/release/SDL2-devel-2.0.14-mingw.tar.gz -o SDL2-devel-2.0.14-mingw.tar.gz
+tar.exe -xf .\SDL2-devel-2.0.14-mingw.tar.gz
+ren SDL2-2.0.14 SDL2
 cd SDL2
 md lib
 md lib\win32-x64
@@ -16,5 +16,5 @@ curl.exe -L https://github.com/eludi/arcajs/archive/master.zip -o arcajs.zip
 tar.exe -xf .\arcajs.zip
 ren arcajs-master arcajs
 cd arcajs
-make static
+mingw32-make.exe static
 del /s *.o

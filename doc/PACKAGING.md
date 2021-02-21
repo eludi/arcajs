@@ -26,7 +26,9 @@ from their different contexts. Arcajs interprets the following parameters:
 	"console_height": 448, // overlay debug console height, set 0 to disable
 	"background_color" : "#000", // initial background color
 	"icon": "icon.svg", // window icon displayed during startup
-	"scripts":[ "main.js" ] // the script files containing the application logic
+	"scripts":[ "main.js" ], // the script files containing the application logic
+	"audio_frequency": 44100, // sample rate of the audio device
+	"audio_tracks": 8 // number of parallel audio tracks
 }
 ```
 

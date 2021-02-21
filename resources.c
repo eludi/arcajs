@@ -90,7 +90,9 @@ int isImageFile(const char* fname) {
 }
 int isAudioFile(const char* fname) {
 	const char* suffix = ResourceSuffix(fname);
-	return suffix && (strcasecmp(suffix, "mp3")==0);
+	if(!suffix)
+		return 0;
+	return (strcasecmp(suffix, "mp3")==0) || (strcasecmp(suffix, "wav")==0);
 }
 int isFontFile(const char* fname) {
 	const char* suffix = ResourceSuffix(fname);
@@ -148,7 +150,8 @@ static size_t ArchiveLoadAudio(Archive* ar, const char* fname) {
 	if(!buf)
 		return 0;
 
-	size_t sample = AudioUpload(buf, fsize);
+	size_t sample = (strcasecmp(ResourceSuffix(fname), "mp3")==0) ?
+		AudioUploadMP3(buf, fsize) : AudioUploadWAV(buf, fsize);
 	free(buf);
 	return sample;
 }

@@ -169,9 +169,10 @@ return function (canvas, capacity=500) {
 	let buf = new Float32Array(capacity * elemSz);
 	let sz = 0, idx=0;
 	let color_f = fpack.rgba(255,255,255);
-	let lineWidth = 1.0;
+	let lineWidth=1.0, camSc=1.0, camX=0, camY=0;
 	const texCoordMax = 16383;
 	let fonts = [], textures=[], tex=null;
+	let viewport = null;
 
 	// setup GLSL program
 	const gl = canvas.getContext("webgl");
@@ -183,6 +184,8 @@ return function (canvas, capacity=500) {
 	const a_texCoord = gl.getAttribLocation(program, "a_texCoord");
 	gl.enableVertexAttribArray(a_texCoord);
 	let u_resolution = gl.getUniformLocation(program, "u_resolution");
+	let u_cam = gl.getUniformLocation(program, "u_cam");
+	let u_scale = gl.getUniformLocation(program, "u_scale");
 	let u_texUnit0 = gl.getUniformLocation(program, "u_texUnit0");
 	gl.useProgram(program);
 
@@ -327,8 +330,28 @@ return function (canvas, capacity=500) {
 	this.lineWidth = function(w) {
 		if(w===undefined)
 			return lineWidth;
+		if(w==lineWidth)
+			return this;
+		this.flush();
 		lineWidth = Number(w);
 		return this;
+	}
+	this.origin = function(ox,oy,isScreen=true) {
+		this.flush();
+		if(isScreen) {
+			camX = -ox/camSc;
+			camY = -oy/camSc;
+		}
+		else {
+			camX = ox;
+			camY = oy;
+		}
+	}
+	this.scale = function(sc) {
+		if(sc==camSc)
+			return;
+		this.flush();
+		camSc = sc;
 	}
 
 	this.fillText = function(fontId, x,y, text, align=0) {
@@ -388,6 +411,12 @@ return function (canvas, capacity=500) {
 			}
 		}
 		return metrics;
+	}
+	this.clipRect = function(x, y, w, h) {
+		if(x!==undefined)
+			viewport = { x:x, y:y, w:w, h:h}
+		else
+			viewport = null;
 	}
 	this.fillRect = function(x1, y1, w, h) {
 		setTexture(texWhite);
@@ -519,7 +548,9 @@ return function (canvas, capacity=500) {
 
 	this.flush = function() {
 		// set the resolution
-		gl.uniform2f(u_resolution, gl.canvas.width, gl.canvas.height);
+		gl.uniform2f(u_resolution, canvas.width, canvas.height);
+		gl.uniform2f(u_cam, camX, camY);
+		gl.uniform2f(u_scale, camSc, camSc);
 		gl.uniform1i(u_texUnit0, 0);
 
 		gl.activeTexture(gl.TEXTURE0);
@@ -533,16 +564,11 @@ return function (canvas, capacity=500) {
 		idx = 0;
 	}
 
-	/// experimental extension
-	this.setLineWidth = function(width) {
-		if(width==lineWidth)
-			return;
-		this.flush();
-		lineWidth = width;
-	}
-
 	this._frameBegin = function(r,g,b) {
-		gl.viewport(0, 0, canvas.width, canvas.height);
+		if(viewport)
+			gl.viewport(viewport.x, viewport.y, viewport.w, viewport.h);
+		else
+			gl.viewport(0, 0, canvas.width, canvas.height);
 
 		gl.clearColor(r, g, b, 1);
 		gl.clear(gl.COLOR_BUFFER_BIT);

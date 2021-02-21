@@ -13,9 +13,9 @@
 extern const unsigned char font12x16[];
 
 static SDL_Renderer* renderer = NULL;
-static SDL_Rect viewport;
 static SDL_Texture* defaultFont;
 static float lineWidth = 1.0f;
+static float camX=0, camY=0, camSc=1.0f;
 
 static size_t uploadDefaultFont(const unsigned char* font, unsigned char wChar, unsigned char hChar) {
 	const unsigned texW = 16*wChar, texH = 16*hChar, bytesPerRow = texW/8;
@@ -36,7 +36,6 @@ static size_t uploadDefaultFont(const unsigned char* font, unsigned char wChar, 
 
 void gfxInit(void* render) {
 	renderer = (SDL_Renderer*)render;
-	SDL_RenderGetViewport(renderer, &viewport);
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
 	defaultFont = (SDL_Texture*)uploadDefaultFont(font12x16, 12, 16);
@@ -61,6 +60,21 @@ void gfxTextureFiltering(int level) {
 	else
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "2");
 }
+
+void gfxOrigin(float ox, float oy) {
+	camX = ox;
+	camY = oy;
+}
+
+void gfxOriginScreen(float ox, float oy) {
+	camX = -ox/camSc;
+	camY = -oy/camSc;
+}
+
+void gfxScale(float sc) {
+	camSc = sc;
+}
+
 
 //--- color --------------------------------------------------------
 
@@ -89,6 +103,15 @@ float gfxGetLineWidth() {
 	return lineWidth;
 }
 
+void gfxClipDisable() {
+	SDL_RenderSetClipRect(renderer, NULL);
+}
+
+void gfxClipRect(int x,int y, int w, int h) {
+	SDL_Rect pos={x,y,w,h};
+	SDL_RenderSetClipRect(renderer, &pos);
+}
+
 //--- primitives ---------------------------------------------------
 
 void gfxDrawRectW(float x, float y, float w, float h, float lw) {
@@ -106,28 +129,30 @@ void gfxDrawRectW(float x, float y, float w, float h, float lw) {
 }
 
 void gfxDrawRect(float x, float y, float w, float h) {
-	if(lineWidth!=1.0f)
-		gfxDrawRectW(x, y, w, h, lineWidth);
+	float lw = lineWidth*camSc;
+	if(lw!=1.0f)
+		gfxDrawRectW((x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc, lw);
 	else {
-		SDL_FRect pos={x,y,w,h};
+		SDL_FRect pos = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
 		SDL_RenderDrawRectF(renderer, &pos);
 	}
 }
 
 void gfxFillRect(float x, float y, float w, float h) {
-	SDL_FRect pos={x,y,w,h};
+	SDL_FRect pos = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
 	SDL_RenderFillRectF(renderer, &pos);
 }
 
 void gfxDrawPoints(unsigned n, const float* coords) {
-	if(lineWidth==1.0f)
+	if(lineWidth==1.0f && camSc==1.0f)
 		SDL_RenderDrawPointsF(renderer, (const SDL_FPoint*)coords, n);
 	else {
-		const float lw2 = lineWidth/2;	
-		SDL_FRect pos = {0,0,lineWidth,lineWidth};
+		const float lw = lineWidth * camSc;
+		const float lw2 = lw/2;
+		SDL_FRect pos = {0,0,lw,lw};
 		for(unsigned i=0; i<n; ++i) {
-			pos.x = coords[i*2] - lw2;
-			pos.y = coords[i*2+1] - lw2;
+			pos.x = (coords[i*2]-camX)*camSc - lw2;
+			pos.y = (coords[i*2+1]-camY)*camSc - lw2;
 			SDL_RenderFillRectF(renderer, &pos);
 		}
 	}
@@ -172,10 +197,11 @@ void gfxDrawLineW(float x1, float y1, float x2, float y2, float lw) {
 }
 
 void gfxDrawLine(float x0, float y0, float x1, float y1) {
-	if(lineWidth==1.0f)
-		SDL_RenderDrawLineF(renderer, x0,y0, x1,y1);
+	const float lw = lineWidth*camSc;
+	if(lw==1.0f)
+		SDL_RenderDrawLineF(renderer, (x0-camX)*camSc,(y0-camY)*camSc, (x1-camX)*camSc,(y1-camY)*camSc);
 	else
-		gfxDrawLineW(x0,y0,x1,y1, lineWidth);
+		gfxDrawLineW((x0-camX)*camSc,(y0-camY)*camSc, (x1-camX)*camSc,(y1-camY)*camSc, lw);
 }
 
 size_t gfxImageUpload(const unsigned char* data, int w, int h, int d) {
@@ -239,7 +265,7 @@ void gfxDrawImage(size_t img, float x, float y) {
 
 	int w,h;
 	SDL_QueryTexture(texture, 0, 0, &w, &h);
-	SDL_FRect dest = { x, y, w, h };
+	SDL_FRect dest = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
 	SDL_RenderCopyF(renderer, texture, 0, &dest);
 }
 
@@ -250,7 +276,7 @@ void gfxDrawImageScaled(size_t img, float x, float y, float w, float h) {
 	SDL_SetTextureColorMod(texture, r, g, b);
 	SDL_SetTextureAlphaMod(texture, a);
 
-	SDL_FRect dest = { x, y, w, h };
+	SDL_FRect dest = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
 	SDL_RenderCopyF(renderer, texture, 0, &dest);
 }
 
@@ -266,13 +292,41 @@ void gfxDrawImageEx(size_t img,
 	SDL_SetTextureAlphaMod(texture, a);
 
 	SDL_Rect src = { srcX, srcY, srcW, srcH };
-	SDL_FRect dest = { destX,destY, destW, destH };
-	SDL_FPoint ctr = { cx, cy };
+	SDL_FRect dest = {(destX-camX)*camSc,(destY-camY)*camSc,destW*camSc,destH*camSc};
+	SDL_FPoint ctr = { cx*camSc, cy*camSc };
 	SDL_RenderCopyExF(renderer, texture, &src, &dest, angle*180.0f/M_PI, &ctr, flip);
 }
 
 
 //--- font rendering -----------------------------------------------
+
+static int utf8CharLen( unsigned char utf8Char ) {
+    if ( utf8Char < 0x80 ) return 1;
+    if ( ( utf8Char & 0x20 ) == 0 ) return 2;
+    if ( ( utf8Char & 0x10 ) == 0 ) return 3;
+    if ( ( utf8Char & 0x08 ) == 0 ) return 4;
+    if ( ( utf8Char & 0x04 ) == 0 ) return 5;
+    return 6;
+}
+
+static unsigned char utf8ToLatin1( const char *s, size_t *readIndex ) {
+    int len = utf8CharLen( (unsigned char)( s[ *readIndex ] ) );
+    if ( len == 1 ) {
+        unsigned char c = (unsigned char)s[ *readIndex ];
+		if(c)
+        	(*readIndex)++;
+        return c;
+    }
+
+    unsigned int v = ( s[ *readIndex ] & ( 0xff >> ( len + 1 ) ) ) << ( ( len - 1 ) * 6 );
+    (*readIndex)++;
+    for ( len-- ; len > 0 ; len-- )  {
+        v |= ( (unsigned char)( s[ *readIndex ] ) - 0x80 ) << ( ( len - 1 ) * 6 );
+        (*readIndex)++;
+    }
+    return ( v > 0xff ) ? 0 : (unsigned char)v;
+}
+
 
 static void gfxDrawBitmapFont(int x, int y, const char* str) {
 	const unsigned char wChar = 12, hChar = 16;
@@ -284,17 +338,20 @@ static void gfxDrawBitmapFont(int x, int y, const char* str) {
 	SDL_SetTextureAlphaMod(texture, a);
 
 	SDL_Rect src  = { 0, 0, wChar, hChar };
-	SDL_Rect dest = { x, y, wChar, hChar };
-	for(const unsigned char* c=(const unsigned char*)str; *c; ++c, x += wChar) {
-		src.x = ((*c)%16)*wChar;
-		src.y = ((*c)/16)*hChar;
-		SDL_RenderCopyEx(renderer, texture, &src, &dest, 0, NULL, SDL_FLIP_NONE);
+	SDL_Rect dest = { (x-camX)*camSc, (y-camY)*camSc, wChar, hChar };
+	for(size_t readIndex=0; str[readIndex]; x += wChar) {
+		unsigned char c = utf8ToLatin1(str, &readIndex);
+		if(c) {
+			src.x = (c%16)*wChar;
+			src.y = (c/16)*hChar;
+			SDL_RenderCopyEx(renderer, texture, &src, &dest, 0, NULL, SDL_FLIP_NONE);
+		}
 		dest.x += wChar;
 	}
 }
 
 #define GLYPH_MIN 32
-#define GLYPH_COUNT 96
+#define GLYPH_COUNT 224
 
 typedef struct {
 	SDL_Texture* texture;
@@ -326,7 +383,7 @@ size_t gfxFontLoad(const char* fname, float fontHeight) {
 
 size_t gfxFontUpload(void* fontData, unsigned dataSize, float fontHeight) {
 	// render glyphs into bitmap buffer:
-	const unsigned texW = fontHeight>48.0f? 1024 : 512, texH = fontHeight>64.0f ? 1024 : 512;
+	const unsigned texW = fontHeight>48.0f? 1024 : 512, texH = fontHeight>64.0f ? 2048 : 1024;
 	uint8_t* bitmap = malloc(texW*texH);
 	stbtt_bakedchar glyphData[GLYPH_COUNT];
 	stbtt_BakeFontBitmap(fontData,0, fontHeight, bitmap, texW, texH, GLYPH_MIN, GLYPH_COUNT, glyphData);
@@ -371,15 +428,16 @@ void gfxFillText(size_t font, float x, float y, const char* text) {
 
 	y += fnt->ascent;
 
-	for (const char *pc = text; *pc; ++pc) {
-		int c = *pc;
+	for(size_t readIndex=0; text[readIndex]; ) {
+		unsigned char c = utf8ToLatin1(text, &readIndex);
 		if(c<GLYPH_MIN || c>=GLYPH_MIN+GLYPH_COUNT)
 			c = ' '; // render as space
 
 		const stbtt_bakedchar* glyph = &fnt->glyphData[c - GLYPH_MIN];
 		int w = glyph->x1 - glyph->x0, h = glyph->y1 - glyph->y0;
 		SDL_Rect src  = { .x = glyph->x0, .y = glyph->y0, .w = w, .h = h };
-		SDL_Rect dest = { x + glyph->xoff + 0.5f, y + glyph->yoff + 0.5f, w, h };
+		SDL_Rect dest = { (x + glyph->xoff + 0.5f - camX)*camSc,
+			(y + glyph->yoff + 0.5f - camY)*camSc, w*camSc, h*camSc };
 		SDL_RenderCopyEx(renderer, fnt->texture, &src, &dest, 0, NULL, SDL_FLIP_NONE);
 		x += glyph->xadvance;
 	}
@@ -419,8 +477,8 @@ void gfxMeasureText(size_t font, const char* text, float* width, float* height, 
 	FontSpec* fnt = (FontSpec*)font;
 	if(width) {
 		*width = 0.0f;
-		for (const char *pc = text; *pc; ++pc) {
-			int c = *pc;
+		if(text) for(size_t readIndex=0; text[readIndex]; ) {
+			unsigned char c = utf8ToLatin1(text, &readIndex);
 			if(c<GLYPH_MIN || c>=GLYPH_MIN+GLYPH_COUNT)
 				c = ' '; // render as space
 			c-=GLYPH_MIN;

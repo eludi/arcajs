@@ -36,7 +36,8 @@ app.on('draw', function(gfx) {
 
     gfx.color(85,85,255);
     for(var i=1; i<12; ++i)
-        gfx.drawPoints([120+24*i,146, 120+24*i,168, 120+24*i,190, 120+24*i,212]);
+        gfx.lineWidth(i).drawPoints([120+24*i,146, 120+24*i,168, 120+24*i,190, 120+24*i,212]);
+    gfx.lineWidth(1);
 
     gfx.drawImage(img, 10,240);
     gfx.drawImage(img, 100,240, 160,60);

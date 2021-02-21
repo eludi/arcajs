@@ -100,7 +100,7 @@ For example, you could also invoke the introductory example by typing
 
 arcajs offers further ways to configure and simplify application startup via a
 manifest file. This also opens up additional deployment options, for example 
-packaging all assets into a zip archive and even linking everyting together
+packaging all assets into a zip archive and even linking everything together
 into a single executable, as described in [PACKAGING.md](doc/PACKAGING.md).
 
 If you want to deploy your application on the web, you currently have to put all

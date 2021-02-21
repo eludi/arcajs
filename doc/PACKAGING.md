@@ -40,6 +40,13 @@ they can only perform read operations. For persisting the application state,
 arcajs apps can use the [localStorage API](https://developer.mozilla.org/docs/Web/API/Window/localStorage),
 as also provided by modern web browsers.
 
+If a particular app needs full filesystem read/write access or other functionality
+provided by the operating system, it is possible to extend arcajs with native
+modules. The modules directory contains an example for such a native module written
+in C called fs.c . The arcajs makefile contains exemplary directives for
+compiling this source file into a shared library. This is however an advanced
+topic beyond the main scope of arcajs and therefore not officially supported.
+
 ## Packaging
 
 Starting arcajs apps via command line parameters is convenient during

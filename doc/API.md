@@ -27,19 +27,28 @@ The individual application events are described in [EVENTS.md](EVENTS.md).
 
 #### Parameters:
 
-- {string} name - event name
+- {string|object} name - event name or object consisting of name:eventHandler function pairs
 - {function|null} callback - function to be executed when the event has happened, set null to remove
 
-### function app.getResource
+### function app.emit
 
-returns handle to an image/audio/font or text resource
+emits an event
 
 #### Parameters:
 
-- {string} name - resource file name
+- {string} name - event name
+- {any} [args] - an arbitrary number of additional arguments to be passed to the event handler
+
+### function app.getResource
+
+returns handle to an image/audio/font or text resource or array of handles
+
+#### Parameters:
+
+- {string|array} name - resource file name or list of resource file names
 - {object} [params] - optional additional parameters as key-value pairs such as
 
-  filtering for all images, scale for SVG images, or size for font resources
+  filtering for images, scale for SVG images, or size for font resources
 
 #### Returns:
 
@@ -127,6 +136,14 @@ sets window background color
 - {number} [g] - RGB green component in range 0-255
 - {number} [b] - RGB blue component in range 0-255
 
+### function app.setTitle
+
+sets window title
+
+#### Parameters:
+
+- {string} title - new title
+
 ### function app.setPointer
 
 turns mouse pointer visiblity on or off
@@ -142,6 +159,29 @@ vibrates the device, if supported by the platform, likely on mobile browsers onl
 #### Parameters:
 
 - {Number} duration - duration in seconds
+
+### function app.prompt
+
+reads a string from a modal window
+
+#### Parameters:
+
+- {string|array} message - (multi-line) message to be displayed
+- {string} [initialValue] - optional prefilled value
+- {string} [options] - display options
+
+#### Returns:
+
+- {string} entered string
+
+### function app.message
+
+displays a modal message window
+
+#### Parameters:
+
+- {string|array} message - (multi-line) message to be displayed
+- {string} [options] - display options
 
 ### function app.close
 
@@ -289,6 +329,43 @@ sets current drawing line width in pixels.
 
 - {object|number} - this gfx object or current line width, if called without width parameter
 
+### function gfx.origin
+
+sets drawing origin
+
+#### Parameters:
+
+- {number} ox - horizontal origin
+- {number} oy - vertical origin
+- {boolean} [isScreen=true] - flag switching between screen and model space
+
+#### Returns:
+
+- {object} - this gfx object
+
+### function gfx.scale
+
+sets drawing scale
+
+#### Parameters:
+
+- {number} sc - scale
+
+#### Returns:
+
+- {object} - this gfx object
+
+### function gfx.clipRect
+
+sets viewport/clipping rectangle (in screen coordinates) or turns clipping off if called without parameters
+
+#### Parameters:
+
+- {number} [x] - X ordinate
+- {number} [y] - Y ordinate
+- {number} [w] - width
+- {number} [h] - height
+
 ### function gfx.drawRect
 
 draws a rectangular boundary line identified by a left upper coordinate, width, and height.
@@ -297,8 +374,8 @@ draws a rectangular boundary line identified by a left upper coordinate, width, 
 
 - {number} x - X ordinate
 - {number} y - Y ordinate
-- {number} w - X width
-- {number} h - Y height
+- {number} w - width
+- {number} h - height
 
 ### function gfx.fillRect
 
@@ -308,8 +385,8 @@ fills a rectangular screen area identified by a left upper coordinate, width, an
 
 - {number} x - X ordinate
 - {number} y - Y ordinate
-- {number} w - X width
-- {number} h - Y height
+- {number} w - width
+- {number} h - height
 
 ### function gfx.drawLine
 
@@ -424,7 +501,7 @@ immediately plays a buffered PCM sample
 
 #### Parameters:
 
-- {number} sample - sample handle
+- {number|array} sample - sample handle or array of alternative samples (randomly chosen)
 - {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
 - {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
 - {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less

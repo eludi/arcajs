@@ -168,7 +168,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 	size_t font=0, fontTitle=0, icon=0;
 	uint32_t bgColor=WindowGetClearColor(), fgColor = 0xeeeeeeff;
 	const char* button0 = "OK", *button1 = prompt ? "Cancel" : NULL;
-	size_t len=0, lenMax = prompt ? 255 : 0;
+	size_t len=0, lenMax = prompt ? 255 : 0, lineBreakAt=0;
 	if(prompt)
 		len = strlen(prompt);
 
@@ -194,6 +194,10 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		v = Value_get(options, "background");
 		if(v && v->type==VALUE_INT)
 			bgColor = v->i;
+
+		v = Value_get(options, "lineBreakAt");
+		if(v && v->type==VALUE_INT)
+			lineBreakAt = v->i;
 
 		v = Value_get(options, "icon");
 		if(v && v->type==VALUE_INT)
@@ -241,11 +245,21 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		}
 
 		for(size_t pos=0, count = strcspn(msg,"\n"); pos<msglen && count; pos += count+1, count=strcspn(msg+pos,"\n")) {
+			int needsBreak = count>lineBreakAt;
+			if(needsBreak) {
+				size_t lastPos = pos+lineBreakAt-1;
+				while(lastPos>pos && msg[lastPos]!=' ' && msg[lastPos]!='\t')
+					--lastPos;
+				count = (lastPos==pos) ? lineBreakAt : lastPos-pos;
+
+			}
 			strncpy(substr, msg+pos, count);
 			substr[count]=0;
 			//printf("%u %u [%s]\n", (unsigned)pos, (unsigned)count, substr);
 			gfxFillText(font, 2*sz, y, substr);
 			y += 1.25*sz;
+			if(needsBreak && count==lineBreakAt)
+				--count;
 		}
 		if(prompt) {
 			gfxFillText(font, 2*sz, y, prompt);

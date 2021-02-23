@@ -15,7 +15,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20210221a";
+const char* appVersion = "v0.20210223a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -30,6 +30,7 @@ static void showError(const char* msg, ...) {
 	Value_set(options, "title", Value_str("arcajs ERROR"));
 	Value_set(options, "background", Value_int(0xaa0055ff));
 	Value_set(options, "color", Value_int(0xffFFffFF));
+	Value_set(options, "lineBreakAt", Value_int(WindowWidth()/12-4));
 	DialogMessageBox(formattedMsg, NULL, options);
 	Value_delete(options, 1);
 }

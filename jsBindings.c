@@ -670,8 +670,10 @@ static duk_ret_t dk_getGamepad(duk_context *ctx) {
  * @param {number} [b] - RGB blue component in range 0-255
  */
 static duk_ret_t dk_appSetBackground(duk_context *ctx) {
-	if(duk_is_undefined(ctx, 1))
+	if(duk_is_array(ctx, 0))
 		WindowClearColor(array2color(ctx, 0));
+	else if(duk_is_undefined(ctx, 1))
+		WindowClearColor(duk_to_uint(ctx, 0));
 	else {
 		uint32_t r = duk_to_uint(ctx, 0);
 		uint32_t g = duk_to_uint(ctx, 1);
@@ -1079,8 +1081,10 @@ static void bindApp(duk_context *ctx, int bindGL) {
  * @returns {object} - this gfx object
  */
 static duk_ret_t dk_gfxColor(duk_context *ctx) {
-	if(duk_is_undefined(ctx, 1))
+	if(duk_is_array(ctx, 0))
 		gfxColor(array2color(ctx, 0));
+	else if(duk_is_undefined(ctx, 1))
+		gfxColor(duk_to_uint(ctx, 0));
 	else {
 		int r = duk_to_int(ctx, 0);
 		int g = duk_to_int(ctx, 1);

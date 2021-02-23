@@ -186,7 +186,7 @@ void gfxDrawLineW(float x1, float y1, float x2, float y2, float lw) {
 		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 		SDL_SetTextureColorMod(defaultFont, r, g, b);
 		SDL_SetTextureAlphaMod(defaultFont, a);
-		static SDL_Rect src = { 134,212,1,1 };
+		static SDL_Rect src = { 126,40,1,1 };
 		double angle = SDL_atan2(y2 - y1, x2 - x1) * 180.0 / M_PI;
 		dest.x = x1; dest.y = y1-lw2;
 		dest.w = SDL_sqrt(SDL_pow(x2-x1,2)+SDL_pow(y2-y1,2));

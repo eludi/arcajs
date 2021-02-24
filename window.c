@@ -314,12 +314,12 @@ int WindowUpdate() {
 		GLenum gl_error = glGetError();
 		if( gl_error != GL_NO_ERROR ) {
 			fprintf(stderr, "WindowUpdate OpenGL ERROR: %i\n", gl_error);
-			return 1;
+			return -1;
 		}
 		gfxGlClearRGB(wnd.clearColor >> 24, wnd.clearColor >> 16, wnd.clearColor >> 8);
 	}
 #endif
-	else return 1;
+	else return -1;
 
 	const char* sdl_error = SDL_GetError();
 	if(*sdl_error) {
@@ -327,7 +327,7 @@ int WindowUpdate() {
 		fprintf(stderr, "WindowUpdate SDL ERROR%s: %s\n", (ignore ? " ignored" : ""), sdl_error);
 		SDL_ClearError();
 		if(!ignore)
-			return 1;
+			return -1;
 	}
 	int ret = wnd.eventHandler ? (*wnd.eventHandler)(wnd.eventHandlerUserData) : WindowHandleEvents();
 	if(ret)

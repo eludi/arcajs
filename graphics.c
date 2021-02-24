@@ -464,8 +464,11 @@ void gfxFillTextAlign(size_t font, float x, float y, const char* text, GfxAlign 
 
 void gfxMeasureText(size_t font, const char* text, float* width, float* height, float* ascent, float* descent) {
 	if(!font) {
-		if(width)
-			*width = strlen(text)*12.0f;
+		if(width) {
+			*width = 0;
+			for(size_t readIndex=0; text[readIndex]; utf8ToLatin1(text, &readIndex))
+				*width += 12.0f;
+		}
 		if(height)
 			*height = 16.0f;
 		if(ascent)

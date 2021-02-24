@@ -245,7 +245,9 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		}
 
 		for(size_t pos=0, count = strcspn(msg,"\n"); pos<msglen && count; pos += count+1, count=strcspn(msg+pos,"\n")) {
-			int needsBreak = count>lineBreakAt;
+			if(count>msglen-pos)
+				count = msglen-pos;
+			int needsBreak = lineBreakAt>0 && count>lineBreakAt;
 			if(needsBreak) {
 				size_t lastPos = pos+lineBreakAt-1;
 				while(lastPos>pos && msg[lastPos]!=' ' && msg[lastPos]!='\t')
@@ -275,7 +277,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		if(button1)
 			DialogButton(button1Pos, button1, font, fgColor, bgColor, button1Selected);
 
-		if(WindowUpdate()!=0) {// swap buffers
+		if(WindowUpdate()>0) { // swap buffers
 			WindowClose();
 			break;
 		}

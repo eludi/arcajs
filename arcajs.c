@@ -15,7 +15,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20210223a";
+const char* appVersion = "v0.20210224a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -23,9 +23,13 @@ static void showError(const char* msg, ...) {
 	va_start(argptr, msg);
 	vsnprintf(formattedMsg, 1024, msg, argptr);
 	va_end(argptr);
-	ConsoleError(formattedMsg);
 	fprintf(stderr, "%s\n", formattedMsg);
 
+	if(!WindowIsOpen()) {
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "arcajs Error", formattedMsg, NULL);
+		return;
+	}
+	ConsoleError(formattedMsg);
 	Value* options = Value_new(VALUE_MAP, NULL);
 	Value_set(options, "title", Value_str("arcajs ERROR"));
 	Value_set(options, "background", Value_int(0xaa0055ff));

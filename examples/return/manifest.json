@@ -1,0 +1,6 @@
+{
+	"name":"RETURN!",
+	"display":"fullscreen",
+	"background_color" : "#000",
+	"scripts":[ "main.js" ]
+}

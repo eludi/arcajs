@@ -52,7 +52,7 @@ returns handle to an image/audio/font or text resource or array of handles
 
 #### Returns:
 
-- {number} resource handle
+- {number|array} resource handle(s)
 
 ### function app.createCircleResource
 
@@ -77,7 +77,7 @@ creates an image resource from an SVG path description
 
 - {number} width - image width
 - {number} height - image height
-- {string} path - path description
+- {string|array} path - path description
 - {array} [fillColor=[255,255,255,255]] - fill color (RGBA)
 - {number} [strokeWidth=0] - stroke width
 - {array} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
@@ -399,13 +399,21 @@ draws a line between two coordinates.
 - {number} x2 - X ordinate second point
 - {number} y2 - Y ordinate second point
 
-### function gfx.drawPoints
+### function gfx.drawLineStrip
 
-draws an array of individual pixels using the current color.
+draws a series of connected lines using the current color and line width.
 
 #### Parameters:
 
-- {array|Float32Array} arr - array pf pixel ordinates
+- {array|Float32Array} arr - array of vertex ordinates
+
+### function gfx.drawPoints
+
+draws an array of individual points using the current color and line width.
+
+#### Parameters:
+
+- {array|Float32Array} arr - array of vertex ordinates
 
 ### function gfx.drawImage
 

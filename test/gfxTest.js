@@ -13,13 +13,18 @@ for(var i=0; i<1250; i+=10) {
 app.on('draw', function(gfx) {
     gfx.colorf(1.0,1.0,1.0);
     for(var i=1; i<12; i+=2)
-        gfx.drawLine(i, i*10,20, i*10, 120);
+        gfx.lineWidth(i).drawLine(i, i*10,20, i*10, 120);
+    gfx.lineWidth(32);
+    gfx.drawPoints([app.width-20,20]);
+    gfx.lineWidth(1);
     gfx.drawPoints(sineWave);
 
-    //var coords = [ 125,30, 175,120, 205,10 ];
-    //gfx.color(85,255,85,63).fillPolygon.apply(gfx, coords);
-    //gfx.color(85,255,85).drawPolygon.apply(gfx, coords);
-
+    var coords = [ 140,60, 175,120, 205,10 ];
+    gfx.color(85,255,85).drawLineStrip(coords);
+    gfx.origin(-90,0).lineWidth(8);
+    gfx.color(0,127,0).drawLineStrip(coords);
+    gfx.origin(0,0).lineWidth(1);
+    
     gfx.color(255,85,85).fillRect(220,10,50,50);
     gfx.drawRect(340,70,50,50);
     gfx.color(255,255,85).fillRect(280,10,50,50);
@@ -34,14 +39,15 @@ app.on('draw', function(gfx) {
     gfx.color(255,170,85).drawImage(circleFilled, 10,130);
     gfx.drawImage(circleOutline, 7,127);
 
-    gfx.color(85,85,255);
+    gfx.color(0x55aaffff);
     for(var i=1; i<12; ++i)
         gfx.lineWidth(i).drawPoints([120+24*i,146, 120+24*i,168, 120+24*i,190, 120+24*i,212]);
     gfx.lineWidth(1);
 
+    gfx.color(85,85,255);
     gfx.drawImage(img, 10,240);
     gfx.drawImage(img, 100,240, 160,60);
-    gfx.drawImage(img, 0,0, 50,50, 340,240,100,100, 0,0,Math.PI/4);
+    gfx.drawImage(img, 0,0, 50,50, 340,200,100,100, 0,0,Math.PI/4);
 
     for(var i=0; i<360; i+=5) {
         var angle = 2*Math.PI*i/360;

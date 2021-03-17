@@ -386,7 +386,7 @@ static duk_ret_t dk_onEvent(duk_context *ctx) {
 			updateEventHandler("close", ctx, duk_get_top_index(ctx));
 		duk_pop(ctx);
 		duk_set_top(ctx, 1);
-		duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("nextListeners"));
+		duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("nextHandler"));
 	}
 	return 0;
 }
@@ -501,7 +501,7 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
  * @param {string|array} name - resource file name or list of resource file names
  * @param {object} [params] - optional additional parameters as key-value pairs such as
  *   filtering for images, scale for SVG images, or size for font resources
- * @returns {number} resource handle
+ * @returns {number|array} resource handle(s)
  */
 static duk_ret_t dk_getResource(duk_context *ctx) {
 	if(!duk_is_array(ctx,0)) {
@@ -546,7 +546,7 @@ static duk_ret_t dk_createCircleResource(duk_context *ctx) {
  * creates an image resource from an SVG path description
  * @param {number} width - image width
  * @param {number} height - image height
- * @param {string} path - path description
+ * @param {string|array} path - path description
  * @param {array} [fillColor=[255,255,255,255]] - fill color (RGBA)
  * @param {number} [strokeWidth=0] - stroke width
  * @param {array} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
@@ -2111,11 +2111,16 @@ void jsvmDispatchEvent(size_t vm, const char* event, const Value* data) {
 		return;
 	}
 
+	duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("currHandler"));
+	duk_bool_t isMethod = duk_is_object(ctx, -1);
+	if(!isMethod)
+		duk_pop(ctx);
+
 	duk_idx_t nargs = 0;
 	for(const Value* arg=data; arg!=NULL; arg = arg->next, ++nargs)
 		dk_push_value(ctx, arg);
 
-	if(duk_pcall(ctx, nargs)!=0) {
+	if((isMethod ? duk_pcall_method(ctx, nargs) : duk_pcall(ctx, nargs))!=0) {
 		duk_get_prop_string(ctx, -1, "lineNumber");
 		duk_get_prop_string(ctx, -2, "fileName");
 
@@ -2131,15 +2136,20 @@ void jsvmDispatchDrawEvent(size_t vm) {
 	duk_context *ctx = (duk_context*)vm;
 
 	duk_push_global_stash(ctx);
-	if(duk_get_prop_string(ctx, -1, "draw") && duk_is_function(ctx, -1)) { // no function listening
+	if(duk_get_prop_string(ctx, -1, "draw") && duk_is_function(ctx, -1)) { // function listening
+		duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("currHandler"));
+		duk_bool_t isMethod = duk_is_object(ctx, -1);
+		if(!isMethod)
+			duk_pop(ctx);
+
 		duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("gfx"));
-		if(duk_pcall(ctx, 1)!=0) {
+		if((isMethod ? duk_pcall_method(ctx, 1) : duk_pcall(ctx, 1)) != 0) {
 			duk_get_prop_string(ctx, -1, "lineNumber");
 			duk_get_prop_string(ctx, -2, "fileName");
 
 			snprintf(s_lastError, ERROR_MAXLEN,
 				"%s:%i: runtime error during 'draw' event: %s\n", duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), duk_safe_to_string(ctx, -3));
-			duk_pop_3(ctx);
+			duk_pop_2(ctx);
 		}
 	}
 	duk_pop_2(ctx); // pop result or "draw" and global stash
@@ -2150,10 +2160,12 @@ void jsvmDispatchDrawEvent(size_t vm) {
 
 void jsvmUpdateEventListeners(size_t vm) {
 	duk_context *ctx = (duk_context*)vm;
-	duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("nextListeners"));
+	duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("nextHandler"));
 	duk_idx_t handlerIdx = duk_get_top_index(ctx);
 	if(duk_is_object(ctx, handlerIdx)) {
 		jsvmDispatchEvent(vm, "leave", NULL);
+		duk_dup(ctx, handlerIdx);
+		duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("currHandler"));
 		// update listeners:
 		static const char* events[] = {
 			"update", "draw", "resize", "keyboard", "pointer", "gamepad", "enter", "leave", NULL
@@ -2166,7 +2178,7 @@ void jsvmUpdateEventListeners(size_t vm) {
 		jsvmDispatchEvent(vm, "enter", NULL);
 		// cleanup next listeners:
 		duk_push_global_object(ctx);
-		duk_del_prop_literal(ctx, -1, DUK_HIDDEN_SYMBOL("nextListeners"));
+		duk_del_prop_literal(ctx, -1, DUK_HIDDEN_SYMBOL("nextHandler"));
 		duk_pop(ctx);
 	}
 	duk_pop(ctx);

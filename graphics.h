@@ -41,6 +41,8 @@ extern void gfxFillRect(float x,float y, float w, float h);
 extern void gfxDrawLine(float x0, float y0, float x1, float y1);
 /// draws points
 extern void gfxDrawPoints(unsigned numCoords, const float* coords);
+/// draws a line strip
+extern void gfxDrawLineStrip(unsigned numCoords, const float* coords);
 
 ///@{ image management and rendering:
 /// draws an image

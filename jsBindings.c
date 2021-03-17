@@ -351,6 +351,8 @@ static void bindConsole(duk_context *ctx) {
 
 
 static void updateEventHandler(const char* event, duk_context *ctx, duk_idx_t handlerIdx) {
+	if(handlerIdx<0)
+		handlerIdx = duk_get_top(ctx) + handlerIdx;
 	duk_push_global_stash(ctx);
 	if(!duk_is_function(ctx, handlerIdx)) {
 		duk_del_prop_string(ctx, -1, event);
@@ -1255,9 +1257,22 @@ static duk_ret_t dk_gfxDrawLine(duk_context *ctx) {
 }
 
 /**
+ * @function gfx.drawLineStrip
+ * draws a series of connected lines using the current color and line width.
+ * @param {array|Float32Array} arr - array of vertex ordinates
+ */
+static duk_ret_t dk_gfxDrawLineStrip(duk_context *ctx) {
+	float *arr, *buf;
+	uint32_t n = readFloatArray(ctx, 0, &arr, &buf);
+	gfxDrawLineStrip(n/2, arr);
+	free(buf);
+	return 0;
+}
+
+/**
  * @function gfx.drawPoints
- * draws an array of individual pixels using the current color.
- * @param {array|Float32Array} arr - array pf pixel ordinates
+ * draws an array of individual points using the current color and line width.
+ * @param {array|Float32Array} arr - array of vertex ordinates
  */
 static duk_ret_t dk_gfxDrawPoints(duk_context *ctx) {
 	float *arr, *buf;
@@ -1413,6 +1428,8 @@ static void bindGraphics(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "fillRect");
 	duk_push_c_function(ctx, dk_gfxDrawLine, 4);
 	duk_put_prop_string(ctx, -2, "drawLine");
+	duk_push_c_function(ctx, dk_gfxDrawLineStrip, 1);
+	duk_put_prop_string(ctx, -2, "drawLineStrip");
 	duk_push_c_function(ctx, dk_gfxDrawPoints, 1);
 	duk_put_prop_string(ctx, -2, "drawPoints");
 	duk_push_c_function(ctx, dk_gfxDrawImage, DUK_VARARGS);
@@ -2134,14 +2151,15 @@ void jsvmDispatchDrawEvent(size_t vm) {
 void jsvmUpdateEventListeners(size_t vm) {
 	duk_context *ctx = (duk_context*)vm;
 	duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("nextListeners"));
-	if(duk_is_object(ctx, -1)) {
+	duk_idx_t handlerIdx = duk_get_top_index(ctx);
+	if(duk_is_object(ctx, handlerIdx)) {
 		jsvmDispatchEvent(vm, "leave", NULL);
 		// update listeners:
 		static const char* events[] = {
 			"update", "draw", "resize", "keyboard", "pointer", "gamepad", "enter", "leave", NULL
 		};
 		for(const char**evt = events; *evt; ++evt) {
-			duk_get_prop_string(ctx,-1, *evt);
+			duk_get_prop_string(ctx, handlerIdx, *evt);
 			updateEventHandler(*evt, ctx, -1);
 			duk_pop(ctx);
 		}

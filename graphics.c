@@ -114,6 +114,44 @@ void gfxClipRect(int x,int y, int w, int h) {
 
 //--- primitives ---------------------------------------------------
 
+void gfxDrawLineW(float x1, float y1, float x2, float y2, float lw) {
+	const float lw2 = lw/2;
+	SDL_FRect dest;
+	if(x1==x2) {
+		dest.x = x1-lw2+1;
+		dest.w = lw;
+		if(y1==y2) {
+			dest.y = y1-lw2;
+			dest.h = lw;
+		}
+		else {
+			dest.y = y1<y2 ? y1 : y2;
+			dest.h = abs(y2-y1);
+		}
+		SDL_RenderFillRectF(renderer, &dest);
+	}
+	else if(y1==y2) {
+		dest.x = x1 < x2 ? x1: x2;
+		dest.y = y1-lw2+1;
+		dest.w = abs(x2-x1);
+		dest.h = lw;
+		SDL_RenderFillRectF(renderer, &dest);
+	}
+	else {
+		uint8_t r, g, b, a;
+		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+		SDL_SetTextureColorMod(defaultFont, r, g, b);
+		SDL_SetTextureAlphaMod(defaultFont, a);
+		static SDL_Rect src = { 126,40,1,1 };
+		double angle = SDL_atan2(y2 - y1, x2 - x1) * 180.0 / M_PI;
+		dest.x = x1; dest.y = y1-lw2;
+		dest.w = SDL_sqrt(SDL_pow(x2-x1,2)+SDL_pow(y2-y1,2));
+		dest.h = lw;
+		SDL_FPoint center = {0,lw2};
+		SDL_RenderCopyExF(renderer, defaultFont, &src, &dest, angle, &center, SDL_FLIP_NONE);
+	}
+}
+
 void gfxDrawRectW(float x, float y, float w, float h, float lw) {
 	SDL_FRect pos={x,y,w,lw};
 	SDL_RenderFillRectF(renderer, &pos);
@@ -147,52 +185,40 @@ void gfxDrawPoints(unsigned n, const float* coords) {
 	if(lineWidth==1.0f && camSc==1.0f)
 		SDL_RenderDrawPointsF(renderer, (const SDL_FPoint*)coords, n);
 	else {
+		uint8_t r, g, b, a;
+		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+		SDL_SetTextureColorMod(defaultFont, r, g, b);
+		SDL_SetTextureAlphaMod(defaultFont, a);
+
 		const float lw = lineWidth * camSc;
 		const float lw2 = lw/2;
-		SDL_FRect pos = {0,0,lw,lw};
+		SDL_Rect src = {160,0,32,32};
+		SDL_FRect dest = {0,0,lw,lw};
 		for(unsigned i=0; i<n; ++i) {
-			pos.x = (coords[i*2]-camX)*camSc - lw2;
-			pos.y = (coords[i*2+1]-camY)*camSc - lw2;
-			SDL_RenderFillRectF(renderer, &pos);
+			dest.x = (coords[i*2]-camX)*camSc - lw2;
+			dest.y = (coords[i*2+1]-camY)*camSc - lw2;
+			SDL_RenderCopyF(renderer, defaultFont, &src, &dest);
 		}
 	}
 }
 
-void gfxDrawLineW(float x1, float y1, float x2, float y2, float lw) {
-	const float lw2 = lw/2;
-	SDL_FRect dest;
-	if(x1==x2) {
-		dest.x = x1-lw2+1;
-		dest.w = lw;
-		if(y1==y2) {
-			dest.y = y1-lw2;
-			dest.h = lw;
+void gfxDrawLineStrip(unsigned n, const float* coords) {
+	if(lineWidth==1.0f && camSc==1.0f)
+		SDL_RenderDrawLinesF(renderer, (const SDL_FPoint*)coords, n);
+	else if(n>1) {
+		float prevX = (coords[0]-camX)*camSc, prevY = (coords[1]-camY)*camSc, lw = lineWidth*camSc;
+		for(unsigned i=1; i<n; ++i) {
+			float x = (coords[i*2]-camX)*camSc;
+			float y = (coords[i*2+1]-camY)*camSc;
+			if(lw==1.0f)
+				SDL_RenderDrawLineF(renderer, prevX, prevY, x, y);
+			else
+				gfxDrawLineW(prevX, prevY, x, y, lw);
+			prevX = x;
+			prevY = y;
 		}
-		else {
-			dest.y = y1<y2 ? y1 : y2;
-			dest.h = abs(y2-y1);
-		}
-		SDL_RenderFillRectF(renderer, &dest);
-	}
-	else if(y1==y2) {
-		dest.x = x1 < x2 ? x1: x2;
-		dest.y = y1-lw2+1;
-		dest.w = abs(x2-x1);
-		dest.h = lw;
-		SDL_RenderFillRectF(renderer, &dest);
-	}
-	else {
-	uint8_t r, g, b, a;
-		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-		SDL_SetTextureColorMod(defaultFont, r, g, b);
-		SDL_SetTextureAlphaMod(defaultFont, a);
-		static SDL_Rect src = { 126,40,1,1 };
-		double angle = SDL_atan2(y2 - y1, x2 - x1) * 180.0 / M_PI;
-		dest.x = x1; dest.y = y1-lw2;
-		dest.w = SDL_sqrt(SDL_pow(x2-x1,2)+SDL_pow(y2-y1,2));
-		dest.h = lw;
-		SDL_FPoint center = {0,lw2};
-		SDL_RenderCopyExF(renderer, defaultFont, &src, &dest, angle, &center, SDL_FLIP_NONE);
+		if(n>2 && lw>1.0f)
+			gfxDrawPoints(n-2, coords+2);
 	}
 }
 

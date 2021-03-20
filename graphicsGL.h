@@ -12,9 +12,6 @@ extern void gfxGlTextureFiltering(int level);
 
 /// sets current color
 extern void gfxGlColor(uint32_t color);
-/// sets current color to a HSLA color value with alpha transparency
-/** the function expects hue values between 0.0..360.0, other values between 0.0..1.0 */
-extern void gfxGlColorHSLA(float h, float s, float l, float a);
 /// sets current color to an opaque RGB color value
 extern void gfxGlColorRGB(unsigned char r, unsigned char g, unsigned char b);
 /// sets current color to an RGBA color value with alpha transparency

@@ -102,10 +102,6 @@ void gfxGlColorRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned 
 	rlColor4ub(r, g, b, a);
 }
 
-void gfxGlColorHSLA(float h, float s, float l, float a) {
-	gfxGlColor(hsla2rgba(h, s, l, a));
-}
-
 void gfxGlDrawRect(float x,float y, float w, float h) {
 	rlBegin(RL_LINES);
 	rlVertex2f(x, y);

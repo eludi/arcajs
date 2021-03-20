@@ -127,3 +127,11 @@ The close event is triggered when the application closes.
 ### Callback function parameters:
 
 - none
+
+## custom event
+
+A custom event may be triggered by calling app.emit('custom'[, params]) .
+
+### Callback function parameters:
+
+- {object} params - contains the passed event parameters

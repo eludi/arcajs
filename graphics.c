@@ -91,10 +91,6 @@ void gfxColorRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned ch
 	SDL_SetRenderDrawColor(renderer, r, g, b, a);
 }
 
-void gfxColorHSLA(float h, float s, float l, float a) {
-	gfxColor(hsla2rgba(h, s, l, a));
-}
-
 void gfxLineWidth(float w) {
 	lineWidth = w;
 }

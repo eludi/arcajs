@@ -91,43 +91,6 @@ function defineConst(obj, key, value) {
 		value: value, writable: false, enumerable: true, configurable: true });
 }
 
-let colorConv = {
-	r:0,
-	g:0,
-	b:0,
-	//H 0..360, S&L 0.0..1.0
-	hsl2rgb: function(h,s,l) {
-		const hue2rgb = function( v1, v2, vH ) {
-			if ( vH < 0 ) vH += 1;
-			else if ( vH > 1 ) vH -= 1;
-			if ( ( 6 * vH ) < 1 ) return ( v1 + ( v2 - v1 ) * 6 * vH );
-			if ( ( 2 * vH ) < 1 ) return ( v2 );
-			if ( ( 3 * vH ) < 2 ) return ( v1 + ( v2 - v1 ) * ( ( 2 / 3 ) - vH ) * 6 );
-			return v1;
-		}
-		
-		if (s < 5.0e-6) {
-			this.r = this.g = this.b = Math.floor(l*255);
-			return;
-		}
-		if(isNaN(h)) {
-			this.r = this.g = this.b = 0;
-			return;
-		}
-		while(h>=360.0)
-			h-=360.0;
-		while(h<0.0)
-			h+=360.0;
-		
-		let v2 = ( l < 0.5 ) ? l * ( 1 + s ) : ( l + s ) - ( s * l );
-		let v1 = 2 * l - v2;
-
-		this.r = Math.floor(hue2rgb( v1, v2, h/360 + ( 1 / 3 ) )*255);
-		this.g = Math.floor(hue2rgb( v1, v2, h/360 )*255);
-		this.b = Math.floor(hue2rgb( v1, v2, h/360 - ( 1 / 3 ) )*255);
-	}
-}
-
 //------------------------------------------------------------------
 function createShader(gl, type, source) {
 	let shader = gl.createShader(type);
@@ -172,7 +135,6 @@ return function (canvas, capacity=500) {
 	let lineWidth=1.0, camSc=1.0, camX=0, camY=0;
 	const texCoordMax = 16383;
 	let fonts = [], textures=[], tex=null;
-	let viewport = null;
 
 	// setup GLSL program
 	const gl = canvas.getContext("webgl");
@@ -322,11 +284,6 @@ return function (canvas, capacity=500) {
 		color_f = fpack.rgba(r*255,g*255,b*255,a*255);
 		return this;
 	}
-	this.colorHSL = function(h,s,l,a=1.0) {
-		colorConv.hsl2rgb(h,s,l);
-		color_f = fpack.rgba(colorConv.r, colorConv.g, colorConv.b, a*255);
-		return this;
-	}
 	this.lineWidth = function(w) {
 		if(w===undefined)
 			return lineWidth;
@@ -413,10 +370,15 @@ return function (canvas, capacity=500) {
 		return metrics;
 	}
 	this.clipRect = function(x, y, w, h) {
-		if(x!==undefined)
-			viewport = { x:x, y:y, w:w, h:h}
-		else
-			viewport = null;
+		this.flush();
+		if(x!==undefined) {
+			gl.enable(gl.SCISSOR_TEST);
+			gl.scissor(x, canvas.height-y-h, w, h);
+		}
+		else {
+			gl.scissor(0, 0, canvas.width, canvas.height);
+			gl.disable(gl.SCISSOR_TEST);
+		}
 	}
 	this.fillRect = function(x1, y1, w, h) {
 		setTexture(texWhite);
@@ -523,13 +485,33 @@ return function (canvas, capacity=500) {
 				s.x-cx, s.y-cy, s.w, s.h, cx, cy, s.rot);
 		});
 	}
-	this.drawTile = function(sps, tile, x, y) {
-		let srcW = sps.imgW/sps.tilesX, srcH=sps.imgH/sps.tilesY;
+	this.drawTile = function(sps, tile, x, y, align=0, rot=0, flip=0) {
+		if(sps.texWidth === 0) {
+			const texInfo = textures[sps.texture];
+			if(texInfo && texInfo.ready) {
+				sps.texWidth = texInfo.width;
+				sps.texHeight = texInfo.height;
+			}
+			else return;
+		}
+		let srcW = sps.texWidth/sps.tilesX, srcH=sps.texHeight/sps.tilesY;
 		const srcX = (tile%sps.tilesX)*srcW + sps.border;
-		const srcY = (tile/sps.tilesX)*srcH + sps.border;
+		const srcY = Math.floor(tile/sps.tilesX)*srcH + sps.border;
 		srcW -= 2*sps.border;
 		srcH -= 2*sps.border;
-		this.drawImage( sps.texture, srcX, srcY, srcW, srcH, x, y, srcW, srcH);
+
+		let cx=0, cy=0;
+		if(align!==0) {
+			if(align & this.ALIGN_RIGHT)
+				cx = srcW;
+			else if(align & this.ALIGN_CENTER)
+				cx = srcW/2;
+			if(align & this.ALIGN_BOTTOM)
+				cy = srcH;
+			else if(align & this.ALIGN_MIDDLE)
+				cy = srcH/2;
+		}
+		this.drawImage(sps.texture, srcX, srcY, srcW, srcH, x-cx, y-cy, srcW, srcH, cx, cy, rot, flip);
 	}
 	function initBuf() {
 		// Create a buffer for vertex attribute data:
@@ -565,11 +547,7 @@ return function (canvas, capacity=500) {
 	}
 
 	this._frameBegin = function(r,g,b) {
-		if(viewport)
-			gl.viewport(viewport.x, viewport.y, viewport.w, viewport.h);
-		else
-			gl.viewport(0, 0, canvas.width, canvas.height);
-
+		gl.viewport(0, 0, canvas.width, canvas.height);
 		gl.clearColor(r, g, b, 1);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 		gl.enable(gl.BLEND);

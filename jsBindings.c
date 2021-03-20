@@ -437,7 +437,7 @@ static duk_ret_t dk_appEmit(duk_context *ctx) {
 		}
 
 		if(!pred)
-			pred = arg;
+			pred = args = arg;
 		else {
 			pred->next = arg;
 			pred = arg;
@@ -966,6 +966,24 @@ static duk_ret_t dk_gfxQueryImage(duk_context *ctx) {
 	return 1;
 }
 
+/**
+ * @function app.hsl
+ * converts a HSL color defined by hue, saturation, lightness, and optionally opacity to a single RGB color number.
+ * @param {number} h - hue, value range 0.0..360.0
+ * @param {number} s - saturation, value range 0.0..1.0
+ * @param {number} l - lightness, value range 0.0..1.0
+ * @param {number} [a=1.0] - opacity, value between 0.0 (invisible) and 1.0 (opaque)
+ * @returns {number} - RGBA color value
+ */
+static duk_ret_t dk_appHSL(duk_context *ctx) {
+	float h = duk_to_number(ctx, 0);
+	float s = duk_to_number(ctx, 1);
+	float l = duk_to_number(ctx, 2);
+	float a = duk_get_number_default(ctx, 3, 1.0);
+	duk_push_uint(ctx, hsla2rgba(h,s,l,a));
+	return 1;
+}
+
 /// @property {string} app.version - arcajs version
 static duk_ret_t dk_appVersion(duk_context *ctx) {
 	duk_push_string(ctx, appVersion);
@@ -1020,6 +1038,8 @@ static void bindApp(duk_context *ctx, int bindGL) {
 	duk_put_prop_string(ctx, -2, "queryImage");
 	duk_push_c_function(ctx, bindGL ? dk_gfxGlQueryFont : dk_gfxQueryFont, 2);
 	duk_put_prop_string(ctx, -2, "queryFont");
+	duk_push_c_function(ctx, dk_appHSL, 4);
+	duk_put_prop_string(ctx, -2, "hsl");
 
 	duk_push_c_function(ctx, dk_getGamepad, 1);
 	duk_put_prop_string(ctx, -2, "getGamepad");
@@ -1113,25 +1133,6 @@ static duk_ret_t dk_gfxColorf(duk_context *ctx) {
 	float b = duk_to_number(ctx, 2);
 	float a = duk_get_number_default(ctx, 3, 1.0);
 	gfxColorRGBA(r*255,g*255,b*255,a*255);
-	duk_push_this(ctx);
-	return 1;
-}
-
-/**
- * @function gfx.colorHSL
- * sets current drawing color by hue, saturation, lightness, and optionally opacity.
- * @param {number} h - hue, value range 0.0..360.0
- * @param {number} s - saturation, value range 0.0..1.0
- * @param {number} l - lightness, value range 0.0..1.0
- * @param {number} [a=1.0] - opacity, value between 0.0 (invisible) and 1.0 (opaque)
- * @returns {object} - this gfx object
- */
-static duk_ret_t dk_gfxColorHSL(duk_context *ctx) {
-	float h = duk_to_number(ctx, 0);
-	float s = duk_to_number(ctx, 1);
-	float l = duk_to_number(ctx, 2);
-	float a = duk_get_number_default(ctx, 3, 1.0);
-	gfxColorHSLA(h,s,l,a);
 	duk_push_this(ctx);
 	return 1;
 }
@@ -1416,8 +1417,6 @@ static void bindGraphics(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "color");
 	duk_push_c_function(ctx, dk_gfxColorf, 4);
 	duk_put_prop_string(ctx, -2, "colorf");
-	duk_push_c_function(ctx, dk_gfxColorHSL, 4);
-	duk_put_prop_string(ctx, -2, "colorHSL");
 	duk_push_c_function(ctx, dk_gfxLineWidth, 1);
 	duk_put_prop_string(ctx, -2, "lineWidth");
 	duk_push_c_function(ctx, dk_gfxClipRect, 4);
@@ -1463,16 +1462,6 @@ static duk_ret_t dk_gfxGlColorf(duk_context *ctx) {
 	float b = duk_to_number(ctx, 2);
 	float a = duk_get_number_default(ctx, 3, 1.0);
 	gfxGlColorRGBA(r*255,g*255,b*255,a*255);
-	duk_push_this(ctx);
-	return 1;
-}
-
-static duk_ret_t dk_gfxGlColorHSL(duk_context *ctx) {
-	float h = duk_to_number(ctx, 0);
-	float s = duk_to_number(ctx, 1);
-	float l = duk_to_number(ctx, 2);
-	float a = duk_get_number_default(ctx, 3, 1.0);
-	gfxGlColorHSLA(h,s,l,a);
 	duk_push_this(ctx);
 	return 1;
 }
@@ -1630,8 +1619,6 @@ static void bindGraphicsGL(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "color");
 	duk_push_c_function(ctx, dk_gfxGlColorf, 4);
 	duk_put_prop_string(ctx, -2, "colorf");
-	duk_push_c_function(ctx, dk_gfxGlColorHSL, 4);
-	duk_put_prop_string(ctx, -2, "colorHSL");
 	duk_push_c_function(ctx, dk_dummy, 1);
 	duk_put_prop_string(ctx, -2, "lineWidth"); // not implemented
 	duk_push_c_function(ctx, dk_gfxGlDrawLine, 4);
@@ -2168,7 +2155,7 @@ void jsvmUpdateEventListeners(size_t vm) {
 		duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("currHandler"));
 		// update listeners:
 		static const char* events[] = {
-			"update", "draw", "resize", "keyboard", "pointer", "gamepad", "enter", "leave", NULL
+			"update", "draw", "resize", "keyboard", "pointer", "gamepad", "enter", "leave", "custom", NULL
 		};
 		for(const char**evt = events; *evt; ++evt) {
 			duk_get_prop_string(ctx, handlerIdx, *evt);

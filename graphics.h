@@ -22,9 +22,6 @@ extern void gfxColor(uint32_t color);
 extern void gfxColorRGB(unsigned char r, unsigned char g, unsigned char b);
 /// sets current color to an RGBA color value with alpha transparency
 extern void gfxColorRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
-/// sets current color to a HSLA color value with alpha transparency
-/** the function expects hue values between 0.0..360.0, other values between 0.0..1.0 */
-extern void gfxColorHSLA(float h, float s, float l, float a);
 /// sets current line width
 extern void gfxLineWidth(float w);
 /// returns current line width

@@ -252,6 +252,21 @@ measures image dimensions.
 
 - {object} an object having the properties width and height
 
+### function app.hsl
+
+converts a HSL color defined by hue, saturation, lightness, and optionally opacity to a single RGB color number.
+
+#### Parameters:
+
+- {number} h - hue, value range 0.0..360.0
+- {number} s - saturation, value range 0.0..1.0
+- {number} l - lightness, value range 0.0..1.0
+- {number} [a=1.0] - opacity, value between 0.0 (invisible) and 1.0 (opaque)
+
+#### Returns:
+
+- {number} - RGBA color value
+
 ### Properties:
 
 - {string} app.version - arcajs version
@@ -297,21 +312,6 @@ sets the current drawing color using normalized floating point values
 - {number} g - RGB green component in range 0.0..1.0
 - {number} b - RGB blue component in range 0.0..1.0
 - {number} [a=255] - opacity between 0.0 (invisible) and 1.0 (opaque)
-
-#### Returns:
-
-- {object} - this gfx object
-
-### function gfx.colorHSL
-
-sets current drawing color by hue, saturation, lightness, and optionally opacity.
-
-#### Parameters:
-
-- {number} h - hue, value range 0.0..360.0
-- {number} s - saturation, value range 0.0..1.0
-- {number} l - lightness, value range 0.0..1.0
-- {number} [a=1.0] - opacity, value between 0.0 (invisible) and 1.0 (opaque)
 
 #### Returns:
 

@@ -1,4 +1,4 @@
-const sc = Math.floor(app.width/80);
+const sc = app.width/80;
 const circle = app.createCircleResource(sc/2,[255,255,255]);
 const title = app.createSpriteSet(app.getResource('return.svg'),1,1);
 const icons = app.createSpriteSet(app.getResource('icons.svg'), 4,1);
@@ -213,6 +213,7 @@ function Game(players) {
 		gfx.color(255,255,255).fillText(0, app.width/2, sc,
 			player1.score + ' : ' + player2.score, gfx.ALIGN_CENTER);
 		gfx.fillText(0, app.width/2, app.height/2, info, gfx.ALIGN_CENTER|gfx.ALIGN_MIDDLE);
+		gfx.color(0,0,0).fillRect(0,arenaH*sc, app.width,app.height-arenaH*sc+1);
 	},
 	this.keyboard = function(evt) {
 		if(evt.type==='keydown') switch(evt.key) {

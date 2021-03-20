@@ -8,7 +8,7 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 
-#define NUM_JOYSTICKS_MAX 16
+#define NUM_JOYSTICKS_MAX 8
 
 #ifndef _NO_GL
 extern void gfxGlClearRGB(unsigned char r, unsigned char g, unsigned char b);
@@ -518,26 +518,27 @@ int WindowControllerInput(size_t id, int* numAxes, float** axes, int* numButtons
 
 	SDL_JoystickUpdate();
 
-	for(int i=0; i<jd->nAxes; ++i) {
-		signed short value = SDL_JoystickGetAxis(pJoy,i);
-		jd->axes[i] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
-	}
-	for(int i=0; i<jd->nHats; ++i) {
-		unsigned int hat=SDL_JoystickGetHat(pJoy, i);
-		jd->axes[jd->nAxes+2*i] = (hat&SDL_HAT_LEFT) ? -1.0f :  (hat&SDL_HAT_RIGHT) ? 1.0f : 0.0f;
-		jd->axes[jd->nAxes+2*i+1] = (hat&SDL_HAT_DOWN) ? -1.0f :  (hat&SDL_HAT_UP) ? 1.0f : 0.0f;
+	if(axes) {
+		for(int i=0; i<jd->nAxes; ++i) {
+			signed short value = SDL_JoystickGetAxis(pJoy,i);
+			jd->axes[i] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
+		}
+		for(int i=0; i<jd->nHats; ++i) {
+			unsigned int hat=SDL_JoystickGetHat(pJoy, i);
+			jd->axes[jd->nAxes+2*i] = (hat&SDL_HAT_LEFT) ? -1.0f :  (hat&SDL_HAT_RIGHT) ? 1.0f : 0.0f;
+			jd->axes[jd->nAxes+2*i+1] = (hat&SDL_HAT_DOWN) ? -1.0f :  (hat&SDL_HAT_UP) ? 1.0f : 0.0f;
+		}
+		*axes = jd->axes;
 	}
 
 	if(buttons) {
 		*buttons=0;
-		for(int i=0; i<jd->nButtons && i<32; ++i)
+		for(int i=0; i<jd->nButtons && i<sizeof(uint32_t); ++i)
 			if(SDL_JoystickGetButton(pJoy, i))
 				*buttons |= (1<<i);
 	}
 	if(numAxes)
 		*numAxes = jd->nAxes + 2*jd->nHats;
-	if(axes)
-		*axes = jd->axes;
 	if(numButtons)
 		*numButtons = jd->nButtons;
 	return 0;

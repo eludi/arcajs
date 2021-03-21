@@ -112,10 +112,16 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		pixelRatio: 1, // todo, consider devicePixelRatio
 
 		setBackground: function(r,g,b) {
-			if(g===undefined) {
+			if(Array.isArray(r)) {
 				clearColor[0] = r[0]/255;
 				clearColor[1] = r[1]/255;
 				clearColor[2] = r[2]/255;
+			}
+			else if(g===undefined) {
+				const v = r;
+				r = (v & 0xff000000) >>> 24;
+				g = (v & 0x00ff0000) >>> 16;
+				b = (v & 0x0000ff00) >>> 8;
 			}
 			else {
 				clearColor[0] = r/255;

@@ -307,8 +307,16 @@ return function (canvas, capacity=500) {
 	}
 
 	this.color = function(r,g,b,a=255) {
-		if(g===undefined)
+		if(Array.isArray(r))
 			color_f = fpack.rgba(r[0],r[1], r[2], r[3]);
+		else if(g===undefined) {
+			const v = r;
+			r = (v & 0xff000000) >>> 24;
+			g = (v & 0x00ff0000) >>> 16;
+			b = (v & 0x0000ff00) >>> 8;
+			a = (v & 0x000000ff);
+			color_f = fpack.rgba(r,g,b,a);
+		}
 		else
 			color_f = fpack.rgba(r,g,b,a);
 		return this;
@@ -336,12 +344,14 @@ return function (canvas, capacity=500) {
 			camX = ox;
 			camY = oy;
 		}
+		return this;
 	}
 	this.scale = function(sc) {
 		if(sc==camSc)
 			return;
 		this.flush();
 		camSc = sc;
+		return this;
 	}
 
 	this.fillText = function(fontId, x,y, text, align=0) {
@@ -445,6 +455,12 @@ return function (canvas, capacity=500) {
 		const lw2 = lineWidth/2;
 		for(let i=0, end=arr.length-1; i<end; i+=2)
 			this.fillRect(arr[i]-lw2,arr[i+1]-lw2, lineWidth,lineWidth);
+	}
+
+	this.drawLineStrip = function(arr) {
+		this.drawPoints(arr);
+		for(let i=2, end=arr.length-1; i<end; i+=2)
+			this.drawLine(arr[i-2], arr[i-1], arr[i], arr[i+1]);
 	}
 
 	this.drawImage = function(texId, x1, y1, w1, h1, x2, y2, w2, h2, cx=0,cy=0,rot=0, flip=0) {

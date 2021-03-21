@@ -129,7 +129,10 @@ and [application events documentation](doc/EVENTS.md).
 
 For further examples please take a look at the [examples](https://github.com/eludi/arcajs/tree/master/examples)
 and [test](https://github.com/eludi/arcajs/tree/master/test) folders within
-the repository.
+the repository or try them directly from your browser:
+
+- [memomini](https://eludi.github.io/arcajs/examples/memomini/)
+- [return!](https://eludi.github.io/arcajs/examples/return/)
 
 ## Status
 

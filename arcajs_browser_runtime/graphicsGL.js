@@ -458,9 +458,9 @@ return function (canvas, capacity=500) {
 	}
 
 	this.drawLineStrip = function(arr) {
-		this.drawPoints(arr);
 		for(let i=2, end=arr.length-1; i<end; i+=2)
 			this.drawLine(arr[i-2], arr[i-1], arr[i], arr[i+1]);
+		this.drawPoints(arr.slice(2,-2));
 	}
 
 	this.drawImage = function(texId, x1, y1, w1, h1, x2, y2, w2, h2, cx=0,cy=0,rot=0, flip=0) {

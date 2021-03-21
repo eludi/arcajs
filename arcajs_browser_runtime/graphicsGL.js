@@ -45,7 +45,7 @@ void main() {
 
 function renderFontTexture(font) {
 	let canvas = document.createElement('canvas');
-	let texW = canvas.width = 512;
+	let texW = canvas.width = 1024;
 	let texH = canvas.height = 512;
 	let ctx = canvas.getContext('2d');
 
@@ -54,7 +54,7 @@ function renderFontTexture(font) {
 	let dims = [];
 	let x=0,y=0, currLineH = 0;
 
-	for(let i=32; i<127; ++i) {
+	for(let i=32; i<256; ++i) {
 		const ch = String.fromCharCode(i);
 		const dim = ctx.measureText(ch);
 		let metrics = {
@@ -85,7 +85,7 @@ function renderFontTexture(font) {
 	ctx.textBaseline = 'top';
 
 	x=0,y=0, currLineH = 0;
-	for(let i=32; i<127; ++i) {
+	for(let i=32; i<256; ++i) {
 		const ch = String.fromCharCode(i);
 		const metrics = dims[i-32];
 		if(x+metrics.w>texW) {
@@ -288,6 +288,30 @@ return function (canvas, capacity=500) {
 		textures.push(texInfo);
 		return textures.length-1;
 	}
+	this.createCircleTexture = function(r, fill=[255,255,255,255], lineW=0, stroke=[0,0,0,0]) {
+		let canvas = document.createElement('canvas');
+		canvas.width = canvas.height = Math.ceil(2*r+lineW);
+
+		let ctx = canvas.getContext('2d');
+		ctx.lineWidth = lineW;
+		ctx.fillStyle = fill ?
+			'rgba('+fill[0]+','+fill[1]+','+fill[2]+','
+			+((typeof fill[3]==='number') ? fill[3]/255 : 1)+')' : 'transparent';
+		ctx.strokeStyle = lineW ?
+			'rgba('+stroke[0]+','+stroke[1]+','+stroke[2]+','
+			+((typeof stroke[3]==='number') ? stroke[3]/255 : 1)+')' : 'transparent';
+
+		ctx.beginPath();
+		ctx.arc(r+lineW/2,r+lineW/2, r, 0, 2*Math.PI, true);
+		ctx.closePath();
+		if(fill)
+			ctx.fill();
+		if(lineW)
+			ctx.stroke();
+		
+		const imgData = new Uint8Array(ctx.getImageData(0,0, canvas.width, canvas.height).data.buffer);
+		return this.createTexture(canvas.width, canvas.height, imgData);
+	}
 	this.queryTexture = function(texId) {
 		if(texId<1 || texId>=textures.length)
 			return null;
@@ -453,8 +477,12 @@ return function (canvas, capacity=500) {
 	}
 	this.drawPoints = function(arr) {
 		const lw2 = lineWidth/2;
-		for(let i=0, end=arr.length-1; i<end; i+=2)
-			this.fillRect(arr[i]-lw2,arr[i+1]-lw2, lineWidth,lineWidth);
+		if(lineWidth<=2)
+			for(let i=0, end=arr.length-1; i<end; i+=2)
+				this.fillRect(arr[i]-lw2,arr[i+1]-lw2, lineWidth,lineWidth);
+		else
+			for(let i=0, end=arr.length-1; i<end; i+=2)
+				this.drawImage(texPointId, arr[i]-lw2,arr[i+1]-lw2, lineWidth,lineWidth);
 	}
 
 	this.drawLineStrip = function(arr) {
@@ -607,10 +635,10 @@ return function (canvas, capacity=500) {
 
 
 	initBuf();
-	this.createTexture(2,2,new Uint8Array([
-		255,255,255,255, 255,255,255,255, 255,255,255,255, 255,255,255,255]));
+	const texWhite = textures[this.createTexture(2,2,new Uint8Array([
+		255,255,255,255, 255,255,255,255, 255,255,255,255, 255,255,255,255]))];
+	const texPointId = this.createCircleTexture(32);
 	this.loadFont('bold 20px monospace');
-	const texWhite = textures[0];
 	tex = texWhite.texture;
 
 	defineConst(this, "ALIGN_LEFT", 0);

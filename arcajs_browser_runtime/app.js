@@ -15,31 +15,6 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	const canvas = document.getElementById(canvas_id);
 	let gfx = new arcajs.Graphics(canvas);
 
-	function createCircleResource(r, fill=[255,255,255,255], lineW, stroke=[0,0,0,0]) {
-		let canvas = document.createElement('canvas');
-		canvas.width = canvas.height = Math.ceil(2*r+lineW);
-
-		let ctx = canvas.getContext('2d');
-		ctx.lineWidth = lineW;
-		ctx.fillStyle = fill ?
-			'rgba('+fill[0]+','+fill[1]+','+fill[2]+','
-			+((typeof fill[3]==='number') ? fill[3]/255 : 1)+')' : 'transparent';
-		ctx.strokeStyle = lineW ?
-			'rgba('+stroke[0]+','+stroke[1]+','+stroke[2]+','
-			+((typeof stroke[3]==='number') ? stroke[3]/255 : 1)+')' : 'transparent';
-
-		ctx.beginPath();
-		ctx.arc(r+lineW/2,r+lineW/2, r, 0, 2*Math.PI, true);
-		ctx.closePath();
-		if(fill)
-			ctx.fill();
-		if(lineW)
-			ctx.stroke();
-		
-		const imgData = new Uint8Array(ctx.getImageData(0,0, canvas.width, canvas.height).data.buffer);
-		return gfx.createTexture(canvas.width, canvas.height, imgData);
-	}
-
 	function createPathResource(width, height, path, fill=[255,255,255,255], lineW=0, stroke=[255,255,255,255]) {
 		let canvas = document.createElement('canvas');
 		canvas.width = width;
@@ -190,7 +165,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		},
 		createImageResource: function(...args) { return gfx.createTexture(...args); },
 		createCircleResource: function(r, fill=[255,255,255,255], lineW=0, stroke=[255,255,255,255]) {
-			return createCircleResource(r, fill, lineW, stroke); },
+			return gfx.createCircleTexture(r, fill, lineW, stroke); },
 		createPathResource: function(...args) { return createPathResource(...args); },
 		createSVGResource: function(svg, params) { return createSVGResource(svg, params); },
 		queryImage: function(texId) { return gfx.queryTexture(texId); },

@@ -37,7 +37,7 @@ executable from the [releases](https://github.com/eludi/arcajs/releases/latest),
 or a bootstrap script fitting to your platform from the
 [doc folder](https://github.com/eludi/arcajs/tree/master/doc).
 
-A [minimal hello world app](https://eludi.github.io/arcajs/js/) using arcajs
+A [minimal hello world app](https://eludi.github.io/arcajs/examples/hello/) using arcajs
 could look as follows:
 
 ```javascript

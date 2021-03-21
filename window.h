@@ -78,3 +78,7 @@ void WindowControllerClose(size_t id);
 /// returns current input of controller n
 /** memory of axes is managed by the framework, do not free it yourself. */
 int WindowControllerInput(size_t id, int* numAxes, float** axes, int* numButtons, uint32_t* buttons);
+/// creates controller events when a button changes its state or an axis changes beyond a given resolution
+void WindowControllerEvents(float resolution, void* udata,
+	void(*axisCb)(size_t id, uint8_t axis, float value, void* udata),
+	void(*btnCb)(size_t id, uint8_t button, uint8_t value, void* udata));

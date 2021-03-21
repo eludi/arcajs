@@ -5,7 +5,7 @@ functions for them can be registered using the app.on function:
 
 ```javascript
 app.on('pointer', function(evt) {
-    //handle mouse or touch event
+    // handle mouse or touch event
 });
 ```
 
@@ -33,7 +33,7 @@ and all resource files are loaded and ready to be used.
 
 ## enter event
 
-The entered event is triggered after a new event handler object is registered 
+The entered event is triggered after a new event handler object is registered
 before the next frame.
 
 ### Callback function parameters:
@@ -102,7 +102,7 @@ The keyboard event is triggered when a key is pressed (keydown) or released
 ## textinput event
 
 The experimental text input event is triggered when a key having a printable
-ASCII value is pressed. Currently it does not support virtual on-screen
+ISO-Latin-1 value is pressed. Currently it does not support virtual on-screen
 keyboards in the browser runtime.
 
 ### Callback function parameters:
@@ -114,11 +114,13 @@ keyboards in the browser runtime.
 ## gamepad event
 
 The gamepad event is triggered whenever a game controller is connected or
-disconnected.
+disconnected, or a button or axis significantly changes its value.
 
 ### Callback function parameters:
 
-- {object} evt - contains event type (connect/disconnect) and gamepad index
+- {object} evt - contains event type (connect/disconnect/axis/button) and
+  gamepad index. For axis and button events, also an axis/button index and a
+  value is provided.
 
 ## close event
 

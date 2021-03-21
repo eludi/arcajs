@@ -457,6 +457,9 @@ typedef struct {
 	int nAxes;
 	int nHats;
 	float* axes;
+	float* axesPrev;
+	uint32_t buttons;
+	uint32_t buttonsPrev;
 } JoyData;
 
 static JoyData joysticks[NUM_JOYSTICKS_MAX];
@@ -491,11 +494,14 @@ int WindowControllerOpen(size_t id) {
 	}
 	joysticks[id].pJoy = pJoy;
 	joysticks[id].nButtons = SDL_JoystickNumButtons(pJoy);
-	if(joysticks[id].nButtons>32)
-		joysticks[id].nButtons=32;
+	if(joysticks[id].nButtons>=sizeof(uint32_t))
+		joysticks[id].nButtons = sizeof(uint32_t);
+	joysticks[id].buttons = joysticks[id].buttonsPrev = 0;
 	joysticks[id].nAxes = SDL_JoystickNumAxes(pJoy);
 	joysticks[id].nHats = SDL_JoystickNumHats(pJoy);
-	joysticks[id].axes = (float*)malloc(sizeof(float)*(joysticks[id].nAxes+2*joysticks[id].nHats));
+	int nAxesTotal = joysticks[id].nAxes+2*joysticks[id].nHats;
+	joysticks[id].axes = (float*)malloc(sizeof(float)*nAxesTotal);
+	joysticks[id].axesPrev = (float*)malloc(sizeof(float)*nAxesTotal);
 
 	//printf("open joystick %u \"%s\" axes:%i hats:%i buttons:%i\n", (unsigned)id,
 	//	SDL_JoystickName(pJoy), joysticks[id].nAxes, joysticks[id].nHats, joysticks[id].nButtons);
@@ -507,24 +513,18 @@ void WindowControllerClose(size_t id) {
 		SDL_JoystickClose(joysticks[id].pJoy);
 		joysticks[id].pJoy = NULL;
 		free(joysticks[id].axes);
+		free(joysticks[id].axesPrev);
 	}
 }
 
-int WindowControllerInput(size_t id, int* numAxes, float** axes, int* numButtons, uint32_t* buttons) {
-	SDL_Joystick* pJoy = (id < NUM_JOYSTICKS_MAX) ? joysticks[id].pJoy : NULL;
-	if(!pJoy)
-		return -1;
-	JoyData* jd = &joysticks[id];
-
-	SDL_JoystickUpdate();
-
+static void WindowControllerState(JoyData* jd, float** axes, uint32_t* buttons) {
 	if(axes) {
 		for(int i=0; i<jd->nAxes; ++i) {
-			signed short value = SDL_JoystickGetAxis(pJoy,i);
+			int16_t value = SDL_JoystickGetAxis(jd->pJoy,i);
 			jd->axes[i] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
 		}
 		for(int i=0; i<jd->nHats; ++i) {
-			unsigned int hat=SDL_JoystickGetHat(pJoy, i);
+			uint8_t hat=SDL_JoystickGetHat(jd->pJoy, i);
 			jd->axes[jd->nAxes+2*i] = (hat&SDL_HAT_LEFT) ? -1.0f :  (hat&SDL_HAT_RIGHT) ? 1.0f : 0.0f;
 			jd->axes[jd->nAxes+2*i+1] = (hat&SDL_HAT_DOWN) ? -1.0f :  (hat&SDL_HAT_UP) ? 1.0f : 0.0f;
 		}
@@ -533,13 +533,68 @@ int WindowControllerInput(size_t id, int* numAxes, float** axes, int* numButtons
 
 	if(buttons) {
 		*buttons=0;
-		for(int i=0; i<jd->nButtons && i<sizeof(uint32_t); ++i)
-			if(SDL_JoystickGetButton(pJoy, i))
+		for(int i=0; i<jd->nButtons; ++i)
+			if(SDL_JoystickGetButton(jd->pJoy, i))
 				*buttons |= (1<<i);
+		jd->buttons = *buttons;
 	}
+}
+
+int WindowControllerInput(size_t id, int* numAxes, float** axes, int* numButtons, uint32_t* buttons) {
+	JoyData* jd = (id < NUM_JOYSTICKS_MAX) ? &joysticks[id] : NULL;
+	if(!jd || !jd->pJoy)
+		return -1;
+
+	SDL_JoystickUpdate();
+	WindowControllerState(jd, axes, buttons);
 	if(numAxes)
 		*numAxes = jd->nAxes + 2*jd->nHats;
 	if(numButtons)
 		*numButtons = jd->nButtons;
 	return 0;
+}
+
+void WindowControllerEvents(float resolution, void* udata,
+	void(*axisCb)(size_t id, uint8_t axis, float value, void* udata),
+	void(*btnCb)(size_t id, uint8_t button, uint8_t value, void* udata))
+{
+	if(resolution<=0.0f || resolution>1.0f)
+		return;
+
+	SDL_JoystickUpdate();
+
+	float* axes;
+	uint32_t buttons;
+
+	for(size_t id=0; id<NUM_JOYSTICKS_MAX; ++id) {
+		JoyData* jd = &joysticks[id];
+		if(!jd->pJoy)
+			continue;
+
+		WindowControllerState(jd, axisCb ? &axes : NULL, btnCb ? &buttons : NULL);
+
+		int nAxesTotal = jd->nAxes + 2*jd->nHats;
+		if(axisCb) {
+			for(uint8_t i=0; i<nAxesTotal; ++i) {
+				float value = round(jd->axes[i]/resolution);
+				float valuePrev = round(jd->axesPrev[i]/resolution);
+				if(value!=valuePrev)
+					(*axisCb)(id, i, jd->axes[i], udata);
+			}
+		}
+
+		if(btnCb && jd->buttons!=jd->buttonsPrev) {
+			uint32_t bitmask = 1;
+			for(uint8_t i=0; i<jd->nButtons; ++i, bitmask<<=1) {
+				uint32_t btn = jd->buttons & bitmask;
+				uint32_t btnPrev = jd->buttonsPrev & bitmask;
+				if(btn<btnPrev)
+					(*btnCb)(id, i, 0, udata);
+				else if(btn>btnPrev)
+					(*btnCb)(id, i, 1, udata);
+			}
+		}
+		jd->buttonsPrev = jd->buttons;
+		memcpy(jd->axesPrev, jd->axes, sizeof(float)*nAxesTotal);
+	}
 }

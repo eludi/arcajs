@@ -7,6 +7,7 @@ extern size_t jsvmInit(const char* storageFileName, int bindGL);
 extern void jsvmClose(size_t vm);
 extern int jsvmEval(size_t vm, const char* src, const char* fname);
 extern void jsvmDispatchEvent(size_t vm, const char* event, const Value* data);
+extern void jsvmDispatchGamepadEvents(size_t vm);
 extern void jsvmDispatchDrawEvent(size_t vm);
 extern void jsvmUpdateEventListeners(size_t vm);
 extern void jsvmAsyncCalls(size_t vm, double timestamp);

@@ -141,9 +141,10 @@ static duk_ret_t tryJsonDecode(duk_context *ctx, void* udata) {
 }
 
 static void dk_push_value(duk_context* ctx, const Value* value) {
-	if(!value)
+	if(!value) {
+		duk_push_undefined(ctx);
 		return;
-
+	}
 	switch(value->type) {
 	case VALUE_STRING:
 	case VALUE_SYMBOL:
@@ -630,41 +631,6 @@ static duk_ret_t dk_createImageResource(duk_context *ctx) {
 }
 
 /**
- * @function app.getGamepad
- * returns current input state of a gamepad
- * @param {number} index - gamepad index, starting from 0
- * @returns {object} current gamepad input state
- */
-static duk_ret_t dk_getGamepad(duk_context *ctx) {
-	size_t controllerId = duk_to_number(ctx, 0);
-	float* axes;
-	uint32_t buttons;
-	int nAxes, nButtons;
-	int result = WindowControllerInput(controllerId, &nAxes, &axes, &nButtons, &buttons);
-	duk_push_object(ctx);
-	duk_push_number(ctx, controllerId);
-	duk_put_prop_string(ctx, -2, "index");
-	duk_push_boolean(ctx, result==0);
-	duk_put_prop_string(ctx, -2, "connected");
-	if(result==0) {
-		duk_idx_t arr = duk_push_array(ctx);
-		for(duk_uarridx_t idx=0; idx<nAxes; ++idx) {
-			duk_push_number(ctx, axes[idx]);
-			duk_put_prop_index(ctx, arr, idx);
-		}
-		duk_put_prop_string(ctx, -2, "axes");
-
-		arr = duk_push_array(ctx);
-		for(duk_uarridx_t idx=0; idx<nButtons; ++idx) {
-			duk_push_boolean(ctx, buttons&(1<<idx));
-			duk_put_prop_index(ctx, arr, idx);
-		}
-		duk_put_prop_string(ctx, -2, "buttons");
-	}
-	return 1;
-}
-
-/**
  * @function app.setBackground
  * sets window background color
  * @param {number|array|buffer} r - RGB red component in range 0-255 or color array / array buffer
@@ -1041,8 +1007,6 @@ static void bindApp(duk_context *ctx, int bindGL) {
 	duk_push_c_function(ctx, dk_appHSL, 4);
 	duk_put_prop_string(ctx, -2, "hsl");
 
-	duk_push_c_function(ctx, dk_getGamepad, 1);
-	duk_put_prop_string(ctx, -2, "getGamepad");
 	duk_push_c_function(ctx, dk_appSetBackground, 3);
 	duk_put_prop_string(ctx, -2, "setBackground");
 	duk_push_c_function(ctx, dk_appSetTitle, 1);
@@ -2089,6 +2053,19 @@ int jsvmEval(size_t vm, const char* src, const char* fname) {
 	return ret;
 }
 
+static void callEventHandler(
+	duk_context *ctx, const char* event, duk_bool_t isMethod, duk_idx_t nargs)
+{
+	if((isMethod ? duk_pcall_method(ctx, nargs) : duk_pcall(ctx, nargs))!=0) {
+		duk_get_prop_string(ctx, -1, "lineNumber");
+		duk_get_prop_string(ctx, -2, "fileName");
+
+		snprintf(s_lastError, ERROR_MAXLEN, "%s:%i: runtime error during '%s' event: %s\n",
+			duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), event, duk_safe_to_string(ctx, -3));
+		duk_pop_2(ctx);
+	}
+}
+
 void jsvmDispatchEvent(size_t vm, const char* event, const Value* data) {
 	duk_context *ctx = (duk_context*)vm;
 
@@ -2106,15 +2083,7 @@ void jsvmDispatchEvent(size_t vm, const char* event, const Value* data) {
 	duk_idx_t nargs = 0;
 	for(const Value* arg=data; arg!=NULL; arg = arg->next, ++nargs)
 		dk_push_value(ctx, arg);
-
-	if((isMethod ? duk_pcall_method(ctx, nargs) : duk_pcall(ctx, nargs))!=0) {
-		duk_get_prop_string(ctx, -1, "lineNumber");
-		duk_get_prop_string(ctx, -2, "fileName");
-
-		snprintf(s_lastError, ERROR_MAXLEN,
-			"%s:%i: runtime error during '%s' event: %s\n", duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), event, duk_safe_to_string(ctx, -3));
-		duk_pop_2(ctx);
-	}
+	callEventHandler(ctx, event, isMethod, nargs);
 	duk_pop_2(ctx); // pop result and global stash
 }
 
@@ -2123,26 +2092,50 @@ void jsvmDispatchDrawEvent(size_t vm) {
 	duk_context *ctx = (duk_context*)vm;
 
 	duk_push_global_stash(ctx);
-	if(duk_get_prop_string(ctx, -1, "draw") && duk_is_function(ctx, -1)) { // function listening
+	if(duk_get_prop_literal(ctx, -1, "draw") && duk_is_function(ctx, -1)) { // function listening
 		duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("currHandler"));
 		duk_bool_t isMethod = duk_is_object(ctx, -1);
 		if(!isMethod)
 			duk_pop(ctx);
 
-		duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("gfx"));
-		if((isMethod ? duk_pcall_method(ctx, 1) : duk_pcall(ctx, 1)) != 0) {
-			duk_get_prop_string(ctx, -1, "lineNumber");
-			duk_get_prop_string(ctx, -2, "fileName");
-
-			snprintf(s_lastError, ERROR_MAXLEN,
-				"%s:%i: runtime error during 'draw' event: %s\n", duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), duk_safe_to_string(ctx, -3));
-			duk_pop_2(ctx);
-		}
+		duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("gfx"));
+		callEventHandler(ctx, "draw", isMethod, 1);
 	}
 	duk_pop_2(ctx); // pop result or "draw" and global stash
 
 	if(++frameCounter%30==0)
 		LocalStoragePersistChanges(ctx);
+}
+
+static void dispatchAxisEvent(size_t id, uint8_t axis, float value, void* vm) {
+	Value* event = Value_new(VALUE_MAP, NULL);
+	Value_set(event, "evt", Value_str("gamepad"));
+	Value_set(event, "type", Value_str("axis"));
+	Value_set(event, "index", Value_int(id));
+	Value_set(event, "axis", Value_int(axis));
+	Value_set(event, "value", Value_float(value));
+	jsvmDispatchEvent((size_t)vm, "gamepad", event);
+	Value_delete(event, 1);
+}
+
+static void dispatchButtonEvent(size_t id, uint8_t button, uint8_t value, void* vm) {
+	Value* event = Value_new(VALUE_MAP, NULL);
+	Value_set(event, "evt", Value_str("gamepad"));
+	Value_set(event, "type", Value_str("button"));
+	Value_set(event, "index", Value_int(id));
+	Value_set(event, "button", Value_int(button));
+	Value_set(event, "value", Value_bool(value));
+	jsvmDispatchEvent((size_t)vm, "gamepad", event);
+	Value_delete(event, 1);
+}
+
+void jsvmDispatchGamepadEvents(size_t vm) {
+	duk_context *ctx = (duk_context*)vm;
+	duk_push_global_stash(ctx);
+	duk_bool_t hasListener = duk_has_prop_literal(ctx, -1, "gamepad");
+	duk_pop(ctx);
+	if(hasListener)
+		WindowControllerEvents(0.1, ctx, dispatchAxisEvent, dispatchButtonEvent);
 }
 
 void jsvmUpdateEventListeners(size_t vm) {

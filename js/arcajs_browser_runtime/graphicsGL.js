@@ -2,6 +2,46 @@
 "use strict";
 
 arcajs.Graphics = (function() {
+const vertexShader = `
+// input from vertex buffer:
+attribute vec2 a_position;
+attribute vec4 a_color;
+attribute vec2 a_texCoord;
+// output to fragment shader:
+varying vec4 vtxColor;
+varying vec2 texCoord;
+// context shared across all vertices in this batch:
+uniform vec2 u_resolution;
+uniform vec2 u_cam;
+uniform vec2 u_scale;
+
+void main() {
+	 // convert the rectangle from pixels to 0.0 to 1.0
+	 vec2 zeroToOne = (a_position-u_cam)*u_scale / u_resolution;
+
+	 // convert from 0->1 to 0->2
+	 vec2 zeroToTwo = zeroToOne * 2.0;
+
+	 // convert from 0->2 to -1->+1 (clipspace)
+	 vec2 clipSpace = zeroToTwo - 1.0;
+
+	 gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+	 vtxColor = a_color;
+	 texCoord = a_texCoord / vec2(16383.0,16383.0);
+}`;
+
+const fragmentShader = `
+precision mediump float;
+
+uniform sampler2D u_texUnit0;
+
+varying vec4 vtxColor;
+varying vec2 texCoord;
+
+void main() {
+	vec4 texColor = texture2D(u_texUnit0, texCoord);
+	gl_FragColor = vtxColor * texColor;
+}`;
 
 function renderFontTexture(font) {
 	let canvas = document.createElement('canvas');
@@ -104,24 +144,17 @@ function createShader(gl, type, source) {
 }
 
 function createProgram(gl, vertexShader, fragmentShader) {
+	const vs = createShader(gl, gl.VERTEX_SHADER, vertexShader);
+	const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
 	let program = gl.createProgram();
-	gl.attachShader(program, vertexShader);
-	gl.attachShader(program, fragmentShader);
+	gl.attachShader(program, vs);
+	gl.attachShader(program, fs);
 	gl.linkProgram(program);
 	var success = gl.getProgramParameter(program, gl.LINK_STATUS);
 	if (success)
 		return program;
 	console.error(gl.getProgramInfoLog(program));
 	gl.deleteProgram(program);
-}
-
-function createProgramFromScripts(gl, vs, fs) {
-	let vertexShaderSource = document.getElementById(vs).text;
-	let fragmentShaderSource = document.getElementById(fs).text;
-	
-	let vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-	let fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
-	return createProgram(gl, vertexShader, fragmentShader);
 }
 
 //------------------------------------------------------------------
@@ -138,7 +171,7 @@ return function (canvas, capacity=500) {
 
 	// setup GLSL program
 	const gl = canvas.getContext("webgl");
-	let program = createProgramFromScripts(gl, "vs", "fs");
+	let program = createProgram(gl, vertexShader, fragmentShader);
 	const a_position = gl.getAttribLocation(program, "a_position");
 	gl.enableVertexAttribArray(a_position);
 	const a_color = gl.getAttribLocation(program, "a_color");

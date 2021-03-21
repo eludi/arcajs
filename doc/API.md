@@ -114,18 +114,6 @@ creates an RGBA image resource from an buffer
 
 - {number} handle of the created image resource
 
-### function app.getGamepad
-
-returns current input state of a gamepad
-
-#### Parameters:
-
-- {number} index - gamepad index, starting from 0
-
-#### Returns:
-
-- {object} current gamepad input state
-
 ### function app.setBackground
 
 sets window background color

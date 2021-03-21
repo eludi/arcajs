@@ -13,37 +13,6 @@ const sndApplause = app.getResource("applause.mp3");
 const arenaW=80.0, arenaH=Math.floor(arenaW*app.height/app.width);
 const scoreWin = 7, deltaWin=2;
 
-function handleGamepad(evt) {
-	var axes = [0,0,0,0], btn = [0,0,0,0];
-	function handleGamepadInput() {
-		for(var i=0; i<2; ++i) {
-			var gp = app.getGamepad(i);
-			if(!gp || !gp.connected)
-				continue;
-
-			anyConnected = true;
-
-			for(j=0; j<2; ++j) {
-				const value = Math.round(gp.axes[j]*10)/10;
-				if(axes[i*2+j]!=value) {
-					axes[i*2+j]=value;
-					app.emit('custom', {type:'axis', player:2-i, axis:j, value:value});
-				}
-			}
-			for(j=0; j<2; ++j) {
-				const value = gp.buttons[j];
-				if(btn[i*2+j]!=value) {
-					btn[i*2+j]=value;
-					app.emit('custom', {type:'button', player:2-i, button:j, value:value});
-				}
-			}
-		}
-		setTimeout(handleGamepadInput, 50);
-	}
-	if(evt.type==='connected')
-		handleGamepadInput();
-}
-
 function Ball() {
 	const speedFactor = 20;
 	this.x = this.y = this.velX = this.velY = this.numReturns = 0;
@@ -275,15 +244,14 @@ function Game(players) {
 				player2.input(1, (y-player2.y < 0) ? -1 : +1);
 		}
 	}
-	this.custom = function(evt) {
+	this.gamepad = function(evt) {
 		if(evt.type==='axis') {
-			if(evt.player===1)
-				player1.input(evt.axis, evt.value);
-			else if(evt.player===2)
+			if(evt.index===0)
 				player2.input(evt.axis, evt.value);
+			else if(evt.index===1)
+				player1.input(evt.axis, evt.value);
 		}
 	}
-	this.gamepad = handleGamepad;
 }
 
 function GameMenu() {
@@ -323,7 +291,8 @@ function GameMenu() {
 		switch(evt.key) {
 		case '1': return app.on(new Game(1));
 		case '2': return app.on(new Game(2));
-		case 'Escape': if(evt.type==='keydown') return app.close();
+		case 'Escape': if(evt.type==='keydown' && !evt.repeat)
+			return app.close();
 		}
 	}
 	this.pointer = function(evt) {
@@ -333,11 +302,10 @@ function GameMenu() {
 			app.on(new Game(evt.x<app.width/2 ? 1 : 2));
 		}
 	}
-	this.custom = function(evt) {
+	this.gamepad = function(evt) {
 		if(evt.type==='axis' && evt.axis===0)
 			app.on(new Game(evt.value<0 ? 1 : 2));
 	}
-	this.gamepad = handleGamepad;
 }
 
 app.on(new GameMenu());

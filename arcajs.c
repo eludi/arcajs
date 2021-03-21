@@ -15,7 +15,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20210325a";
+const char* appVersion = "v0.20210321a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -472,6 +472,7 @@ int main(int argc, char **argv) {
 		jsvmAsyncCalls(vm, now);
 		argUpdate->f = WindowDeltaT();
 		argUpdate->next->f = now;
+		jsvmDispatchGamepadEvents(vm);
 		jsvmDispatchEvent(vm, "update", argUpdate);
 		jsvmDispatchDrawEvent(vm);
 		if(consoleSzY) {

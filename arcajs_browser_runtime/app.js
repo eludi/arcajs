@@ -80,7 +80,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	}
 
 	let app = {
-		version: 'v0.20210321a',
+		version: 'v0.20210322a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,

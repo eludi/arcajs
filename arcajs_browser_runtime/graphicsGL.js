@@ -399,7 +399,7 @@ return function (canvas, capacity=500) {
 		const s = String(text);
 		for(let i=0; i<s.length; ++i) {
 			const ch = s.charCodeAt(i);
-			if(ch<32 || ch>126)
+			if(ch<32 || ch>256)
 				continue;
 			const glyph = font.glyphs[ch-32];
 			const x1 = x+glyph.xoff, y1=y+glyph.yoff;
@@ -428,7 +428,7 @@ return function (canvas, capacity=500) {
 			metrics.width = 0;
 			for(let i=0; i<text.length; ++i) {
 				let ch = text.charCodeAt(i);
-				if(ch<32 || ch>126)
+				if(ch<32 || ch>256)
 					ch=32;
 				const glyph = font.glyphs[ch-32];
 				metrics.width += glyph.w;
@@ -475,14 +475,28 @@ return function (canvas, capacity=500) {
 		if(++sz==capacity)
 			this.flush();
 	}
+
 	this.drawPoints = function(arr) {
 		const lw2 = lineWidth/2;
 		if(lineWidth<=2)
 			for(let i=0, end=arr.length-1; i<end; i+=2)
 				this.fillRect(arr[i]-lw2,arr[i+1]-lw2, lineWidth,lineWidth);
-		else
-			for(let i=0, end=arr.length-1; i<end; i+=2)
-				this.drawImage(texPointId, arr[i]-lw2,arr[i+1]-lw2, lineWidth,lineWidth);
+		else {
+			setTexture(textures[texPointId]);
+			const tx1 = 0, ty1=0, tx2=texCoordMax, ty2=texCoordMax;
+			for(let i=0, end=arr.length-1; i<end; i+=2) {
+				const x1 = arr[i]-lw2, y1= arr[i+1]-lw2;
+				const x2 = x1 + lineWidth, y2 = y1 + lineWidth;
+				vertex(x1,y1, tx1,ty1);
+				vertex(x2,y1, tx2,ty1);
+				vertex(x1,y2, tx1,ty2);
+				vertex(x1,y2, tx1,ty2);
+				vertex(x2,y1, tx2,ty1);
+				vertex(x2,y2, tx2,ty2);
+				if(++sz==capacity)
+					this.flush();
+			}
+		}
 	}
 
 	this.drawLineStrip = function(arr) {

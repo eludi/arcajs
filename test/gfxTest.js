@@ -59,5 +59,5 @@ app.on('draw', function(gfx) {
         gfx.color(app.hsl(50,1.0,0.5-0.1*i)).fillText(0, 440,240+20*i, "hello, world.");
 
     gfx.color(255,255,255,127).fillRect(0,app.height-20, app.width,20);
-    gfx.color(0,0,0).fillText(0, 0,app.height-18, "arcajs graphics test");
+    gfx.color(0,0,0).fillText(0, 0,app.height-18, "arcajs graphics test. (äöü ÄÖÜ)");
 });

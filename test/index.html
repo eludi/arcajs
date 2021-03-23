@@ -58,7 +58,7 @@ function loadjs(url, callback) {
 	}
 	document.getElementsByTagName("head")[0].appendChild(node);
 }
-var main = (urlParams().main+'.js') || "gfxTest.js";
+var main = urlParams().main ? (urlParams().main+'.js') : "gfxTest.js";
 document.title += ' '+main;
 loadjs(main);
 </script>

@@ -70,8 +70,89 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 		setAlpha: function(a) { this.alpha = a; },
 		getRadius: function() { return this.radius; },
 		setRadius: function(r) { this.radius = r; },
-		intersects: function(sprite, callback) {
-			throw 'sprite.intersects not yet implemented';
+		intersects: function(x, y) {
+			const isec = arcajs.intersects;
+			if(typeof y==='number') {
+				if(this.radius>=0)
+					return isec.pointCircle(x,y, this.x, this.y, this.radius);
+				if(this.rot==0) {
+					const x1 = this.x - this.cx*this.w, y1=this.y - this.cy*this.h;
+					return isec.pointAlignedRect(x,y, x1,y1, x1+this.w, y1+this.h);
+				}
+				let c = [x,y];
+				const ox = -this.cx * this.w, oy = -this.cy * this.h;
+				const poly = [
+					ox, oy,
+					ox, oy + this.h,
+					ox + this.w, oy + this.h,
+					ox + this.w, oy
+				];
+ 				isec.transformInv(c, this.x, this.y, this.rot);
+				return isec.pointPolygon(c[0], c[1], poly);
+			}
+
+			const s2=x;
+			if(this.radius>=0.0 && s2.radius>=0.0)
+				return isec.circleCircle(this.x, this.y, this.radius, s2.x, s2.y, s2.radius);
+			if(this.radius>=0.0) {
+				if(!s2.rot) {
+					const x1 = s2.x - s2.cx*s2.w, y1=s2.y - s2.cy*s2.h;
+					return isec.circleAlignedRect(this.x, this.y, this.radius, x1,y1, x1+s2.w,y1+s2.h);
+				}
+				let c = [ this.x, this.y ];
+				const ox = -s2.cx * s2.w, oy = -s2.cy * s2.h;
+				const arr = [
+					ox, oy,
+					ox, oy + s2.h,
+					ox + s2.w, oy + s2.h,
+					ox + s2.w, oy
+				];
+				isec.transformInv(c, s2.x, s2.y, s2.rot);
+				return isec.circlePolygon(c[0], c[1], this.radius, arr);
+			}
+			if(s2.radius>=0.0) {
+				if(!this.rot) {
+					const x1 = this.x - this.cx * this.w, y1=this.y - this.cy * this.h;
+					return isec.circleAlignedRect(s2.x, s2.y, s2.radius, x1,y1, x1+this.w,y1+this.h);
+				}
+				let c = [ s2.x, s2.y ];
+				const ox = -this.cx * this.w, oy = -this.cy * this.h;
+				const arr = [
+					ox, oy,
+					ox, oy + this.h,
+					ox + this.w, oy + this.h,
+					ox + this.w, oy
+				];
+				isec.transformInv(c, this.x, this.y, this.rot);
+				return isec.circlePolygon(c[0], c[1], s2.radius, arr);
+			}
+			if(!this.rot && !s2.rot) {
+				const x1min = this.x - this.cx * this.w, y1min = this.y - this.cy * this.h;
+				const x1max = x1min + this.w, y1max = y1min + this.h;
+				const x2min = s2.x - s2.cx * s2.w, y2min = s2.y - s2.cy * s2.h;
+				const x2max = x2min + s2.w, y2max = y2min + s2.h;
+				return isec.alignedRectAlignedRect(
+					x1min,y1min, x1max,y1max, x2min,y2min, x2max,y2max);
+			}
+		
+			let ox = -this.cx * this.w, oy = -this.cy * this.h;
+			let arr1 = [
+				ox, oy,
+				ox, oy + this.h,
+				ox + this.w, oy + this.h,
+				ox + this.w, oy
+			];
+			isec.transform(arr1, this.x, this.y, this.rot);
+			ox = -s2.cx * s2.w;
+			oy = -s2.cy * s2.h;
+			let arr2 = [
+				ox, oy,
+				ox, oy + s2.h,
+				ox + s2.w, oy + s2.h,
+				ox + s2.w, oy
+			];
+			isec.transform(arr2, s2.x, s2.y, s2.rot);
+			return isec.polygonPolygon(arr1, arr2);
 		}
 	};
 

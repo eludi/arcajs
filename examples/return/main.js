@@ -181,7 +181,7 @@ function Game(players) {
 		ball.draw(gfx);
 		gfx.color(255,255,255).fillText(0, app.width/2, sc,
 			player1.score + ' : ' + player2.score, gfx.ALIGN_CENTER);
-		gfx.fillText(0, app.width/2, app.height/2, info, gfx.ALIGN_CENTER|gfx.ALIGN_MIDDLE);
+		gfx.fillText(0, app.width/2, app.height/2, info, gfx.ALIGN_CENTER_MIDDLE);
 		gfx.color(0,0,0).fillRect(0,arenaH*sc, app.width,app.height-arenaH*sc+1);
 	},
 	this.keyboard = function(evt) {
@@ -277,11 +277,11 @@ function GameMenu() {
 	}
 	this.draw = function(gfx) {
 		gfx.color(255,255,255);
-		gfx.drawTile(title,0, app.width*0.5, app.height*0.4, gfx.ALIGN_CENTER|gfx.ALIGN_BOTTOM);
-		gfx.drawTile(icons, 1, app.width*0.3, app.height*0.6, gfx.ALIGN_CENTER|gfx.ALIGN_MIDDLE);
-		gfx.fillText(0, app.width*0.3, app.height*0.6+100, 'SINGLE PLAYER',  gfx.ALIGN_CENTER|gfx.ALIGN_MIDDLE);
-		gfx.drawTile(icons, 2, app.width*0.7, app.height*0.6,  gfx.ALIGN_CENTER|gfx.ALIGN_MIDDLE);
-		gfx.fillText(0, app.width*0.7, app.height*0.6+100, 'TWO PLAYERS',  gfx.ALIGN_CENTER|gfx.ALIGN_MIDDLE);
+		gfx.drawTile(title,0, app.width*0.5, app.height*0.4, gfx.ALIGN_CENTER_BOTTOM);
+		gfx.drawTile(icons, 1, app.width*0.3, app.height*0.6, gfx.ALIGN_CENTER_MIDDLE);
+		gfx.fillText(0, app.width*0.3, app.height*0.6+100, 'SINGLE PLAYER',  gfx.ALIGN_CENTER_MIDDLE);
+		gfx.drawTile(icons, 2, app.width*0.7, app.height*0.6,  gfx.ALIGN_CENTER_MIDDLE);
+		gfx.fillText(0, app.width*0.7, app.height*0.6+100, 'TWO PLAYERS',  gfx.ALIGN_CENTER_MIDDLE);
 		gfx.clipRect(20, app.height-30, app.width-40,20);
 		gfx.fillText(0, marqueeX, app.height-30, marquee);
 		gfx.clipRect();

@@ -132,5 +132,5 @@ app.on('draw', function(gfx) {
 
 	gfx.color(0,0,0,127).fillRect(0, app.height-LINE_SIZE-2, app.width, LINE_SIZE+2);
 	gfx.color(255,255,255).fillText(font, 0, app.height, "arcaJS sprite performance test", gfx.ALIGN_BOTTOM);
-	gfx.color(255,85,85).fillText(font, app.width, app.height, fps, gfx.ALIGN_RIGHT | gfx.ALIGN_BOTTOM);
+	gfx.color(255,85,85).fillText(font, app.width, app.height, fps, gfx.ALIGN_RIGHT_BOTTOM);
 });

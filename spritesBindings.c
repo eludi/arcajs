@@ -40,10 +40,14 @@ static duk_bool_t isPrototype(duk_context* ctx, int index, const char* name) {
  */
 static duk_ret_t dk_SpriteSetColor(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
-	if(duk_is_undefined(ctx, 1)) {
+	if(duk_is_array(ctx,0) || duk_is_buffer_data(ctx,0)) {
 		uint32_t color = array2color(ctx, 0);
 		uint8_t r = color >> 24, g = color >> 16, b = color >> 8, a = color;
 		SpriteColorRGBA(sprite, r,g,b,a);
+	}
+	else if(duk_is_undefined(ctx, 1)) {
+		uint32_t v = duk_to_uint(ctx, 0);
+		SpriteColorRGBA(sprite, (v>>24)&0xff, (v>>16)&0xff, (v>>8)&0xff ,v&0xff);
 	}
 	else {
 		int r = duk_to_int(ctx, 0);

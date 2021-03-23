@@ -662,6 +662,15 @@ return function (canvas, capacity=500) {
 	defineConst(this, "ALIGN_MIDDLE", 4);
 	defineConst(this, "ALIGN_BOTTOM", 8);
 	defineConst(this, "FLIP_NONE", 0.0);
+	defineConst(this, "ALIGN_LEFT_TOP", 0);
+	defineConst(this, "ALIGN_CENTER_TOP", 1);
+	defineConst(this, "ALIGN_RIGHT_TOP", 2);
+	defineConst(this, "ALIGN_LEFT_MIDDLE", 4);
+	defineConst(this, "ALIGN_CENTER_MIDDLE", 5);
+	defineConst(this, "ALIGN_RIGHT_MIDDLE", 6);
+	defineConst(this, "ALIGN_LEFT_BOTTOM", 8);
+	defineConst(this, "ALIGN_CENTER_BOTTOM", 9);
+	defineConst(this, "ALIGN_RIGHT_BOTTOM", 10);
 	defineConst(this, "FLIP_X", 1.0);
 	defineConst(this, "FLIP_Y", 2.0);
 	defineConst(this, "FLIP_XY", 3.0);

@@ -1312,7 +1312,7 @@ static duk_ret_t dk_gfxDrawImage(duk_context *ctx) {
  * @param {number} x - X ordinate
  * @param {number} y - Y ordinate
  * @param {string} text - text
- * @param {number} [align=gfx.ALIGN_LEFT|gfx.ALIGN_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
+ * @param {number} [align=gfx.ALIGN_LEFT_TOP] - horizontal and vertical alignment, one of the gfx.ALIGN_xyz constants
  */
 static duk_ret_t dk_gfxFillText(duk_context *ctx) {
 	size_t font = duk_get_number_default(ctx, 0, 0);
@@ -1349,6 +1349,25 @@ static void bindGraphicsCommon(duk_context* ctx) {
 		{ "ALIGN_MIDDLE", (double)4 },
 /// @constant {number} gfx.ALIGN_BOTTOM
 		{ "ALIGN_BOTTOM", (double)8 },
+/// @constant {number} gfx.ALIGN_LEFT_TOP
+		{ "ALIGN_LEFT_TOP", (double)0 },
+/// @constant {number} gfx.ALIGN_CENTER_TOP
+		{ "ALIGN_CENTER_TOP", (double)1 },
+/// @constant {number} gfx.ALIGN_RIGHT_TOP
+		{ "ALIGN_RIGHT_TOP", (double)2 },
+/// @constant {number} gfx.ALIGN_LEFT_MIDDLE
+		{ "ALIGN_LEFT_MIDDLE", (double)4 },
+/// @constant {number} gfx.ALIGN_CENTER_MIDDLE
+		{ "ALIGN_CENTER_MIDDLE", (double)5 },
+/// @constant {number} gfx.ALIGN_RIGHT_MIDDLE
+		{ "ALIGN_RIGHT_MIDDLE", (double)6 },
+/// @constant {number} gfx.ALIGN_LEFT_BOTTOM
+		{ "ALIGN_LEFT_BOTTOM", (double)8 },
+/// @constant {number} gfx.ALIGN_CENTER_BOTTOM
+		{ "ALIGN_CENTER_BOTTOM", (double)9 },
+/// @constant {number} gfx.ALIGN_RIGHT_BOTTOM
+		{ "ALIGN_RIGHT_BOTTOM", (double)10 },
+
 /// @constant {number} gfx.FLIP_NONE
 		{ "FLIP_NONE", 0.0 },
 /// @constant {number} gfx.FLIP_X

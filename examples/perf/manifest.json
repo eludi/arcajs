@@ -1,0 +1,8 @@
+{
+	"name":"arcaJS performance test",
+	"display":"window",
+	"window_width": 1280,
+	"window_height": 720,
+	"background_color" : "#246",
+	"scripts":[ "perf.js" ]
+}

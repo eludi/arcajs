@@ -133,6 +133,7 @@ the repository or try them directly from your browser:
 
 - [memomini](https://eludi.github.io/arcajs/examples/memomini/)
 - [return!](https://eludi.github.io/arcajs/examples/return/)
+- [sprite performance stresstest](https://eludi.github.io/arcajs/examples/perf/)
 
 ## Status
 

@@ -6,21 +6,13 @@
 #include <string.h>
 
 #include <SDL.h>
-#include <SDL_opengl.h>
 
 #define NUM_JOYSTICKS_MAX 8
-
-#ifndef _NO_GL
-extern void gfxGlClearRGB(unsigned char r, unsigned char g, unsigned char b);
-extern void gfxGlFlush();
-#endif
 
 typedef struct {
 	SDL_Window *window;
 	/// pointer to SDL renderer
 	SDL_Renderer* renderer;
-	/// OpenGL context
-	SDL_GLContext glctx;
 
 	/// window size x
 	int szX;
@@ -75,7 +67,6 @@ static float getPixelRatio(int displayIndex) {
 int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 	wnd.szX = wnd.szY = 0;
 	wnd.renderer = 0;
-	wnd.glctx = 0;
 
 	WindowClearColor(0);
 	wnd.inputTextSz = wnd.inputTextComplete = 0;
@@ -92,26 +83,6 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 	}
 	int32_t sdlFlags = SDL_WINDOW_ALLOW_HIGHDPI;
 	const char* title = "arcajs";
-
-	if(windowFlags & WINDOW_GL) {
-		sdlFlags |= SDL_WINDOW_OPENGL;
-#ifdef GRAPHICS_API_OPENGL_ES2
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-#elif defined(GRAPHICS_API_OPENGL_33)
-		SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-		SDL_GL_SetAttribute( SDL_GL_ACCELERATED_VISUAL, 1 );
-		SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 8 );
-		SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 8 );
-		SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 8 );
-		SDL_GL_SetAttribute( SDL_GL_ALPHA_SIZE, 8 );
-
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-#endif
-	}
 
 	if(windowFlags & WINDOW_FULLSCREEN) {
 		SDL_DisplayMode dm;
@@ -137,23 +108,12 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 
 	//printf("%s ", SDL_GetCurrentVideoDriver());
 	SDL_GetWindowSize(wnd.window, &wnd.szX, &wnd.szY);
-	if(!(sdlFlags & SDL_WINDOW_OPENGL)) {
-		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
-		uint32_t renderFlags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE;
-		if(wnd.vsync)
-			renderFlags |= SDL_RENDERER_PRESENTVSYNC;
-		wnd.renderer = SDL_CreateRenderer(wnd.window, -1, renderFlags);
-		SDL_SetRenderDrawBlendMode(wnd.renderer, SDL_BLENDMODE_BLEND);
-
-		//SDL_RendererInfo renderInfo;
-		//if(SDL_GetRendererInfo(wnd.renderer, &renderInfo)==0)
-		//	printf("%s %u ",renderInfo.name, renderInfo.flags);
-	}
-	else {
-		wnd.glctx = SDL_GL_CreateContext(wnd.window);
-		if(wnd.vsync)
-			SDL_GL_SetSwapInterval(1);
-	}
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+	uint32_t renderFlags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE;
+	if(wnd.vsync)
+		renderFlags |= SDL_RENDERER_PRESENTVSYNC;
+	wnd.renderer = SDL_CreateRenderer(wnd.window, -1, renderFlags);
+	SDL_SetRenderDrawBlendMode(wnd.renderer, SDL_BLENDMODE_BLEND);
 
 	SDL_StopTextInput();
 	WindowUpdateTimestamp();
@@ -168,10 +128,6 @@ void WindowClose() {
 	if(wnd.renderer) {
 		SDL_DestroyRenderer(wnd.renderer);
 		wnd.renderer = NULL;
-	}
-	if(wnd.glctx) {
-		SDL_GL_DeleteContext(wnd.glctx);
-		wnd.glctx = 0;
 	}
 	if(!wnd.window)
 		return;
@@ -307,18 +263,6 @@ int WindowUpdate() {
 			SDL_ALPHA_OPAQUE);
 		SDL_RenderClear(wnd.renderer);
 	}
-#ifndef _NO_GL
-	else if(wnd.glctx) {
-		gfxGlFlush();
-		SDL_GL_SwapWindow(wnd.window);
-		GLenum gl_error = glGetError();
-		if( gl_error != GL_NO_ERROR ) {
-			fprintf(stderr, "WindowUpdate OpenGL ERROR: %i\n", gl_error);
-			return -1;
-		}
-		gfxGlClearRGB(wnd.clearColor >> 24, wnd.clearColor >> 16, wnd.clearColor >> 8);
-	}
-#endif
 	else return -1;
 
 	const char* sdl_error = SDL_GetError();
@@ -408,7 +352,7 @@ float WindowPixelRatio() {
 }
 
 int WindowIsOpen() {
-	return wnd.renderer!=0 || wnd.glctx;
+	return wnd.renderer!=0;
 }
 
 void WindowTitle(const char* str) {
@@ -440,10 +384,6 @@ void WindowClearColor(uint32_t color) {
 			SDL_ALPHA_OPAQUE);
 		SDL_RenderClear(wnd.renderer);
 	}
-#ifndef _NO_GL
-	else if(wnd.glctx)
-		gfxGlClearRGB(wnd.clearColor >> 24, wnd.clearColor >> 16, wnd.clearColor >> 8);
-#endif
 }
 
 uint32_t WindowGetClearColor() {

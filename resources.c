@@ -1,7 +1,6 @@
 #include "resources.h"
 #include "archive.h"
 #include "graphics.h"
-#include "graphicsGL.h"
 #include "graphicsUtils.h"
 
 #include "audio.h"
@@ -30,7 +29,6 @@ typedef struct {
 	unsigned numFonts, numFontsMax;
 	Resource *images, *samples;
 	unsigned numImages, numImagesMax, numSamples, numSamplesMax;
-	int uploadToGL;
 } ResArchive;
 static ResArchive* ra = NULL;
 
@@ -74,10 +72,6 @@ char* ResourceBaseName(const char* fname) {
 	return strncpy(s, fname+start, end-start);
 }
 
-int ResourceUploadsToGL() {
-	return ra && ra->uploadToGL;
-}
-
 int isImageFile(const char* fname) {
 	const char* suffix = ResourceSuffix(fname);
 	if(!suffix)
@@ -114,7 +108,7 @@ static void* ArchiveLoadBinary(Archive* ar, const char* fname, size_t* size) {
 	return buf;
 }
 
-static size_t ArchiveLoadImage(Archive* ar, const char* fname, int uploadToGL) {
+static size_t ArchiveLoadImage(Archive* ar, const char* fname) {
 	size_t fsize;
 	void* buf = ArchiveLoadBinary(ar, fname, &fsize);
 	if(!buf)
@@ -126,12 +120,12 @@ static size_t ArchiveLoadImage(Archive* ar, const char* fname, int uploadToGL) {
 	if(!data)
 		return 0;
 
-	size_t img = uploadToGL ? gfxGlImageUpload(data, w, h, d) : gfxImageUpload(data, w, h, d);
+	size_t img = gfxImageUpload(data, w, h, d);
 	free(data);
 	return img;
 }
 
-static size_t ArchiveLoadSVG(char* svg, float scale, int uploadToGL) {
+static size_t ArchiveLoadSVG(char* svg, float scale) {
 	int w, h, d;
 	unsigned char* data = svgRasterize(svg, scale, &w, &h, &d);
 	free(svg);
@@ -139,7 +133,7 @@ static size_t ArchiveLoadSVG(char* svg, float scale, int uploadToGL) {
 		fprintf(stderr, "Could not rasterize SVG image.\n");
 		return 0;
 	}
-	size_t img = uploadToGL ? gfxGlImageUpload(data, w, h, d) : gfxImageUpload(data, w, h, d);
+	size_t img = gfxImageUpload(data, w, h, d);
 	free(data);
 	return img;
 }
@@ -159,7 +153,7 @@ static size_t ArchiveLoadAudio(Archive* ar, const char* fname) {
 //------------------------------------------------------------------
 
 /// opens a resource archive for further processing
-size_t ResourceArchiveOpen(const char* url, int uploadToGL) {
+size_t ResourceArchiveOpen(const char* url) {
 	if(ra)
 		return 0;
 	Archive* ar = ArchiveOpen(url);
@@ -171,7 +165,6 @@ size_t ResourceArchiveOpen(const char* url, int uploadToGL) {
 	ra->numFonts = ra->numFontsMax = 0;
 	ra->images = ra->samples = NULL;
 	ra->numImages = ra->numImagesMax = ra->numSamples = ra->numSamplesMax = 0;
-	ra->uploadToGL = uploadToGL;
 	return (size_t)ar;
 }
 /// closes currently opened resources and archive
@@ -205,14 +198,10 @@ size_t ResourceGetImage(const char* name, float scale, int filtering) {
 		if(strcmp(ra->images[i].name, name)==0)
 			return ra->images[i].handle;
 
-	if(ra->uploadToGL)
-		gfxGlTextureFiltering(filtering);
-	else
-		gfxTextureFiltering(filtering);
+	gfxTextureFiltering(filtering);
 
 	size_t handle = (isImage==1) ?
-		ArchiveLoadImage(ra->ar, name, ra->uploadToGL) :
-		ArchiveLoadSVG(ResourceGetText(name), scale, ra->uploadToGL);
+		ArchiveLoadImage(ra->ar, name) : ArchiveLoadSVG(ResourceGetText(name), scale);
 	if(!handle)
 		return 0;
 
@@ -262,7 +251,7 @@ size_t ResourceGetFont(const char* name, unsigned fontSize) {
 	if(!buf)
 		return 0;
 
-	size_t handle = ra->uploadToGL ? gfxGlFontUpload(buf, fsize, fontSize) : gfxFontUpload(buf, fsize, fontSize);
+	size_t handle = gfxFontUpload(buf, fsize, fontSize);
 	free(buf);
 	if(handle) {
 		if(ra->numFonts == ra->numFontsMax) {
@@ -311,7 +300,7 @@ size_t ResourceCreateCircleImage(
 		"style=\"fill:#%06x;fill-opacity:%f;stroke:#%06x;stroke-opacity:%f;stroke-width:%f\"/></svg>",
 		sz, sz, cx, cx, radius, fillColor >> 8, (fillColor&0xff)/255.0f,
 		strokeColor >> 8, (strokeColor&0xff)/255.0f, strokeWidth);
-	return ArchiveLoadSVG(svg, 1.0f, ra->uploadToGL);
+	return ArchiveLoadSVG(svg, 1.0f);
 }
 
 size_t ResourceCreatePathImage(
@@ -325,25 +314,20 @@ size_t ResourceCreatePathImage(
 		"style=\"fill:#%06x;fill-opacity:%f;stroke:#%06x;stroke-opacity:%f;stroke-width:%f\"/></svg>",
 		width, height, path, fillColor >> 8, (fillColor&0xff)/255.0f,
 		strokeColor >> 8, (strokeColor&0xff)/255.0f, strokeWidth);
-	return ArchiveLoadSVG(svg, 1.0f, ra->uploadToGL);
+	return ArchiveLoadSVG(svg, 1.0f);
 }
 
 
 size_t ResourceCreateSVGImage(const char* svg, float scale) {
-	return ra ? ArchiveLoadSVG(strdup(svg), scale, ra->uploadToGL) : 0;
+	return ra ? ArchiveLoadSVG(strdup(svg), scale) : 0;
 }
 
 size_t ResourceCreateImage(int width, int height, const unsigned char* data, int filtering) {
 	if(!ra)
 		return 0;
 
-	if(ra->uploadToGL)
-		gfxGlTextureFiltering(filtering);
-	else
-		gfxTextureFiltering(filtering);
-
-	return ra->uploadToGL ? gfxGlImageUpload(data, width, height, 4)
-		: gfxImageUpload(data, width, height, 4);
+	gfxTextureFiltering(filtering);
+	return gfxImageUpload(data, width, height, 4);
 }
 
 //------------------------------------------------------------------

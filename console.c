@@ -1,6 +1,5 @@
 #include "console.h"
 #include "graphics.h"
-#include "graphicsGL.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -115,21 +114,6 @@ void ConsoleDraw() {
 		gfxFillText(console->font, console->x, y, &console->buf[(i+offset)%bufsz]);
 		y += console->charH;
 	}
-}
-
-void ConsoleDraw_gl() {
-#ifndef _NO_GL
-	if(!console || !console->visible)
-		return;
-	gfxGlColor(console->bgColor);
-	gfxGlFillRect(console->x, console->y, console->w, console->h);
-	gfxGlColor(console->fgColor);
-	float y = console->y;
-	for(size_t i=0, end=console->bufH * console->bufW; i<end; i+=console->bufW) {
-		gfxGlFillText(console->font, console->x, y, &console->buf[i]);
-		y += console->charH;
-	}
-#endif
 }
 
 //------------------------------------------------------------------

@@ -14,11 +14,9 @@ endif
 ifeq ($(OS),Linux)
   INCDIR        = -I$(SDL)/include -D_REENTRANT -Iexternal
   ifeq ($(ARCH),Linux_x86_64)
-    CFLAGS     += -DGRAPHICS_API_OPENGL_33
-    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -lpthread -lrt -lGL -ldl -lcurl -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -lpthread -lrt -ldl -lcurl -lm
   else
-    CFLAGS     += -DGRAPHICS_API_OPENGL_ES2
-    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -L/opt/vc/lib -lbrcmGLESv2 -lbrcmEGL -ldl -lcurl -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -ldl -lcurl -lm
   endif
   DLLFLAGS      = -fPIC -shared
   DLLSUFFIX     = .so
@@ -32,11 +30,10 @@ else
     EXESUFFIX = .app
   else # windows, MinGW
     INCDIR        = -I$(SDL)/include -Iexternal
-    CFLAGS       += -DGRAPHICS_API_OPENGL_33
     LIBS          = -L$(SDL)/lib/$(ARCH) -lmingw32 -lSDL2main -lSDL2 -lwinmm -luser32 \
-                    -lopengl32 -lgdi32 -lkernel32 -lwininet -lwsock32 -lm -mconsole
+                    -lgdi32 -lkernel32 -lwininet -lwsock32 -lm -mconsole
     STATIC_LIBS   = -L$(SDL)/lib/$(ARCH) -static -lmingw32 -lSDL2main -lSDL2 -Wl,--no-undefined -lm \
-                    -ldinput8 -ldxguid -ldxerr8 -luser32 -lopengl32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 \
+                    -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 \
                     -lshell32 -lsetupapi -lversion -luuid -lwininet -static-libgcc -mwindows
     DLLFLAGS      = -shared -s
     DLLSUFFIX     = .dll
@@ -46,9 +43,9 @@ else
   endif
 endif
 
-SRC = arcajs.c window.c graphics.c graphicsGL.c graphicsUtils.c sprites.c spritesGl.c spritesBindings.c \
+SRC = arcajs.c window.c graphics.c graphicsUtils.c sprites.c spritesBindings.c \
   audio.c console.c resources.c archive.c jsBindings.c value.c httpRequest.c \
-  modules/intersects.c modules/intersectsBindings.c external/miniz.c external/duktape.c external/gl3w.c
+  modules/intersects.c modules/intersectsBindings.c external/miniz.c external/duktape.c
 OBJ = $(SRC:.c=.o)
 EXE = arcajs$(EXESUFFIX)
 
@@ -75,22 +72,19 @@ modules/fs$(DLLSUFFIX): modules/fs.o external/duktape.o
 	$(CC) -o $@ $(DLLFLAGS) $^ $(LIBS)
 
 # compilation dependencies:
-arcajs.o: arcajs.c window.h graphics.h graphicsGL.h audio.h console.h resources.h archive.h jsBindings.h value.h
-resources.o: resources.c resources.h archive.h graphics.h graphicsGL.h graphicsUtils.h \
+arcajs.o: arcajs.c window.h graphics.h audio.h console.h resources.h archive.h jsBindings.h value.h
+resources.o: resources.c resources.h archive.h graphics.h graphicsUtils.h \
   external/stb_image.h external/nanosvg.h external/nanosvgrast.h
 archive.o: archive.c archive.h external/miniz.h
 window.o: window.c window.h
 graphics.o: graphics.c graphics.h external/stb_truetype.h external/stb_image.h
-graphicsGL.o: graphicsGL.c graphicsGL.h \
-  external/stb_truetype.h external/stb_image.h external/rlgl.noglad.h external/raymath.h
 graphicsUtils.o: graphicsUtils.c graphicsUtils.h font12x16.h \
   external/stb_truetype.h external/stb_image.h external/nanosvg.h external/nanosvgrast.h
 sprites.o: sprites.c sprites.h graphics.h modules/intersects.h
-spritesGl.o: spritesGl.c sprites.c sprites.h graphicsGL.h modules/intersects.h
 spritesBindings.o: spritesBindings.c sprites.h external/duktape.h external/duk_config.h
 audio.o: audio.c audio.h external/dr_mp3.h
-console.o: console.c console.h graphics.h graphicsGL.h
-jsBindings.o: jsBindings.c jsBindings.h window.h graphics.h graphicsGL.h audio.h console.h value.h httpRequest.h \
+console.o: console.c console.h graphics.h
+jsBindings.o: jsBindings.c jsBindings.h window.h graphics.h audio.h console.h value.h httpRequest.h \
   external/duktape.h external/duk_config.h
 external/duktape.o: external/duktape.c external/duktape.h 
 value.o: value.c value.h
@@ -99,7 +93,6 @@ modules/intersects.o: modules/intersects.c modules/intersects.h
 modules/intersectsBindings.o: modules/intersectsBindings.c modules/intersects.h \
   external/duktape.h external/duk_config.h
 zzipsetstub.o: zzipsetstub.c
-external/gl3w.o: external/gl3w.c
 modules/dgram.o: modules/dgram.c
 modules/fs.o: modules/fs.c
 

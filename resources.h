@@ -14,15 +14,13 @@ typedef enum {
 
 /// opens a resource archive for further processing
 /** @return handle of corresponding archive or 0 in case of error */
-extern size_t ResourceArchiveOpen(const char* url, int uploadToGL);
+extern size_t ResourceArchiveOpen(const char* url);
 /// closes currently opened resources and archive
 extern void ResourceArchiveClose();
 /// returns pointer to suffix of filename
 extern const char* ResourceSuffix(const char* fname);
 /// returns a duplicate of a resource's or file's basename (without suffix and path)
 extern char* ResourceBaseName(const char* fname);
-/// returns 1 if graphics resources are uploaded to OpenGL
-extern int ResourceUploadsToGL();
 
 /// returns handle to an image resource
 /** @param scale only relevant for SVG images */

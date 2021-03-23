@@ -15,28 +15,14 @@
 #include <stdlib.h>
 
 # include <sys/stat.h>
-#if defined __WIN32__ || defined WIN32
-# define WIN32_LEAN_AND_MEAN
-# include <windows.h>
-# include <direct.h>
-#endif
-
-#ifndef _MSC_VER
 # include <dirent.h>
-#endif
 
 //--- functions ----------------------------------------------------
 
 static int isDir(const char* path) {
-#ifdef _MSC_VER
-	struct _stat buf;
-	if ( _stat(path,&buf) == 0 )
-		return (buf.st_mode & _S_IFDIR) ? 1 : 0;
-#else
 	struct stat buf ;
 	if ( stat(path,&buf) == 0 )
 		return buf.st_mode & S_IFDIR ? 1 : 0;
-#endif
 	return -1;
 }
 
@@ -112,75 +98,72 @@ int ArchiveFileExists(Archive *ar, const char* filename) {
 	return 0;
 }
 
+static int ArchiveReadDirRecursive(Archive* ar, const char* path, FileInfo** pFileInfo,
+	unsigned int* numEntries, unsigned int* capacity)
+{
+	size_t pathLen = strlen(path);
+	int ret = 0;
+	DIR *dir;
+	struct dirent *ent;
+	char* fullPath = pathLen ? filePath(ar->path, path) : ar->path;
+	if ((dir = opendir(fullPath)) == NULL) {
+		if(pathLen)
+			free(fullPath);
+		return -1;
+	}
+	if(*capacity==0) {
+		*capacity = 4;
+		*pFileInfo = (FileInfo*)malloc(sizeof(FileInfo) * (*capacity));
+	}
+	while ((ent = readdir(dir)) != NULL && ret>=0) {
+		if((strcmp(ent->d_name,".")==0)||(strcmp(ent->d_name,"..")==0)) 
+			continue;
+		char * fullFilePath = filePath(fullPath, ent->d_name);
+		size_t fileSize=0;
+		struct stat buf ;
+		int isDir = 0;
+		if ( stat(fullFilePath,&buf) == 0 ) {
+			fileSize = buf.st_size;
+			isDir = buf.st_mode & S_IFDIR;
+		}
+		free(fullFilePath);
+
+		if(isDir) {
+			char* dirPath = pathLen ? filePath(path, ent->d_name) : strdup(ent->d_name);
+			ret = ArchiveReadDirRecursive(ar, dirPath, pFileInfo, numEntries, capacity);
+			free(dirPath);
+			continue;
+		}
+		
+		if(++(*numEntries)>*capacity) {
+			(*capacity)<<=1;
+			*pFileInfo = (FileInfo*)realloc(*pFileInfo, sizeof(FileInfo)*(*capacity));
+		}
+		FileInfo* zf = *pFileInfo + (*numEntries) - 1;
+		zf->size = fileSize;
+		zf->filename = pathLen ? filePath(path, ent->d_name) : strdup(ent->d_name);
+		//printf("%i\t%s\t%u\n", (*numEntries)-1, zf->filename, (unsigned)zf->size);
+	}
+	if(pathLen)
+		free(fullPath);
+	closedir(dir);
+
+	if(ret<0) {
+		*numEntries = *capacity = 0;
+		free(*pFileInfo);
+		*pFileInfo = 0;
+		return ret;
+	}
+	return (int)(*numEntries);
+}
+
 int ArchiveContent(Archive* ar, FileInfo** pFileInfo) {
 	if(!ar)
 		return -1;
 	if(ar->type==0) { // directory
-#ifdef _MSC_VER
-		WIN32_FIND_DATA findFileData;
-		HANDLE hFind;
-		unsigned int numEntries = 0;
-		unsigned int capacity = 4; // lets start with space for 4 entries
-		char *tmp = (char*)malloc(strlen(ar->path)+5);
-		strcpy(tmp,ar->path);
-		strcat(tmp,"\\*.*");
-		hFind = FindFirstFile(tmp, &findFileData);
-		free(tmp);
-		if (hFind == INVALID_HANDLE_VALUE) return -1;
-		*pFileInfo = (FileInfo*)malloc(sizeof(FileInfo)*capacity);
-		do {
-			FileInfo* zf;
-			if(findFileData.dwFileAttributes == FILE_ATTRIBUTE_DIRECTORY)
-				continue;
-			if(++numEntries>capacity) {
-				capacity<<=1;
-				*pFileInfo = (FileInfo*)realloc(*pFileInfo, sizeof(FileInfo)*capacity);
-			}
-			zf=*pFileInfo+numEntries-1;
-			zf->size = findFileData.nFileSizeLow; // more than 4GB are stll unlikely...
-			zf->filename = (char*)malloc(strlen(findFileData.cFileName)+1);
-			strcpy(zf->filename,findFileData.cFileName);
-		} while(FindNextFile(hFind, &findFileData));		
-		FindClose(hFind);
-#else
-		DIR *dir;
-		struct dirent *ent;
-		if ((dir = opendir(ar->path)) == NULL)
-			return -1;
-		unsigned int numEntries = 0;
-		unsigned int capacity = 4; // lets start with space for 4 entries
-		*pFileInfo = (FileInfo*)malloc(sizeof(FileInfo)*capacity);
-		while ((ent = readdir(dir)) != NULL) {
-			if((strcmp(ent->d_name,".")==0)||(strcmp(ent->d_name,"..")==0)) 
-				continue;
-			char * completeFilePath = filePath(ar->path,ent->d_name);
-			size_t fileSize=0;
-			struct stat buf ;
-			int isDir = 0;
-			if ( stat(completeFilePath,&buf) == 0 ) {
-				fileSize = buf.st_size;
-				isDir = buf.st_mode & S_IFDIR;
-			}
-			free(completeFilePath);
-			if(isDir)
-				continue;
-			
-			numEntries++;
-			if(numEntries>capacity) {
-				capacity<<=1;
-				*pFileInfo = (FileInfo*)realloc(*pFileInfo, sizeof(FileInfo)*capacity);
-			}
-			FileInfo* zf=*pFileInfo+numEntries-1;
-			zf->size = fileSize;
-			zf->filename = (char*)malloc(strlen(ent->d_name)+1);
-			strcpy(zf->filename, ent->d_name);
-			//printf("%i\t%s\t%li\n", numEntries-1, zf->filename, zf->size);
-		}
-		closedir(dir);
-#endif
-		return numEntries;
+		unsigned int numEntries=0, capacity=0;
+		return ArchiveReadDirRecursive(ar, "", pFileInfo, &numEntries, &capacity);
 	}
-
 	else if(ar->type==1 && ar->zipFile) { // zip archive
 		int numEntries = (int)mz_zip_reader_get_num_files(ar->zipFile);
 		if(numEntries==0)
@@ -230,11 +213,7 @@ size_t ArchiveFileLoad(Archive *ar, const char* filename, void* ptr) {
 		char * url = filePath(ar->path,filename);
 		FILE *fp;
 		size_t ret;
-#ifdef _MSC_VER
-		fopen_s(&fp, url, "rb");
-#else
 		fp = fopen(url, "rb");
-#endif
 		free(url);
 		if (!fp)
 			return 0;

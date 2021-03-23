@@ -466,35 +466,6 @@ duk_ret_t dk_createSprite(duk_context *ctx) {
 	return 1;
 }
 
-duk_ret_t dk_createSpriteGl(duk_context *ctx) {
-	int argc = duk_get_top(ctx);
-	SpriteSet* sps = getThisInstance(ctx);
-
-	duk_push_object(ctx);
-	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("Sprite_prototype"));
-	duk_set_prototype(ctx, -2);
-
-	Sprite* sprite = (Sprite*)duk_push_fixed_buffer(ctx, sizeof(Sprite));
-	switch(argc) {
-	case 4:
-		*sprite = SpriteCreateFromClippedImage(
-			duk_to_uint16(ctx, 0), duk_to_uint16(ctx, 1), duk_to_uint16(ctx, 2), duk_to_uint16(ctx, 3));
-		break;
-	case 1: {
-		uint16_t tile = duk_to_uint16(ctx, 0);
-		if(tile >= sps->tilesX * sps->tilesY)
-			return duk_error(ctx, DUK_ERR_RANGE_ERROR, "tile index out of range");
-		*sprite = SpriteCreateFromTile_gl(sps, tile);
-		break;
-	}
-	default:
-		*sprite = SpriteCreate_gl(sps);
-	}
-	duk_put_prop_literal(ctx, -2, DUK_HIDDEN_SYMBOL("instance"));
-	SpriteSetAppend(sps, sprite);
-	return 1;
-}
-
 /**
  * @function SpriteSet.update
  * updates position of contained sprites based on their velocity and passed time 
@@ -540,17 +511,6 @@ duk_ret_t dk_SpriteSetDraw(duk_context *ctx) {
 	return 0;
 }
 
-duk_ret_t dk_SpriteSetGlDraw(duk_context *ctx) {
-	if(!duk_is_object(ctx, 0) || !isPrototype(ctx, 0, DUK_HIDDEN_SYMBOL("SpriteSet_prototype")))
-		return duk_error(ctx, DUK_ERR_SYNTAX_ERROR,
-			"SpriteSet expected as first argument of drawSprites");
-
-	duk_get_prop_literal(ctx, 0, DUK_HIDDEN_SYMBOL("instance"));
-	SpriteSet* sps = (SpriteSet*)duk_get_buffer(ctx, -1, NULL);
-	SpriteSetDraw_gl(sps);
-	return 0;
-}
-
 /**
  * @function gfx.drawTile
  * draws a tile of a tiled sprite set
@@ -577,23 +537,6 @@ duk_ret_t dk_SpriteSetDrawTile(duk_context *ctx) {
 	float rot = duk_get_number_default(ctx, 5, 0.0f);
 	int flip = duk_get_int_default(ctx, 6, 0);
 	SpriteSetDrawTile(sps, tile, x,y, align, rot, flip);
-	return 0;
-}
-
-duk_ret_t dk_SpriteSetGlDrawTile(duk_context *ctx) {
-	if(!duk_is_object(ctx, 0) || !isPrototype(ctx, 0, DUK_HIDDEN_SYMBOL("SpriteSet_prototype")))
-		return duk_error(ctx, DUK_ERR_SYNTAX_ERROR,
-			"SpriteSet expected as first argument of drawTile");
-
-	duk_get_prop_literal(ctx, 0, DUK_HIDDEN_SYMBOL("instance"));
-	SpriteSet* sps = (SpriteSet*)duk_get_buffer(ctx, -1, NULL);
-	uint16_t tile = duk_to_uint16(ctx, 1);
-	float x = duk_to_number(ctx, 2);
-	float y = duk_to_number(ctx, 3);
-	int align = duk_get_int_default(ctx, 4, 0);
-	float rot = duk_get_number_default(ctx, 5, 0.0f);
-	int flip = duk_get_int_default(ctx, 6, 0);
-	SpriteSetDrawTile_gl(sps, tile, x,y, align, rot, flip);
 	return 0;
 }
 
@@ -624,26 +567,19 @@ duk_ret_t dk_createSpriteSet(duk_context *ctx) {
 	duk_set_prototype(ctx, -2);
 
 	SpriteSet* sps = (SpriteSet*)duk_push_fixed_buffer(ctx, sizeof(SpriteSet));
-	if(argc<3) {
-		if(ResourceUploadsToGL())
-			*sps = SpriteSetCreate_gl(img);
-		else
-			*sps = SpriteSetCreate(img);
-	}
+	if(argc<3)
+		*sps = SpriteSetCreate(img);
 	else {
 		uint16_t tilesX = duk_to_uint16(ctx, 1);
 		uint16_t tilesY = duk_to_uint16(ctx, 2);
 		uint16_t border = argc>3 ? duk_to_uint16(ctx, 3) : 0;
-		if(ResourceUploadsToGL())
-			*sps = SpriteSetCreateTiled_gl(img, tilesX, tilesY, border);
-		else
-			*sps = SpriteSetCreateTiled(img, tilesX, tilesY, border);
+		*sps = SpriteSetCreateTiled(img, tilesX, tilesY, border);
 	}
 	duk_put_prop_literal(ctx, -2, DUK_HIDDEN_SYMBOL("instance"));
 	return 1;
 }
 
-void sprites_exports(duk_context *ctx, int bindGL) {
+void sprites_exports(duk_context *ctx) {
 	// register Sprite prototype:
 	duk_push_object(ctx);
 	duk_push_c_function(ctx, dk_SpriteFinalizer, 1);
@@ -711,10 +647,7 @@ void sprites_exports(duk_context *ctx, int bindGL) {
 
 	// register SpriteSet prototype:
 	duk_push_object(ctx);
-	if(bindGL)
-		duk_push_c_function(ctx, dk_createSpriteGl, DUK_VARARGS);
-	else
-		duk_push_c_function(ctx, dk_createSprite, DUK_VARARGS);
+	duk_push_c_function(ctx, dk_createSprite, DUK_VARARGS);
 	duk_put_prop_literal(ctx, -2, "createSprite");
 	duk_push_c_function(ctx, dk_removeSprite, 1);
 	duk_put_prop_literal(ctx, -2, "removeSprite");
@@ -729,15 +662,9 @@ void sprites_exports(duk_context *ctx, int bindGL) {
 	duk_put_prop_literal(ctx, -2, "createSpriteSet");
 	duk_pop(ctx);
 
-	if(bindGL)
-		duk_push_c_function(ctx, dk_SpriteSetGlDraw, 1);
-	else
-		duk_push_c_function(ctx, dk_SpriteSetDraw, 1);
+	duk_push_c_function(ctx, dk_SpriteSetDraw, 1);
 	duk_put_prop_literal(ctx, -2, "drawSprites"); // set method of gfx object, which is on the stack
 
-	if(bindGL)
-		duk_push_c_function(ctx, dk_SpriteSetGlDrawTile, 7);
-	else
-		duk_push_c_function(ctx, dk_SpriteSetDrawTile, 7);
+	duk_push_c_function(ctx, dk_SpriteSetDrawTile, 7);
 	duk_put_prop_literal(ctx, -2, "drawTile"); // set method of gfx object, which is on the stack
 }

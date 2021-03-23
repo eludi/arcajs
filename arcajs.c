@@ -1,6 +1,5 @@
 #include "window.h"
 #include "graphics.h"
-#include "graphicsGL.h"
 #include "audio.h"
 #include "console.h"
 #include "resources.h"
@@ -15,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20210321a";
+const char* appVersion = "v0.20210323a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -293,9 +292,7 @@ int main(int argc, char **argv) {
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
 	int consoleY=0, consoleSzY = winSzY-32;
 	for(int i=1; i<argc; ++i) {
-		if(strcmp(argv[i],"-g")==0)
-			windowFlags |= WINDOW_GL;
-		else if(strcmp(argv[i],"-f")==0)
+		if(strcmp(argv[i],"-f")==0)
 			windowFlags |= WINDOW_FULLSCREEN;
 		else if(strcmp(argv[i],"-v")==0 && i+1<argc) {
 			if(atoi(argv[i+1]))
@@ -311,7 +308,7 @@ int main(int argc, char **argv) {
 
 	size_t ar = 0;
 	if(!archiveName) {
-		ar = ResourceArchiveOpen(argv[0], windowFlags & WINDOW_GL);
+		ar = ResourceArchiveOpen(argv[0]);
 		archiveName = ar ? argv[0] : ".";
 	}
 	else if(archiveName[strlen(archiveName)-1]=='\\')
@@ -334,7 +331,7 @@ int main(int argc, char **argv) {
 		windowTitle = storageFileName = ResourceBaseName(scriptName);
 	}
 	if(!ar)
-		ar = ResourceArchiveOpen(archiveName, windowFlags & WINDOW_GL);
+		ar = ResourceArchiveOpen(archiveName);
 	if(!ar) {
 		showError("Could not open data at \"%s\", exiting.\n", archiveName);
 		return -1;
@@ -396,10 +393,7 @@ int main(int argc, char **argv) {
 
 	Value* events = Value_new(VALUE_LIST, NULL);
 	WindowEventHandler(handleEvents, events);
-	if(windowFlags & WINDOW_GL)
-		gfxGlInit(winSzX, winSzY);
-	else
-		gfxInit(WindowRenderer());
+	gfxInit(WindowRenderer());
 	if(consoleSzY)
 		ConsoleCreate(0,0,consoleY, winSzX, consoleSzY);
 
@@ -409,20 +403,11 @@ int main(int argc, char **argv) {
 			WindowShowPointer(0);
 			int iconW, iconH;
 			float textW;
-			if(windowFlags & WINDOW_GL) {
-				gfxGlColorRGBA(255,255,255,255);
-				gfxGlImageDimensions(icon, &iconW, &iconH);
-				gfxGlDrawImage(icon, (winSzX-iconW)/2.0f, (winSzY-iconH)/2.0f);
-				gfxGlMeasureText(0, windowTitle, &textW, NULL, NULL, NULL);
-				gfxGlFillText(0, (winSzX-textW)/2.0f, (winSzY+iconH)/2.0f+8, windowTitle);
-			}
-			else {
-				gfxColorRGBA(255,255,255,255);
-				gfxImageDimensions(icon, &iconW, &iconH);
-				gfxDrawImage(icon, (winSzX-iconW)/2.0f, (winSzY-iconH)/2.0f);
-				gfxMeasureText(0, windowTitle, &textW, NULL, NULL, NULL);
-				gfxFillText(0, (winSzX-textW)/2.0f, (winSzY+iconH)/2.0f+8, windowTitle);
-			}
+			gfxColorRGBA(255,255,255,255);
+			gfxImageDimensions(icon, &iconW, &iconH);
+			gfxDrawImage(icon, (winSzX-iconW)/2.0f, (winSzY-iconH)/2.0f);
+			gfxMeasureText(0, windowTitle, &textW, NULL, NULL, NULL);
+			gfxFillText(0, (winSzX-textW)/2.0f, (winSzY+iconH)/2.0f+8, windowTitle);
 		}
 	}
 	WindowUpdate();
@@ -433,7 +418,7 @@ int main(int argc, char **argv) {
 	for(size_t i=0, end = WindowNumControllers(); i<end; ++i)
 		WindowControllerOpen(i);
 
-	size_t vm = jsvmInit(storageFileName, windowFlags & WINDOW_GL);
+	size_t vm = jsvmInit(storageFileName);
 	free(storageFileName);
 	if(!vm) {
 		ResourceArchiveClose();
@@ -475,12 +460,8 @@ int main(int argc, char **argv) {
 		jsvmDispatchGamepadEvents(vm);
 		jsvmDispatchEvent(vm, "update", argUpdate);
 		jsvmDispatchDrawEvent(vm);
-		if(consoleSzY) {
-			if(windowFlags & WINDOW_GL)
-				ConsoleDraw_gl();
-			else
-				ConsoleDraw();
-		}
+		if(consoleSzY)
+			ConsoleDraw();
 		if(WindowUpdate()!=0) // swap buffers
 			break;
 
@@ -498,10 +479,7 @@ int main(int argc, char **argv) {
 	printf(" audio..."); fflush(stdout);
 	AudioClose();
 	printf(" graphics..."); fflush(stdout);
-	if(windowFlags & WINDOW_GL)
-		gfxGlClose();
-	else
-		gfxClose();
+	gfxClose();
 	ConsoleDelete();
 	printf(" window..."); fflush(stdout);
 	if(WindowIsOpen())

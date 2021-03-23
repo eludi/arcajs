@@ -1,7 +1,6 @@
 #include "jsBindings.h"
 #include "window.h"
 #include "graphics.h"
-#include "graphicsGL.h"
 #include "resources.h"
 #include "audio.h"
 #include "console.h"
@@ -21,7 +20,7 @@
 extern float clampf(float f, float min, float max);
 extern float randf();
 extern const char* appVersion;
-extern void sprites_exports(duk_context *ctx, int bindGL);
+extern void sprites_exports(duk_context *ctx);
 extern void intersects_exports(duk_context *ctx);
 
 uint32_t rgbaColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
@@ -980,10 +979,7 @@ static duk_ret_t dk_getWindowPixelRatio(duk_context * ctx) {
 	return 1;
 }
 
-static duk_ret_t dk_gfxGlQueryImage(duk_context *ctx);
-static duk_ret_t dk_gfxGlQueryFont(duk_context *ctx);
-
-static void bindApp(duk_context *ctx, int bindGL) {
+static void bindApp(duk_context *ctx) {
 	duk_push_object(ctx);
 
 	duk_push_c_function(ctx, dk_onEvent, 2);
@@ -1000,9 +996,9 @@ static void bindApp(duk_context *ctx, int bindGL) {
 	duk_put_prop_string(ctx, -2, "createSVGResource");
 	duk_push_c_function(ctx, dk_createImageResource, 4);
 	duk_put_prop_string(ctx, -2, "createImageResource");
-	duk_push_c_function(ctx, bindGL ? dk_gfxGlQueryImage : dk_gfxQueryImage, 1);
+	duk_push_c_function(ctx, dk_gfxQueryImage, 1);
 	duk_put_prop_string(ctx, -2, "queryImage");
-	duk_push_c_function(ctx, bindGL ? dk_gfxGlQueryFont : dk_gfxQueryFont, 2);
+	duk_push_c_function(ctx, dk_gfxQueryFont, 2);
 	duk_put_prop_string(ctx, -2, "queryFont");
 	duk_push_c_function(ctx, dk_appHSL, 4);
 	duk_put_prop_string(ctx, -2, "hsl");
@@ -1339,7 +1335,7 @@ static duk_ret_t dk_gfxFillText(duk_context *ctx) {
 	return 0;
 }
 
-static void bindGraphicsCommon(duk_context* ctx, int bindGL) {
+static void bindGraphicsCommon(duk_context* ctx) {
 	const duk_number_list_entry gfx_consts[] = {
 /// @constant {number} gfx.ALIGN_LEFT
 		{ "ALIGN_LEFT", (double)0 },
@@ -1365,7 +1361,7 @@ static void bindGraphicsCommon(duk_context* ctx, int bindGL) {
 	};
 	duk_put_number_list(ctx, -1, gfx_consts);
 
-	sprites_exports(ctx, bindGL);
+	sprites_exports(ctx);
 }
 
 static void bindGraphics(duk_context *ctx) {
@@ -1400,205 +1396,7 @@ static void bindGraphics(duk_context *ctx) {
 	duk_push_c_function(ctx, dk_gfxFillText, 5);
 	duk_put_prop_string(ctx, -2, "fillText");
 
-	bindGraphicsCommon(ctx, 0);
-	duk_put_global_string(ctx, DUK_HIDDEN_SYMBOL("gfx"));
-}
-
-//--- OpenGL graphics primitives -----------------------------------
-
-static duk_ret_t dk_gfxGlColor(duk_context *ctx) {
-	if(duk_is_undefined(ctx, 1))
-		gfxGlColor(array2color(ctx, 0));
-	else {
-		int r = duk_to_int(ctx, 0);
-		int g = duk_to_int(ctx, 1);
-		int b = duk_to_int(ctx, 2);
-		int a = duk_get_int_default(ctx, 3, 255);
-		gfxGlColorRGBA(r,g,b,a);
-	}
-	duk_push_this(ctx);
-	return 1;
-}
-
-static duk_ret_t dk_gfxGlColorf(duk_context *ctx) {
-	float r = duk_to_number(ctx, 0);
-	float g = duk_to_number(ctx, 1);
-	float b = duk_to_number(ctx, 2);
-	float a = duk_get_number_default(ctx, 3, 1.0);
-	gfxGlColorRGBA(r*255,g*255,b*255,a*255);
-	duk_push_this(ctx);
-	return 1;
-}
-
-static duk_ret_t dk_gfxGlFlush(duk_context *ctx) {
-	gfxGlFlush();
-	return 0;
-}
-
-static duk_ret_t dk_gfxGlDrawRect(duk_context *ctx) {
-	float x = duk_to_number(ctx, 0);
-	float y = duk_to_number(ctx, 1);
-	float w = duk_to_number(ctx, 2);
-	float h = duk_to_number(ctx, 3);
-	gfxGlDrawRect(x,y,w,h);
-	return 0;
-}
-
-static duk_ret_t dk_gfxGlFillRect(duk_context *ctx) {
-	float x = duk_to_number(ctx, 0);
-	float y = duk_to_number(ctx, 1);
-	float w = duk_to_number(ctx, 2);
-	float h = duk_to_number(ctx, 3);
-	gfxGlFillRect(x,y,w,h);
-	return 0;
-}
-
-static duk_ret_t dk_gfxGlDrawLine(duk_context *ctx) {
-	float x0 = duk_to_number(ctx, 0);
-	float y0 = duk_to_number(ctx, 1);
-	float x1 = duk_to_number(ctx, 2);
-	float y1 = duk_to_number(ctx, 3);
-	gfxGlDrawLine(x0,y0,x1,y1);
-	return 0;
-}
-
-static duk_ret_t dk_gfxGlDrawPoints(duk_context *ctx) {
-	float *arr, *buf;
-	uint32_t n = readFloatArray(ctx, 0, &arr, &buf);
-	gfxGlDrawPoints(n/2, arr);
-	free(buf);
-	return 0;
-}
-
-static duk_ret_t dk_gfxGlDrawImage(duk_context *ctx) {
-	int argc = duk_get_top(ctx);
-	if(argc<3)
-		return 0;
-
-	size_t img = ResourceValidateHandle(duk_get_uint(ctx, 0), RESOURCE_IMAGE);
-	if(!img) {
-		snprintf(s_lastError, ERROR_MAXLEN, "invalid image handle %s", duk_to_string(ctx, 0));
-		return duk_error(ctx, DUK_ERR_REFERENCE_ERROR, s_lastError);
-	}
-
-	if(argc<5) {
-		float x = duk_to_number(ctx, 1);
-		float y = duk_to_number(ctx, 2);
-		gfxGlDrawImage(img, x, y);
-	}
-	else if(argc<6) {
-		float x = duk_to_number(ctx, 1);
-		float y = duk_to_number(ctx, 2);
-		float w = duk_to_number(ctx, 3);
-		float h = duk_to_number(ctx, 4);
-		gfxGlDrawImageScaled(img, x, y, w, h);
-	}
-	else if(argc>8) {
-		int srcX = duk_to_int(ctx, 1);
-		int srcY = duk_to_int(ctx, 2);
-		int srcW = duk_to_int(ctx, 3);
-		int srcH = duk_to_int(ctx, 4);
-		float destX = duk_to_number(ctx, 5);
-		float destY = duk_to_number(ctx, 6);
-		float destW = duk_to_number(ctx, 7);
-		float destH = duk_to_number(ctx, 8);
-		float cx = argc>9 ? duk_to_number(ctx, 9) : 0.0f;
-		float cy = argc>10 ? duk_to_number(ctx, 10) : 0.0f;
-		float angle = argc>11 ? duk_to_number(ctx, 11) : 0.0f;
-		int flip = argc>12 ? duk_to_int(ctx, 12) : 0;
-		gfxGlDrawImageEx(img, srcX, srcY, srcW, srcH, destX, destY, destW, destH, cx, cy, angle, flip);
-	}
-	return 0;
-}
-
-static duk_ret_t dk_gfxGlFillText(duk_context *ctx) {
-	size_t font = duk_get_number_default(ctx, 0, 0);
-	if(font>0)
-		font = ResourceValidateHandle(font, RESOURCE_FONT);
-	float x = duk_to_number(ctx, 1);
-	float y = duk_to_number(ctx, 2);
-	int align = duk_get_int_default(ctx, 4, 0);
-	if(!duk_is_buffer_data(ctx, 3))
-		gfxGlFillTextAlign(font, x, y, duk_to_string(ctx, 3), align);
-	else {
-		duk_size_t len;
-		void* ptr = duk_get_buffer_data(ctx, 3, &len);
-		char* s = (char*)malloc(len+1);
-		memcpy(s, ptr, len);
-		s[len] = 0;
-		gfxGlFillTextAlign(font, x, y, s, align);
-		free(s);
-	}
-	return 0;
-}
-
-static duk_ret_t dk_gfxGlQueryFont(duk_context *ctx) {
-	size_t font = duk_to_number(ctx, 0);
-	if(font>0)
-		font = ResourceValidateHandle(font, RESOURCE_FONT);
-
-	int noText = duk_is_undefined(ctx, 1);
-	const char* text = noText ? "m" : duk_to_string(ctx, 1);
-	float width, height, ascent, descent;
-	gfxGlMeasureText(font, text, &width, &height, &ascent, &descent);
-
-	duk_push_object(ctx);
-	if(!noText) {
-		duk_push_number(ctx, width);
-		duk_put_prop_string(ctx, -2, "width");
-	}
-	duk_push_number(ctx, height);
-	duk_put_prop_string(ctx, -2, "height");
-	duk_push_number(ctx, ascent);
-	duk_put_prop_string(ctx, -2, "fontBoundingBoxAscent");
-	duk_push_number(ctx, descent);
-	duk_put_prop_string(ctx, -2, "fontBoundingBoxDescent");
-	return 1;
-}
-
-static duk_ret_t dk_gfxGlQueryImage(duk_context *ctx) {
-	size_t img = ResourceValidateHandle(duk_get_uint(ctx, 0), RESOURCE_IMAGE);
-	if(!img) {
-		snprintf(s_lastError, ERROR_MAXLEN, "invalid image handle %s", duk_to_string(ctx, 0));
-		return duk_error(ctx, DUK_ERR_REFERENCE_ERROR, s_lastError);
-	}
-
-	int width, height;
-	gfxGlImageDimensions(img, &width, &height);
-
-	duk_push_object(ctx);
-	duk_push_number(ctx, width);
-	duk_put_prop_string(ctx, -2, "width");
-	duk_push_number(ctx, height);
-	duk_put_prop_string(ctx, -2, "height");
-	return 1;
-}
-
-static void bindGraphicsGL(duk_context *ctx) {
-	duk_push_object(ctx);
-
-	duk_push_c_function(ctx, dk_gfxGlFlush, 0);
-	duk_put_prop_string(ctx, -2, "flush");
-	duk_push_c_function(ctx, dk_gfxGlColor, 4);
-	duk_put_prop_string(ctx, -2, "color");
-	duk_push_c_function(ctx, dk_gfxGlColorf, 4);
-	duk_put_prop_string(ctx, -2, "colorf");
-	duk_push_c_function(ctx, dk_dummy, 1);
-	duk_put_prop_string(ctx, -2, "lineWidth"); // not implemented
-	duk_push_c_function(ctx, dk_gfxGlDrawLine, 4);
-	duk_put_prop_string(ctx, -2, "drawLine");
-	duk_push_c_function(ctx, dk_gfxGlDrawRect, 4);
-	duk_put_prop_string(ctx, -2, "drawRect");
-	duk_push_c_function(ctx, dk_gfxGlFillRect, 4);
-	duk_put_prop_string(ctx, -2, "fillRect");
-	duk_push_c_function(ctx, dk_gfxGlDrawPoints, DUK_VARARGS);
-	duk_put_prop_string(ctx, -2, "drawPoints");
-	duk_push_c_function(ctx, dk_gfxGlDrawImage, DUK_VARARGS);
-	duk_put_prop_string(ctx, -2, "drawImage");
-	duk_push_c_function(ctx, dk_gfxGlFillText, 5);
-	duk_put_prop_string(ctx, -2, "fillText");
-
-	bindGraphicsCommon(ctx, 1);
+	bindGraphicsCommon(ctx);
 	duk_put_global_string(ctx, DUK_HIDDEN_SYMBOL("gfx"));
 }
 
@@ -2000,18 +1798,14 @@ static void modulesUnload() {
 
 //--- public interface ---------------------------------------------
 
-size_t jsvmInit(const char* storageFileName, int bindGL) {
+size_t jsvmInit(const char* storageFileName) {
 	s_lastError[0] = 0;
 	duk_context *ctx = duk_create_heap_default();
 	if(!ctx)
 		return 0;
 
-	bindApp(ctx, bindGL);
-	if(bindGL)
-		bindGraphicsGL(ctx);
-	else
-		bindGraphics(ctx);
-
+	bindApp(ctx);
+	bindGraphics(ctx);
 	bindConsole(ctx);
 	bindLocalStorage(ctx, storageFileName);
 

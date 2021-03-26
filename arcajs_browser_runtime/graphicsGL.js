@@ -166,6 +166,7 @@ return function (canvas, capacity=500) {
 	let sz = 0, idx=0;
 	let color_f = fpack.rgba(255,255,255);
 	let lineWidth=1.0, camSc=1.0, camX=0, camY=0;
+	let blendFunc = 1;
 	const texCoordMax = 16383;
 	let fonts = [], textures=[], tex=null;
 
@@ -244,6 +245,20 @@ return function (canvas, capacity=500) {
 			gl.generateMipmap(gl.TEXTURE_2D);
 	}
 
+	function setBlendFunc() {
+		switch(blendFunc) {
+		case 0: gl.blendFunc(gl.ONE, gl.ZERO); break;
+		case 1: 
+			gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA); break;
+		case 2:
+			gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE); break;
+		case 4:
+			gl.blendFuncSeparate(gl.DST_COLOR, gl.ZERO, gl.ZERO, gl.ONE); break;
+		case 8:
+			gl.blendFuncSeparate(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA, gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA); break;
+		}
+	}
+
 	/// loads a texture from a URL
 	this.loadTexture = function(url, params={}, callback) {
 		let texInfo = { texture:gl.createTexture(), ready:false, width:1, height:1 };
@@ -282,6 +297,8 @@ return function (canvas, capacity=500) {
 		gl.bindTexture(gl.TEXTURE_2D, texInfo.texture);
 		if(Array.isArray(data))
 			data = new Uint8Array(data);
+		else
+			data = new Uint8Array(data.buffer);
 	
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
 		setTexParams(params);
@@ -356,6 +373,16 @@ return function (canvas, capacity=500) {
 			return this;
 		this.flush();
 		lineWidth = Number(w);
+		return this;
+	}
+	this.blend = function(mode) {
+		if(mode===undefined)
+			return blendFunc;
+		if(mode===blendFunc)
+			return this;
+		this.flush();
+		blendFunc = mode;
+		setBlendFunc();
 		return this;
 	}
 	this.origin = function(ox,oy,isScreen=true) {
@@ -642,7 +669,7 @@ return function (canvas, capacity=500) {
 		gl.clearColor(r, g, b, 1);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 		gl.enable(gl.BLEND);
-		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+		setBlendFunc();
 	}
 
 	this._frameEnd = this.flush;
@@ -674,5 +701,10 @@ return function (canvas, capacity=500) {
 	defineConst(this, "FLIP_X", 1.0);
 	defineConst(this, "FLIP_Y", 2.0);
 	defineConst(this, "FLIP_XY", 3.0);
+	defineConst(this, "BLEND_NONE", 0);
+	defineConst(this, "BLEND_ALPHA", 1);
+	defineConst(this, "BLEND_ADD", 2);
+	defineConst(this, "BLEND_MOD", 4);
+	defineConst(this, "BLEND_MUL", 8);
 }
 })();

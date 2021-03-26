@@ -16,6 +16,7 @@ static SDL_Renderer* renderer = NULL;
 static SDL_Texture* defaultFont;
 static float lineWidth = 1.0f;
 static float camX=0, camY=0, camSc=1.0f;
+static int blendMode = SDL_BLENDMODE_BLEND;
 
 static size_t uploadDefaultFont(const unsigned char* font, unsigned char wChar, unsigned char hChar) {
 	const unsigned texW = 16*wChar, texH = 16*hChar, bytesPerRow = texW/8;
@@ -99,6 +100,14 @@ float gfxGetLineWidth() {
 	return lineWidth;
 }
 
+void gfxBlend(int mode) {
+	SDL_SetRenderDrawBlendMode(renderer, mode);
+	blendMode = mode;
+}
+int gfxGetBlend() {
+	return blendMode;
+}
+
 void gfxClipDisable() {
 	SDL_RenderSetClipRect(renderer, NULL);
 }
@@ -138,6 +147,7 @@ void gfxDrawLineW(float x1, float y1, float x2, float y2, float lw) {
 		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 		SDL_SetTextureColorMod(defaultFont, r, g, b);
 		SDL_SetTextureAlphaMod(defaultFont, a);
+		SDL_SetTextureBlendMode(defaultFont, blendMode);
 		static SDL_Rect src = { 126,40,1,1 };
 		double angle = SDL_atan2(y2 - y1, x2 - x1) * 180.0 / M_PI;
 		dest.x = x1; dest.y = y1-lw2;
@@ -185,6 +195,7 @@ void gfxDrawPoints(unsigned n, const float* coords) {
 		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 		SDL_SetTextureColorMod(defaultFont, r, g, b);
 		SDL_SetTextureAlphaMod(defaultFont, a);
+		SDL_SetTextureBlendMode(defaultFont, blendMode);
 
 		const float lw = lineWidth * camSc;
 		const float lw2 = lw/2;
@@ -284,6 +295,7 @@ void gfxDrawImage(size_t img, float x, float y) {
 	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 	SDL_SetTextureColorMod(texture, r, g, b);
 	SDL_SetTextureAlphaMod(texture, a);
+	SDL_SetTextureBlendMode(texture, blendMode);
 
 	int w,h;
 	SDL_QueryTexture(texture, 0, 0, &w, &h);
@@ -297,6 +309,7 @@ void gfxDrawImageScaled(size_t img, float x, float y, float w, float h) {
 	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 	SDL_SetTextureColorMod(texture, r, g, b);
 	SDL_SetTextureAlphaMod(texture, a);
+	SDL_SetTextureBlendMode(texture, blendMode);
 
 	SDL_FRect dest = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
 	SDL_RenderCopyF(renderer, texture, 0, &dest);
@@ -312,6 +325,7 @@ void gfxDrawImageEx(size_t img,
 	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 	SDL_SetTextureColorMod(texture, r, g, b);
 	SDL_SetTextureAlphaMod(texture, a);
+	SDL_SetTextureBlendMode(texture, blendMode);
 
 	SDL_Rect src = { srcX, srcY, srcW, srcH };
 	SDL_FRect dest = {(destX-camX)*camSc,(destY-camY)*camSc,destW*camSc,destH*camSc};
@@ -358,6 +372,7 @@ static void gfxDrawBitmapFont(int x, int y, const char* str) {
 	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 	SDL_SetTextureColorMod(texture, r, g, b);
 	SDL_SetTextureAlphaMod(texture, a);
+	SDL_SetTextureBlendMode(texture, blendMode);
 
 	SDL_Rect src  = { 0, 0, wChar, hChar };
 	SDL_Rect dest = { (x-camX)*camSc, (y-camY)*camSc, wChar, hChar };
@@ -447,6 +462,7 @@ void gfxFillText(size_t font, float x, float y, const char* text) {
 	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 	SDL_SetTextureColorMod(fnt->texture, r, g, b);
 	SDL_SetTextureAlphaMod(fnt->texture, a);
+	SDL_SetTextureBlendMode(fnt->texture, blendMode);
 
 	y += fnt->ascent;
 

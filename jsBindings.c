@@ -1114,6 +1114,22 @@ static duk_ret_t dk_gfxLineWidth(duk_context *ctx) {
 }
 
 /**
+ * @function gfx.blend
+ * sets current drawing blend mode.
+ * @param {number} [mode] - blend mode, one of the gfx.BLEND_xyz constants
+ * @returns {object|number} - this gfx object or current blend mode, if called without parameter
+ */
+static duk_ret_t dk_gfxBlend(duk_context *ctx) {
+	if(duk_is_undefined(ctx, 0)) {
+		duk_push_number(ctx, gfxGetBlend());
+		return 1;
+	}
+	gfxBlend(duk_to_number(ctx, 0));
+	duk_push_this(ctx);
+	return 1;
+}
+
+/**
  * @function gfx.origin
  * sets drawing origin
  * @param {number} ox - horizontal origin
@@ -1376,6 +1392,18 @@ static void bindGraphicsCommon(duk_context* ctx) {
 		{ "FLIP_Y", 2.0 },
 /// @constant {number} gfx.FLIP_XY
 		{ "FLIP_XY", 3.0 },
+
+/// @constant {number} gfx.BLEND_NONE
+		{ "BLEND_NONE", 0.0 },
+/// @constant {number} gfx.BLEND_ALPHA
+		{ "BLEND_ALPHA", 1.0 },
+/// @constant {number} gfx.BLEND_ADD
+		{ "BLEND_ADD", 2.0 },
+/// @constant {number} gfx.BLEND_MOD
+		{ "BLEND_MOD", 4.0 },
+/// @constant {number} gfx.BLEND_MUL
+		{ "BLEND_MUL", 8.0 },
+		
 		{ NULL, 0.0 }
 	};
 	duk_put_number_list(ctx, -1, gfx_consts);
@@ -1398,6 +1426,8 @@ static void bindGraphics(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "colorf");
 	duk_push_c_function(ctx, dk_gfxLineWidth, 1);
 	duk_put_prop_string(ctx, -2, "lineWidth");
+	duk_push_c_function(ctx, dk_gfxBlend, 1);
+	duk_put_prop_string(ctx, -2, "blend");
 	duk_push_c_function(ctx, dk_gfxClipRect, 4);
 	duk_put_prop_string(ctx, -2, "clipRect");
 	duk_push_c_function(ctx, dk_gfxDrawRect, 4);

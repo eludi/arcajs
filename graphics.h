@@ -26,6 +26,10 @@ extern void gfxColorRGBA(unsigned char r, unsigned char g, unsigned char b, unsi
 extern void gfxLineWidth(float w);
 /// returns current line width
 extern float gfxGetLineWidth();
+/// sets current blend mode
+extern void gfxBlend(int mode);
+/// returns current blend mode
+extern int gfxGetBlend();
 /// disables clipping
 extern void gfxClipDisable();
 /// sets viewport / clipping rectangle (in screen coordinates)

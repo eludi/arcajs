@@ -14,7 +14,7 @@ const arenaW=80.0, arenaH=Math.floor(arenaW*app.height/app.width);
 const scoreWin = 7, deltaWin=2;
 
 function Ball() {
-	const speedFactor = 20;
+	const velScale = 20;
 	this.x = this.y = this.velX = this.velY = this.numReturns = 0;
 
 	this.init = function(velX) {
@@ -26,8 +26,8 @@ function Ball() {
 	}
 
 	this.update = function(deltaT) {
-		this.x += this.velX*deltaT*speedFactor;
-		this.y += this.velY*deltaT*speedFactor;
+		this.x += this.velX*deltaT*velScale;
+		this.y += this.velY*deltaT*velScale;
 	}
 	this.collision = function(player, prevX) {
 		const sgn = (player.x>arenaW/2) ? -1.0 : 1.0;
@@ -55,30 +55,44 @@ function Ball() {
 
 function Racket(id, autopilot) {
 	const widthDefault = (arenaH/10+1);
-	const speedFactor = 27;
+	const velScale = 27;
+	const velMin = 0.5, acc = 3, velMax=2;
 	const updateInterval = 0.1;
 
 	this.x = (id===0) ? 5 : arenaW-5;
 	this.y = arenaH/2;
-	this.velX =  this.velY = 0;
+	this.velX = this.velY = this.accY = 0;
+	this.velYFactor = 1;
 	this.width = widthDefault;
 	this.score = 0;
 	this.tUpdate = updateInterval;
 
 	this.update = function(deltaT, ball) {
+		this.velY += deltaT*this.accY;
+		if(this.velY>velMax*this.velYFactor)
+			this.velY = velMax*this.velYFactor;
+		if(this.velY<-velMax*this.velYFactor)
+			this.velY = -velMax*this.velYFactor;
+
 		this.tUpdate -= deltaT;
 		if(autopilot && this.tUpdate<0) {
 			this.tUpdate = updateInterval;
-			this.velY=0.0;
 			if(((id===0)&&ball.velX<0.0) || ((id===1)&&ball.velX>0.0)) {
-				if(ball.y<this.y-this.width*0.25)
-					this.velY=-1.0;
-				else if(ball.y>this.y+this.width*0.25)
-					this.velY=1.0;
+				if(ball.y<this.y-this.width*0.25) {
+					if(this.velY>-velMin)
+						this.velY = -velMin;
+				}
+				else if(ball.y>this.y+this.width*0.25) {
+					if(this.velY<velMin)
+						this.velY = +velMin;
+				}
+				else this.velY = 0.0;
 			}
+			else this.velY = 0.0;
+			this.accY = this.velY ? acc*Math.sign(this.velY) : 0;
 		}
 
-		this.y += this.velY*deltaT*speedFactor;
+		this.y += this.velY*deltaT*velScale;
 		if(this.y<this.width/2) {
 			this.y = this.width/2;
 			this.velY = 0;
@@ -100,8 +114,11 @@ function Racket(id, autopilot) {
 				value *=-1;
 			this.width = value>0 ? (1+value)*widthDefault : (1+value/2)*widthDefault;
 		}
-		else if(axis===1)
-			this.velY = value;
+		else if(axis===1) {
+			this.velYFactor = Math.abs(value);
+			this.velY = Math.sign(value)*velMin;
+			this.accY = Math.sign(value)*acc;
+		}
 	}
 	this.draw = function(gfx) {
 		gfx.color(255,255,255).fillRect(this.x*sc-sc/2, (this.y-this.width/2)*sc, sc, this.width*sc);
@@ -185,7 +202,7 @@ function Game(players) {
 		gfx.color(0,0,0).fillRect(0,arenaH*sc, app.width,app.height-arenaH*sc+1);
 	},
 	this.keyboard = function(evt) {
-		if(evt.type==='keydown') switch(evt.key) {
+		if(evt.type==='keydown' && !evt.repeat) switch(evt.key) {
 			case 'ArrowUp':
 				player2.input(1, -1); break;
 			case 'ArrowDown':

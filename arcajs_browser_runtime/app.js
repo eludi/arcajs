@@ -64,23 +64,26 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			const gp = gamepads[index];
 			if(!gp || !gp.connected)
 				continue;
-			const state = getGamepad(index);
+			let state = getGamepad(index);
 			if(gp.state!==null) {
 				for(let i=0; i<state.buttons.length; ++i)
 					if(state.buttons[i] != gp.state.buttons[i])
 						app.emit('gamepad',
-							{ type:'button', index:index, button:i, value:state.buttons[i] });
+							{ type:'button', index:index, button:i, value:state.buttons[i]?1:0 });
 				for(let i=0; i<state.axes.length; ++i)
-					if(Math.round(state.axes[i]/gamepadResolution) != Math.round(gp.state.axes[i]/gamepadResolution))
+					if(Math.round(state.axes[i]/gamepadResolution) != Math.round(gp.state.axes[i]/gamepadResolution)) {
+						if(state.axes[i]<gamepadResolution*0.5 && state.axes[i]>-gamepadResolution*0.5)
+							state.axes[i] = 0.0;
 						app.emit('gamepad',
 							{ type:'axis', index:index, axis:i, value:state.axes[i] });
+					}
 			}
 			gp.state = state;
 		}
 	}
 
 	let app = {
-		version: 'v0.20210325a',
+		version: 'v0.20210402a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -308,11 +311,12 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	window.addEventListener('keyup', (evt)=>{ app.emit('keyboard', evt); });
 	window.addEventListener("gamepadconnected", (evt)=>{
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:true, state:null };
-		app.emit('gamepad', { type:'connected', index:evt.gamepad.index });
+		app.emit('gamepad', { index:evt.gamepad.index, name:evt.gamepad.id, type:'connected',
+			axes:evt.gamepad.axes.length, buttons:evt.gamepad.buttons.length });
 	});
 	window.addEventListener("gamepaddisconnected", (evt)=>{
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:false, state:null };
-		app.emit('gamepad', { type:'disconnected', index:evt.gamepad.index });
+		app.emit('gamepad', { index:evt.gamepad.index, name:evt.gamepad.id, type:'disconnected' });
 	});
 	arcajs.infra.addPointerEventListener(canvas, (evt)=>{ app.emit('pointer', evt); });
 	setTimeout(()=>{ app.emit('resize', canvas.width, canvas.height); }, 0);

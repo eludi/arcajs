@@ -120,7 +120,8 @@ disconnected, or a button or axis significantly changes its value.
 
 - {object} evt - contains event type (connect/disconnect/axis/button) and
   gamepad index. For axis and button events, also an axis/button index and a
-  value is provided.
+  value is provided. For connect events, also the number of axes and buttons,
+  and a device name are reported.
 
 ## close event
 

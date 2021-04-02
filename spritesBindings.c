@@ -112,6 +112,28 @@ static duk_ret_t dk_SpriteGetY(duk_context *ctx) {
 }
 
 /**
+ * @function Sprite.setX
+ * sets the sprite's horizontal position
+ * @param {number} value - X ordinate
+ */
+static duk_ret_t dk_SpriteSetX(duk_context *ctx) {
+	Sprite* sprite = getThisInstance(ctx);
+	sprite->x = duk_to_number(ctx, 0);
+	return 0;
+}
+
+/**
+ * @function Sprite.setY
+ * sets the sprite's vertical position
+ * @param {number} value - y ordinate
+ */
+static duk_ret_t dk_SpriteSetY(duk_context *ctx) {
+	Sprite* sprite = getThisInstance(ctx);
+	sprite->y = duk_to_number(ctx, 0);
+	return 0;
+}
+
+/**
  * @function Sprite.setPos
  * sets the sprite's position
  * @param {number} x - X ordinate
@@ -233,6 +255,28 @@ static duk_ret_t dk_SpriteSetVel(duk_context *ctx) {
 	sprite->velY = duk_to_number(ctx, 1);
 	if(!duk_is_undefined(ctx, 2))
 		sprite->velRot = duk_to_number(ctx, 2);
+	return 0;
+}
+
+/**
+ * @function Sprite.setVelX
+ * sets the sprite's horizontal velocity
+ * @param {number} velX - horizontal velocity in pixels per second
+ */
+static duk_ret_t dk_SpriteSetVelX(duk_context *ctx) {
+	Sprite* sprite = getThisInstance(ctx);
+	sprite->velX = duk_to_number(ctx, 0);
+	return 0;
+}
+
+/**
+ * @function Sprite.setVelY
+ * sets the sprite's vertical velocity
+ * @param {number} velY - vertical velocity in pixels per second
+ */
+static duk_ret_t dk_SpriteSetVelY(duk_context *ctx) {
+	Sprite* sprite = getThisInstance(ctx);
+	sprite->velY = duk_to_number(ctx, 0);
 	return 0;
 }
 
@@ -411,13 +455,6 @@ static duk_ret_t dk_SpriteIntersects(duk_context *ctx) {
 	duk_get_prop_literal(ctx, 0, DUK_HIDDEN_SYMBOL("instance"));
 	Sprite* s2 = (Sprite*)duk_get_buffer(ctx, -1, NULL);
 	int intersects = SpriteIntersectsSprite(s1, s2);
-	if(intersects && duk_is_function(ctx, 1)) {
-		duk_dup(ctx, 1);
-		duk_push_this(ctx);
-		duk_dup(ctx, 0);
-		duk_call(ctx, 2);
-		duk_pop(ctx);
-	}
 	duk_push_boolean(ctx, intersects);
 	return 1;
 }
@@ -591,6 +628,10 @@ void sprites_exports(duk_context *ctx) {
 
 	duk_push_c_function(ctx, dk_SpriteSetPos, 3);
 	duk_put_prop_literal(ctx, -2, "setPos");
+	duk_push_c_function(ctx, dk_SpriteSetX, 1);
+	duk_put_prop_literal(ctx, -2, "setX");
+	duk_push_c_function(ctx, dk_SpriteSetY, 1);
+	duk_put_prop_literal(ctx, -2, "setY");
 	duk_push_c_function(ctx, dk_SpriteGetX, 0);
 	duk_put_prop_literal(ctx, -2, "getX");
 	duk_push_c_function(ctx, dk_SpriteGetY, 0);
@@ -619,6 +660,10 @@ void sprites_exports(duk_context *ctx) {
 
 	duk_push_c_function(ctx, dk_SpriteSetVel, 3);
 	duk_put_prop_literal(ctx, -2, "setVel");
+	duk_push_c_function(ctx, dk_SpriteSetVelX, 1);
+	duk_put_prop_literal(ctx, -2, "setVelX");
+	duk_push_c_function(ctx, dk_SpriteSetVelY, 1);
+	duk_put_prop_literal(ctx, -2, "setVelY");
 	duk_push_c_function(ctx, dk_SpriteGetVelX, 0);
 	duk_put_prop_literal(ctx, -2, "getVelX");
 	duk_push_c_function(ctx, dk_SpriteGetVelY, 0);

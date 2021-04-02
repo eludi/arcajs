@@ -1953,21 +1953,21 @@ void jsvmDispatchDrawEvent(size_t vm) {
 static void dispatchAxisEvent(size_t id, uint8_t axis, float value, void* vm) {
 	Value* event = Value_new(VALUE_MAP, NULL);
 	Value_set(event, "evt", Value_str("gamepad"));
-	Value_set(event, "type", Value_str("axis"));
 	Value_set(event, "index", Value_int(id));
+	Value_set(event, "type", Value_str("axis"));
 	Value_set(event, "axis", Value_int(axis));
 	Value_set(event, "value", Value_float(value));
 	jsvmDispatchEvent((size_t)vm, "gamepad", event);
 	Value_delete(event, 1);
 }
 
-static void dispatchButtonEvent(size_t id, uint8_t button, uint8_t value, void* vm) {
+static void dispatchButtonEvent(size_t id, uint8_t button, float value, void* vm) {
 	Value* event = Value_new(VALUE_MAP, NULL);
 	Value_set(event, "evt", Value_str("gamepad"));
-	Value_set(event, "type", Value_str("button"));
 	Value_set(event, "index", Value_int(id));
+	Value_set(event, "type", Value_str("button"));
 	Value_set(event, "button", Value_int(button));
-	Value_set(event, "value", Value_bool(value));
+	Value_set(event, "value", Value_float(value));
 	jsvmDispatchEvent((size_t)vm, "gamepad", event);
 	Value_delete(event, 1);
 }

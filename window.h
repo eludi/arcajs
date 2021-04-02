@@ -69,10 +69,12 @@ void WindowEventHandler(int(*eventHandler)(void*), void* udata);
 /// allows accessing data of a custom event handler
 void* WindowEventData();
 
-/// returns number of available game controllers
+/// returns number of available game controllers / gamepads / joysticks
 size_t WindowNumControllers();
 /// opens the nth controller
 int WindowControllerOpen(size_t id);
+/// returns the name of the identified controller
+const char* WindowControllerName(size_t id);
 /// closes a previously opened controller
 void WindowControllerClose(size_t id);
 /// returns current input of controller n
@@ -81,4 +83,4 @@ int WindowControllerInput(size_t id, int* numAxes, float** axes, int* numButtons
 /// creates controller events when a button changes its state or an axis changes beyond a given resolution
 void WindowControllerEvents(float resolution, void* udata,
 	void(*axisCb)(size_t id, uint8_t axis, float value, void* udata),
-	void(*btnCb)(size_t id, uint8_t button, uint8_t value, void* udata));
+	void(*btnCb)(size_t id, uint8_t button, float value, void* udata));

@@ -6,6 +6,8 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 			if(rot!==undefined)
 				this.rot = rot;
 		},
+		setX: function(x) { this.x = x; },
+		setY: function(y) { this.y = y; },
 		getX: function() { return this.x; },
 		getY: function() { return this.y; },
 		getRot: function() { return this.rot; },
@@ -43,6 +45,8 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 			if(rot!==undefined)
 				this.velRot = rot;
 		},
+		setVelX: function(x) { this.velX = x; },
+		setVelY: function(y) { this.velY = y; },
 		getVelX: function() { return this.velX; },
 		getVelY: function() { return this.velY; },
 		getVelRot: function() { return this.velRot; },

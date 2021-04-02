@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20210325a";
+const char* appVersion = "v0.20210402a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -243,8 +243,19 @@ int handleEvents(void* udata) {
 
 		Value* event = Value_new(VALUE_MAP, NULL);
 		Value_set(event, "evt", Value_str("gamepad"));
-		Value_set(event, "type", Value_str(evt.type==SDL_JOYDEVICEADDED ? "connected" : "disconnected"));
 		Value_set(event, "index", Value_int(evt.jdevice.which));
+		const char* name = WindowControllerName(evt.jdevice.which);
+		Value_set(event, "name", Value_str(name ? name : "unknown"));
+		if(evt.type!=SDL_JOYDEVICEADDED)
+			Value_set(event, "type", Value_str("disconnected"));
+		else {
+			Value_set(event, "type", Value_str("connected"));
+			int numAxes, numButtons;
+			if(WindowControllerInput(evt.jdevice.which, &numAxes, NULL, &numButtons, NULL)==0) {
+				Value_set(event, "axes", Value_int(numAxes));
+				Value_set(event, "buttons", Value_int(numButtons));
+			}
+		}
 		Value_append(events, event);
 		break;
 	}

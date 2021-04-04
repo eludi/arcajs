@@ -267,14 +267,27 @@ return function (canvas, capacity=500) {
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
 			new Uint8Array([0, 0, 255, 255]));
 
-		const onLoad = ()=>{
-			// Now that the image has loaded copy it to the texture.
+		const onLoad = ()=>{ // copy the loaded image to the texture:
 			gl.bindTexture(gl.TEXTURE_2D, texInfo.texture);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+			if('scale' in params) {
+				let canvas = document.createElement('canvas');
+				canvas.width = Math.ceil(image.width*params.scale);
+				canvas.height = Math.ceil(image.height*params.scale);
+				let ctx = canvas.getContext('2d');
+				ctx.drawImage(image, 0,0, canvas.width, canvas.height);
+				
+				const imgData = new Uint8Array(ctx.getImageData(0,0, canvas.width, canvas.height).data.buffer);
+				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, imgData);
+				texInfo.width = canvas.width;
+				texInfo.height = canvas.height;
+			}
+			else {
+				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+				texInfo.width = image.width;
+				texInfo.height = image.height;
+			}
 			setTexParams(params);
 			texInfo.ready = true;
-			texInfo.width = image.width;
-			texInfo.height = image.height;
 			if(callback)
 				callback(texInfo);
 		}

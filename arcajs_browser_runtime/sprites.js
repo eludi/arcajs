@@ -19,6 +19,7 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 			this.srcH = srcH;
 		},
 		setTile: function(tile) {
+			const parent = this.parent;
 			if(parent===null)
 				return;
 			if(tile>=parent.tilesX*parent.tilesY)
@@ -26,8 +27,8 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 			const srcW = parent.texWidth/parent.tilesX;
 			const srcH = parent.texHeight/parent.tilesY;
 			const srcX = (tile%parent.tilesX)*srcW;
-			const srcY = Math.floor(tile/parent.tilesY)*srcH;
-			this.setSource(this, srcX+parent.border,srcY+parent.border,srcW-2*parent.border,srcH-2*parent.border);
+			const srcY = Math.floor(tile/parent.tilesX)*srcH;
+			this.setSource(srcX+parent.border,srcY+parent.border,srcW-2*parent.border,srcH-2*parent.border);
 		},
 		setScale: function(scX,scY) {
 			this.w = scX * this.srcW;
@@ -71,7 +72,7 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 		},
 		getColor: function() { return [this.r, this.g, this.b, this.a]; },
 		getAlpha: function() { return this.a; },
-		setAlpha: function(a) { this.alpha = a; },
+		setAlpha: function(a) { this.a = Math.floor(a*255); },
 		getRadius: function() { return this.radius; },
 		setRadius: function(r) { this.radius = r; },
 		intersects: function(x, y) {

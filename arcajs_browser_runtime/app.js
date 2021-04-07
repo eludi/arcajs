@@ -307,7 +307,9 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 
 	document.body.addEventListener("touchmove", (evt)=>{ }, {passive: true});
 	window.addEventListener('unload', ()=>{ app.emit('close'); });
-	window.addEventListener('keydown', (evt)=>{ app.emit('keyboard', evt); emitTextInput(evt); });
+	window.addEventListener('keydown', (evt)=>{
+		if(('keyboard'in eventListeners) || ('textinput'in eventListeners)) {
+			app.emit('keyboard', evt); emitTextInput(evt); evt.preventDefault(); } });
 	window.addEventListener('keyup', (evt)=>{ app.emit('keyboard', evt); });
 	window.addEventListener("gamepadconnected", (evt)=>{
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:true, state:null };

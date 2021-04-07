@@ -560,7 +560,7 @@ duk_ret_t dk_SpriteSetDraw(duk_context *ctx) {
  * @param {number} tile - tile number
  * @param {number} x - X ordinate
  * @param {number} y - Y ordinate
- * @param {number} [align=gfx.ALIGN_LEFT|gfx.ALIGN_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
+ * @param {number} [align=gfx.ALIGN_LEFT_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
  * @param {number} [angle=0] - rotation angle in radians
  * @param {number} [flip=gfx.FLIP_NONE] - flip tile in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions
  */

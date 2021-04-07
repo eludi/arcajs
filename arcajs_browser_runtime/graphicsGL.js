@@ -412,7 +412,7 @@ return function (canvas, capacity=500) {
 	}
 	this.scale = function(sc) {
 		if(sc==camSc)
-			return;
+			return this;
 		this.flush();
 		camSc = sc;
 		return this;

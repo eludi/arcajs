@@ -560,6 +560,8 @@ duk_ret_t dk_SpriteSetDraw(duk_context *ctx) {
  * @param {number} tile - tile number
  * @param {number} x - X ordinate
  * @param {number} y - Y ordinate
+ * @param {number} [w] - width
+ * @param {number} [h] - height
  * @param {number} [align=gfx.ALIGN_LEFT_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
  * @param {number} [angle=0] - rotation angle in radians
  * @param {number} [flip=gfx.FLIP_NONE] - flip tile in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions
@@ -574,10 +576,12 @@ duk_ret_t dk_SpriteSetDrawTile(duk_context *ctx) {
 	uint16_t tile = duk_to_uint16(ctx, 1);
 	float x = duk_to_number(ctx, 2);
 	float y = duk_to_number(ctx, 3);
-	int align = duk_get_int_default(ctx, 4, 0);
-	float rot = duk_get_number_default(ctx, 5, 0.0f);
-	int flip = duk_get_int_default(ctx, 6, 0);
-	SpriteSetDrawTile(sps, tile, x,y, align, rot, flip);
+	float w = duk_get_number_default(ctx, 4, 0.0f);
+	float h = duk_get_number_default(ctx, 5, 0.0f);
+	int align = duk_get_int_default(ctx, 6, 0);
+	float rot = duk_get_number_default(ctx, 7, 0.0f);
+	int flip = duk_get_int_default(ctx, 8, 0);
+	SpriteSetDrawTile(sps, tile, x,y, w, h, align, rot, flip);
 	return 0;
 }
 
@@ -714,6 +718,6 @@ void sprites_exports(duk_context *ctx) {
 	duk_push_c_function(ctx, dk_SpriteSetDraw, 1);
 	duk_put_prop_literal(ctx, -2, "drawSprites"); // set method of gfx object, which is on the stack
 
-	duk_push_c_function(ctx, dk_SpriteSetDrawTile, 7);
+	duk_push_c_function(ctx, dk_SpriteSetDrawTile, 9);
 	duk_put_prop_literal(ctx, -2, "drawTile"); // set method of gfx object, which is on the stack
 }

@@ -616,7 +616,7 @@ return function (canvas, capacity=500) {
 				s.x-cx, s.y-cy, s.w, s.h, cx, cy, s.rot);
 		});
 	}
-	this.drawTile = function(sps, tile, x, y, align=0, rot=0, flip=0) {
+	this.drawTile = function(sps, tile, x, y, w=undefined, h=undefined, align=0, rot=0, flip=0) {
 		if(sps.texWidth === 0) {
 			const texInfo = textures[sps.texture];
 			if(texInfo && texInfo.ready) {
@@ -642,7 +642,11 @@ return function (canvas, capacity=500) {
 			else if(align & this.ALIGN_MIDDLE)
 				cy = srcH/2;
 		}
-		this.drawImage(sps.texture, srcX, srcY, srcW, srcH, x-cx, y-cy, srcW, srcH, cx, cy, rot, flip);
+		if(w===undefined)
+			w = srcW;
+		if(h===undefined)
+			h = srcH;
+		this.drawImage(sps.texture, srcX, srcY, srcW, srcH, x-cx, y-cy, w, h, cx, cy, rot, flip);
 	}
 	function initBuf() {
 		// Create a buffer for vertex attribute data:

@@ -51,7 +51,7 @@ app.on('update', function(deltaT, now) {
 
 app.on('draw', function(gfx) {
 	gfx.drawSprites(sprites);
-	gfx.drawTile(sprites,0,app.width-64,0);
+	gfx.drawTile(sprites,0, app.width-64,0);
 
 	gfx.color(255,255,255,127).fillRect(0,app.height-20, app.width,20);
 	gfx.color(0,0,0).fillText(0, 0,app.height-18, "arcajs sprites test");

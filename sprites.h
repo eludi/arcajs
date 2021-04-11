@@ -47,10 +47,8 @@ typedef struct {
 } SpriteSet;
 
 extern Sprite SpriteCreate(SpriteSet* sps);
-extern Sprite SpriteCreate_gl(SpriteSet* sps);
 extern Sprite SpriteCreateFromClippedImage(uint16_t srcX, uint16_t srcY, uint16_t srcW, uint16_t srcH);
 extern Sprite SpriteCreateFromTile(SpriteSet* sps, uint16_t tile);
-extern Sprite SpriteCreateFromTile_gl(SpriteSet* sps, uint16_t tile);
 extern void SpriteUnlink(Sprite* sprite);
 extern void SpriteColorRGBA(Sprite* sprite, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 /// sets sprite source to tile n if spriteset contains a regular grid of tiles
@@ -61,12 +59,8 @@ extern int SpriteIntersectsSprite(Sprite* s1, Sprite* s2);
 extern int SpriteIntersectsPoint(Sprite* sprite, float x, float y);
 
 extern SpriteSet SpriteSetCreate(size_t img);
-extern SpriteSet SpriteSetCreate_gl(size_t img);
 extern SpriteSet SpriteSetCreateTiled(size_t img, uint16_t tilesX, uint16_t tilesY, uint16_t border);
-extern SpriteSet SpriteSetCreateTiled_gl(size_t img, uint16_t tilesX, uint16_t tilesY, uint16_t border);
 extern void SpriteSetAppend(SpriteSet* sps, Sprite* sprite);
 extern void SpriteSetUpdate(SpriteSet* sps, double deltaT);
 extern void SpriteSetDraw(SpriteSet* sps);
-extern void SpriteSetDraw_gl(SpriteSet* sps);
-extern void SpriteSetDrawTile(SpriteSet* sps, uint16_t tile, float x, float y, int align, float rot, int flip);
-extern void SpriteSetDrawTile_gl(SpriteSet* sps, uint16_t tile, float x, float y, int align, float rot, int flip);
+extern void SpriteSetDrawTile(SpriteSet* sps, uint16_t tile, float x, float y, float w, float h, int align, float rot, int flip);

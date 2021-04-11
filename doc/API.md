@@ -14,7 +14,7 @@ sets or gets console visibility
 
 #### Returns:
 
-- {boolean|undefined} current console visibility if called without argument
+- {boolean\|undefined} current console visibility if called without argument
 
 ## module app
 
@@ -27,8 +27,8 @@ The individual application events are described in [EVENTS.md](EVENTS.md).
 
 #### Parameters:
 
-- {string|object} name - event name or object consisting of name:eventHandler function pairs
-- {function|null} callback - function to be executed when the event has happened, set null to remove
+- {string\|object} name - event name or object consisting of name:eventHandler function pairs
+- {function\|null} callback - function to be executed when the event has happened, set null to remove
 
 ### function app.emit
 
@@ -45,14 +45,14 @@ returns handle to an image/audio/font or text resource or array of handles
 
 #### Parameters:
 
-- {string|array} name - resource file name or list of resource file names
+- {string\|array} name - resource file name or list of resource file names
 - {object} [params] - optional additional parameters as key-value pairs such as
 
   filtering for images, scale for SVG images, or size for font resources
 
 #### Returns:
 
-- {number|array} resource handle(s)
+- {number\|array} resource handle(s)
 
 ### function app.createCircleResource
 
@@ -77,7 +77,7 @@ creates an image resource from an SVG path description
 
 - {number} width - image width
 - {number} height - image height
-- {string|array} path - path description
+- {string\|array} path - path description
 - {array} [fillColor=[255,255,255,255]] - fill color (RGBA)
 - {number} [strokeWidth=0] - stroke width
 - {array} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
@@ -107,7 +107,7 @@ creates an RGBA image resource from an buffer
 
 - {number} width - image width
 - {number} height - image height
-- {buffer|array} data - RGBA 4-byte per pixel image data
+- {buffer\|array} data - RGBA 4-byte per pixel image data
 - {object} [params] - optional additional parameters as key-value pairs such as filtering
 
 #### Returns:
@@ -120,7 +120,7 @@ sets window background color
 
 #### Parameters:
 
-- {number|array|buffer} r - RGB red component in range 0-255 or color array / array buffer
+- {number\|array\|buffer} r - RGB red component in range 0-255 or color array / array buffer
 - {number} [g] - RGB green component in range 0-255
 - {number} [b] - RGB blue component in range 0-255
 
@@ -154,7 +154,7 @@ reads a string from a modal window
 
 #### Parameters:
 
-- {string|array} message - (multi-line) message to be displayed
+- {string\|array} message - (multi-line) message to be displayed
 - {string} [initialValue] - optional prefilled value
 - {string} [options] - display options
 
@@ -168,7 +168,7 @@ displays a modal message window
 
 #### Parameters:
 
-- {string|array} message - (multi-line) message to be displayed
+- {string\|array} message - (multi-line) message to be displayed
 - {string} [options] - display options
 
 ### function app.close
@@ -191,7 +191,7 @@ initiates a HTTP POST request sending data to a URL
 #### Parameters:
 
 - {string} url - target URL
-- {string|object} data - data to be sent
+- {string\|object} data - data to be sent
 - {function} [callback] - function to be called when a response is received
 
 ### function app.require
@@ -204,7 +204,7 @@ loads a module written in C or JavaScript (registered via app.exports)
 
 #### Returns:
 
-- {object|function} loaded module
+- {object\|function} loaded module
 
 ### function app.exports
 
@@ -213,7 +213,7 @@ exports a JavaScript module that can be accessed via app.require
 #### Parameters:
 
 - {string} id - module identifier to be used by require
-- {object|function} module - exported module
+- {object\|function} module - exported module
 
 ### function app.queryFont
 
@@ -281,7 +281,7 @@ sets the current drawing color
 
 #### Parameters:
 
-- {number|array|buffer} r - RGB red component in range 0..255 or color array/array buffer
+- {number\|array\|buffer} r - RGB red component in range 0..255 or color array/array buffer
 - {number} [g] - RGB green component in range 0..255
 - {number} [b] - RGB blue component in range 0..255
 - {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
@@ -315,7 +315,19 @@ sets current drawing line width in pixels.
 
 #### Returns:
 
-- {object|number} - this gfx object or current line width, if called without width parameter
+- {object\|number} - this gfx object or current line width, if called without width parameter
+
+### function gfx.blend
+
+sets current drawing blend mode.
+
+#### Parameters:
+
+- {number} [mode] - blend mode, one of the gfx.BLEND_xyz constants
+
+#### Returns:
+
+- {object\|number} - this gfx object or current blend mode, if called without parameter
 
 ### function gfx.origin
 
@@ -393,7 +405,7 @@ draws a series of connected lines using the current color and line width.
 
 #### Parameters:
 
-- {array|Float32Array} arr - array of vertex ordinates
+- {array\|Float32Array} arr - array of vertex ordinates
 
 ### function gfx.drawPoints
 
@@ -401,7 +413,7 @@ draws an array of individual points using the current color and line width.
 
 #### Parameters:
 
-- {array|Float32Array} arr - array of vertex ordinates
+- {array\|Float32Array} arr - array of vertex ordinates
 
 ### function gfx.drawImage
 
@@ -436,7 +448,7 @@ writes text using a specified font.
 - {number} x - X ordinate
 - {number} y - Y ordinate
 - {string} text - text
-- {number} [align=gfx.ALIGN_LEFT|gfx.ALIGN_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
+- {number} [align=gfx.ALIGN_LEFT_TOP] - horizontal and vertical alignment, one of the gfx.ALIGN_xyz constants
 
 ### Constants:
 
@@ -446,10 +458,24 @@ writes text using a specified font.
 - {number} gfx.ALIGN_TOP
 - {number} gfx.ALIGN_MIDDLE
 - {number} gfx.ALIGN_BOTTOM
+- {number} gfx.ALIGN_LEFT_TOP
+- {number} gfx.ALIGN_CENTER_TOP
+- {number} gfx.ALIGN_RIGHT_TOP
+- {number} gfx.ALIGN_LEFT_MIDDLE
+- {number} gfx.ALIGN_CENTER_MIDDLE
+- {number} gfx.ALIGN_RIGHT_MIDDLE
+- {number} gfx.ALIGN_LEFT_BOTTOM
+- {number} gfx.ALIGN_CENTER_BOTTOM
+- {number} gfx.ALIGN_RIGHT_BOTTOM
 - {number} gfx.FLIP_NONE
 - {number} gfx.FLIP_X
 - {number} gfx.FLIP_Y
 - {number} gfx.FLIP_XY
+- {number} gfx.BLEND_NONE
+- {number} gfx.BLEND_ALPHA
+- {number} gfx.BLEND_ADD
+- {number} gfx.BLEND_MOD
+- {number} gfx.BLEND_MUL
 
 ## module audio
 
@@ -497,7 +523,7 @@ immediately plays a buffered PCM sample
 
 #### Parameters:
 
-- {number|array} sample - sample handle or array of alternative samples (randomly chosen)
+- {number\|array} sample - sample handle or array of alternative samples (randomly chosen)
 - {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
 - {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
 - {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less
@@ -542,7 +568,7 @@ creates an audio sample from an array of floating point numbers
 
 #### Parameters:
 
-- {array|Float32Array} data - array of PCM sample values in range -1.0..1.0
+- {array\|Float32Array} data - array of PCM sample values in range -1.0..1.0
 
 #### Returns:
 
@@ -560,7 +586,7 @@ sets the sprite's color possibly blending with its pixel colors
 
 #### Parameters:
 
-- {number|array|buffer} r - RGB red component in range 0..255 or combined color array/array buffer
+- {number\|array\|buffer} r - RGB red component in range 0..255 or combined color array/array buffer
 - {number} [g] - RGB green component in range 0..255
 - {number} [b] - RGB blue component in range 0..255
 - {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
@@ -596,6 +622,22 @@ returns the sprite's Y ordinate
 #### Returns:
 
 - {number} Y ordinate
+
+### function Sprite.setX
+
+sets the sprite's horizontal position
+
+#### Parameters:
+
+- {number} value - X ordinate
+
+### function Sprite.setY
+
+sets the sprite's vertical position
+
+#### Parameters:
+
+- {number} value - y ordinate
 
 ### function Sprite.setPos
 
@@ -667,6 +709,22 @@ sets the sprite's velocity
 - {number} velX - horizontal velocity in pixels per second
 - {number} velY - vertical velocity in pixels per second
 - {number} [velRot] - rotation velocity in radians per second
+
+### function Sprite.setVelX
+
+sets the sprite's horizontal velocity
+
+#### Parameters:
+
+- {number} velX - horizontal velocity in pixels per second
+
+### function Sprite.setVelY
+
+sets the sprite's vertical velocity
+
+#### Parameters:
+
+- {number} velY - vertical velocity in pixels per second
 
 ### function Sprite.getVelX
 
@@ -784,7 +842,7 @@ The test is either based on radius if set (faster), or on possibly rotated bound
 
 #### Parameters:
 
-- {Sprite|number} arg1 - other sprite to be tested on collision or point X ordinate
+- {Sprite\|number} arg1 - other sprite to be tested on collision or point X ordinate
 - {number} [arg2] - point Y ordinate
 
 #### Returns:
@@ -797,7 +855,7 @@ creates a new Sprite instance and appends it to this SpriteSet
 
 #### Parameters:
 
-- {number} [tile=0|srcX=0] - tile number for tiled source or source x origin
+- {number} [tile=0\|srcX=0] - tile number for tiled source or source x origin
 - {number} [srcY=0] - source y origin
 - {number} [srcW] - source width, default is parent SpriteSet texture width
 - {number} [srcH] - source height, default is parent SpriteSet texture height
@@ -840,7 +898,9 @@ draws a tile of a tiled sprite set
 - {number} tile - tile number
 - {number} x - X ordinate
 - {number} y - Y ordinate
-- {number} [align=gfx.ALIGN_LEFT|gfx.ALIGN_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
+- {number} [w] - width
+- {number} [h] - height
+- {number} [align=gfx.ALIGN_LEFT_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
 - {number} [angle=0] - rotation angle in radians
 - {number} [flip=gfx.FLIP_NONE] - flip tile in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions
 
@@ -928,7 +988,7 @@ Based on https://stackoverflow.com/a/34689268 .
 
 - {number} x - test point X ordinate
 - {number} y - test point Y ordinate
-- {array|ArrayBuffer} polygon - polygon ordinates
+- {array\|ArrayBuffer} polygon - polygon ordinates
 
 #### Returns:
 
@@ -978,7 +1038,7 @@ Test if a circle and a convex polygon intersect
 - {number} x - circle center X ordinate
 - {number} y - circle center Y ordinate
 - {number} r - circle radius
-- {array|ArrayBuffer} polygon - polygon ordinates
+- {array\|ArrayBuffer} polygon - polygon ordinates
 
 #### Returns:
 
@@ -1013,7 +1073,7 @@ Test if an axis-aligned rectangle and a convex polygon intersect
 - {number} y1 - rectangle minimum Y ordinate
 - {number} x2 - rectangle maximum X ordinate
 - {number} y2 - rectangle maximum Y ordinate
-- {array|ArrayBuffer} polygon - polygon ordinates
+- {array\|ArrayBuffer} polygon - polygon ordinates
 
 #### Returns:
 
@@ -1025,8 +1085,8 @@ Test if two convex polygons intersect
 
 #### Parameters:
 
-- {array|ArrayBuffer} polygon1 - polygon 1 ordinates
-- {array|ArrayBuffer} polygon2 - polygon 2 ordinates
+- {array\|ArrayBuffer} polygon1 - polygon 1 ordinates
+- {array\|ArrayBuffer} polygon2 - polygon 2 ordinates
 
 #### Returns:
 
@@ -1041,8 +1101,8 @@ axis-aligned rectangle (4), or polygon (6+).
 
 #### Parameters:
 
-- {array|ArrayBuffer} array1 - first test geometry ordinates
-- {array|ArrayBuffer} array2 - second test geometry ordinates
+- {array\|ArrayBuffer} array1 - first test geometry ordinates
+- {array\|ArrayBuffer} array2 - second test geometry ordinates
 
 #### Returns:
 

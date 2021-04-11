@@ -80,6 +80,8 @@ function doc2md(doc) {
 		else
 			out.push(line);
 	});
+
+	out.forEach(function(line, index) { out[index] = line.replace(/\|/g, '\\|'); });
 	return out;
 }
 

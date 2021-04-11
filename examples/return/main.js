@@ -294,15 +294,15 @@ function GameMenu() {
 	}
 	this.draw = function(gfx) {
 		gfx.color(255,255,255);
-		gfx.drawTile(title,0, app.width*0.5, app.height*0.4, gfx.ALIGN_CENTER_BOTTOM);
-		gfx.drawTile(icons, 1, app.width*0.3, app.height*0.6, gfx.ALIGN_CENTER_MIDDLE);
+		gfx.drawTile(title,0, app.width*0.5, app.height*0.4, undefined,undefined, gfx.ALIGN_CENTER_BOTTOM);
+		gfx.drawTile(icons, 1, app.width*0.3, app.height*0.6, undefined,undefined, gfx.ALIGN_CENTER_MIDDLE);
 		gfx.fillText(0, app.width*0.3, app.height*0.6+100, 'SINGLE PLAYER',  gfx.ALIGN_CENTER_MIDDLE);
-		gfx.drawTile(icons, 2, app.width*0.7, app.height*0.6,  gfx.ALIGN_CENTER_MIDDLE);
-		gfx.fillText(0, app.width*0.7, app.height*0.6+100, 'TWO PLAYERS',  gfx.ALIGN_CENTER_MIDDLE);
+		gfx.drawTile(icons, 2, app.width*0.7, app.height*0.6, undefined,undefined, gfx.ALIGN_CENTER_MIDDLE);
+		gfx.fillText(0, app.width*0.7, app.height*0.6+100, 'TWO PLAYERS', gfx.ALIGN_CENTER_MIDDLE);
 		gfx.clipRect(20, app.height-30, app.width-40,20);
 		gfx.fillText(0, marqueeX, app.height-30, marquee);
 		gfx.clipRect();
-		gfx.color(255,255,255, 85).drawTile(icons, 0, app.width, 0, gfx.ALIGN_RIGHT);
+		gfx.color(255,255,255, 85).drawTile(icons, 0, app.width, 0, undefined,undefined, gfx.ALIGN_RIGHT);
 	}
 	this.keyboard = function(evt) {
 		switch(evt.key) {

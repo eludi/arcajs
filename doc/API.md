@@ -5,7 +5,7 @@
 - [console](#module-console)
 - [graphics](#module-gfx)
 - [intersects](#module-intersects)
-- [sprites](#module-sprites)
+- [sprites](#module-Sprites)
 
 ## module console
 

@@ -86,7 +86,10 @@ function doc2md(doc) {
 }
 
 
-var doc = ['# arcajs API',''].concat(docExtract("../jsBindings.c"))
+var doc = ['# arcajs API','','- [app](#module-app)','- [audio](#module-audio)',
+	'- [console](#module-console)','- [graphics](#module-gfx)',
+	'- [intersects](#module-intersects)','- [sprites](#module-sprites)', '']
+	.concat(docExtract("../jsBindings.c"))
 	.concat(docExtract("../spritesBindings.c")).concat(docExtract("../modules/intersectsBindings.c"));
 doc = doc2md(doc);
 fs.writeFileSync("API.md", doc.join('\n').replace(/\n(\n)+/g, '\n\n'));

@@ -1,4 +1,5 @@
 #include "jsBindings.h"
+#include "jsCode.h"
 #include "window.h"
 #include "graphics.h"
 #include "resources.h"
@@ -447,6 +448,28 @@ static duk_ret_t dk_appEmit(duk_context *ctx) {
 	Value_delete(args, 1);
 	return 0;
 }
+
+/**
+ * @function app.emitAsGamepadEvent
+ * re-emits configurable keyboard events as gamepad events
+ *
+ * This helper function allows games to use a unified input handler by translating
+ * configurable keyboard key events to gamepad events.
+ *
+ * ```javascript
+ * app.on('keyboard', function(evt) {
+ *     // create a virtual gamepad by interpreting
+ *     // WASD as a virtual directional pad and Enter key as primary button:
+ *     app.emitAsGamepadEvent(evt, 0, ['a','d', 'w','s'], ['Enter']);
+ * });
+ * ```
+ *
+ * @param {object} keyboardEvent - the keyboard event to be translated and re-emitted
+ * @param {number} index - the index of the gamepad
+ * @param {array} axes - key names of the keys to be interpreted as gamepad axes. Each pair of keys define an axis.
+ * @param {array} [buttons] - key names of the keys to be interpreted as gamepad buttons.
+ */
+
 
 static void readImageResourceParams(
 	duk_context *ctx, duk_idx_t idx, float* scale, int* filtering)
@@ -1403,7 +1426,7 @@ static void bindGraphicsCommon(duk_context* ctx) {
 		{ "BLEND_MOD", 4.0 },
 /// @constant {number} gfx.BLEND_MUL
 		{ "BLEND_MUL", 8.0 },
-		
+
 		{ NULL, 0.0 }
 	};
 	duk_put_number_list(ctx, -1, gfx_consts);
@@ -1857,6 +1880,8 @@ size_t jsvmInit(const char* storageFileName) {
 	bindGraphics(ctx);
 	bindConsole(ctx);
 	bindLocalStorage(ctx, storageFileName);
+	if(jsvmEval((size_t)ctx, jsCode, "jsCode.h")!=0)
+		return 0;;
 
 	duk_push_c_function(ctx, dk_setTimeout, DUK_VARARGS);
 	duk_put_global_string(ctx, "setTimeout");

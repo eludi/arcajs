@@ -84,8 +84,8 @@ sprites.o: sprites.c sprites.h graphics.h modules/intersects.h
 spritesBindings.o: spritesBindings.c sprites.h external/duktape.h external/duk_config.h
 audio.o: audio.c audio.h external/dr_mp3.h
 console.o: console.c console.h graphics.h
-jsBindings.o: jsBindings.c jsBindings.h window.h graphics.h audio.h console.h value.h httpRequest.h \
-  external/duktape.h external/duk_config.h
+jsBindings.o: jsBindings.c jsBindings.h jsCode.h window.h graphics.h audio.h \
+  console.h value.h httpRequest.h external/duktape.h external/duk_config.h
 external/duktape.o: external/duktape.c external/duktape.h 
 value.o: value.c value.h
 httpRequest.o: httpRequest.c httpRequest.h

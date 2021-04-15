@@ -202,45 +202,11 @@ function Game(players) {
 		gfx.color(0,0,0).fillRect(0,arenaH*sc, app.width,app.height-arenaH*sc+1);
 	},
 	this.keyboard = function(evt) {
-		if(evt.type==='keydown' && !evt.repeat) switch(evt.key) {
-			case 'ArrowUp':
-				player2.input(1, -1); break;
-			case 'ArrowDown':
-				player2.input(1, 1); break;
-			case 'ArrowRight':
-				player2.input(0, +1); break;
-			case 'ArrowLeft':
-				player2.input(0, -1); break;
-			case 'w':
-				player1.input(1, -1); break;
-			case 's':
-				player1.input(1, 1); break;
-			case 'a':
-				player1.input(0, -1); break;
-			case 'd':
-				player1.input(0, 1); break;
-			case ' ':
-			case 'Enter':
-				if(players) break; // otherwise fall-through
-			case 'Escape':
-				app.on(new GameMenu()); break;
-		}
-		else if(evt.type==='keyup') switch(evt.key) {
-			case 'ArrowUp':
-				if(player2.velY<0) player2.input(1, 0); break;
-			case 'ArrowDown':
-				if(player2.velY>0) player2.input(1, 0); break;
-			case 'ArrowRight':
-			case 'ArrowLeft':
-				player2.input(0, 0); break;
-			case 'w':
-				if(player1.velY<0) player1.input(1, 0); break;
-			case 's':
-				if(player1.velY>0) player1.input(1, 0); break;
-			case 'a':
-			case 'd':
-				player1.input(0, 0); break;
-		}
+		app.emitAsGamepadEvent(evt, 0, ['ArrowLeft','ArrowRight', 'ArrowUp','ArrowDown']);
+		app.emitAsGamepadEvent(evt, 1, ['a','d', 'w','s']);
+
+		if(evt.type==='keydown' && evt.key === 'Escape')
+			app.on(new GameMenu());
 	}
 	this.pointer = function(evt) {
 		if(!players && evt.type==='start')

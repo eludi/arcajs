@@ -46,6 +46,28 @@ emits an event
 - {string} name - event name
 - {any} [args] - an arbitrary number of additional arguments to be passed to the event handler
 
+### function app.emitAsGamepadEvent
+
+re-emits configurable keyboard events as gamepad events
+
+This helper function allows games to use a unified input handler by translating
+configurable keyboard key events to gamepad events.
+
+```javascript
+app.on('keyboard', function(evt) {
+    // create a virtual gamepad by interpreting
+    // WASD as a virtual directional pad and Enter key as primary button:
+    app.emitAsGamepadEvent(evt, 0, ['a','d', 'w','s'], ['Enter']);
+});
+```
+
+#### Parameters:
+
+- {object} keyboardEvent - the keyboard event to be translated and re-emitted
+- {number} index - the index of the gamepad
+- {array} axes - key names of the keys to be interpreted as gamepad axes. Each pair of keys define an axis.
+- {array} [buttons] - key names of the keys to be interpreted as gamepad buttons.
+
 ### function app.getResource
 
 returns handle to an image/audio/font or text resource or array of handles

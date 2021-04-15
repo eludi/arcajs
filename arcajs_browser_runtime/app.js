@@ -82,8 +82,51 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		}
 	}
 
-	let app = {
-		version: 'v0.20210402a',
+	function emitAsGamepadEvent(evt, index, axes, buttons) {
+		if(evt.repeat)
+			return;
+
+		if(!('state' in emitAsGamepadEvent))
+			emitAsGamepadEvent.state = {};
+		if(!(index in emitAsGamepadEvent.state)) {
+			const state = emitAsGamepadEvent.state[index] = { axes:[], buttons:[] };
+			if(axes)
+				for(var i=0; i<axes.length; i+=2)
+					state.axes.push(0);
+			if(buttons)
+				for(var i=0; i<buttons.length; ++i)
+					state.buttons.push(false);
+			app.emit('gamepad', {index:index, type:'connect', axes:state.axes.length, buttons:state.buttons.length});
+		}
+
+		const state = emitAsGamepadEvent.state[index];
+		const keydown = evt.type==='keydown';
+		if(!keydown && evt.type!=='keyup')
+			return;
+
+		if(axes) for(var i=0; i<axes.length; ++i) {
+			if(evt.key !== axes[i])
+				continue;
+			const axis = Math.floor(i/2), value = (i%2)?1:-1;
+			if(keydown) {
+				if(state.axes[axis]===value)
+					return;
+			}
+			else if(state.axes[axis]===0 || state.axes[axis]!==value)
+				return;
+			state.axes[axis] = keydown ? value : 0;
+			return app.emit('gamepad', {index:index, type:'axis', axis:axis, value:state.axes[axis]});
+		}
+
+		if(buttons) for(var i=0; i<buttons.length; ++i)
+			if(evt.key === buttons[i] && state.buttons[i]!=keydown) {
+				state.buttons[i]=keydown;
+				return app.emit('gamepad', {index:index, type:'button', button:i, value:keydown?1:0});
+			}
+	}
+
+	const app = {
+		version: 'v0.20210415a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -136,6 +179,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			if('*' in eventListeners)
 				eventListeners['*'](evt, ...args);
 		},
+		emitAsGamepadEvent: emitAsGamepadEvent,
 		getResource: function(name, params={}) {
 			if(Array.isArray(name)) {
 				let ret = [];
@@ -208,7 +252,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				if ( ( 3 * vH ) < 2 ) return ( v1 + ( v2 - v1 ) * ( ( 2 / 3 ) - vH ) * 6 );
 				return v1;
 			}
-			
+
 			if (s < 5.0e-6) {
 				this.r = this.g = this.b = Math.floor(l*255);
 				return;
@@ -221,7 +265,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				h-=360.0;
 			while(h<0.0)
 				h+=360.0;
-			
+
 			let v2 = ( l < 0.5 ) ? l * ( 1 + s ) : ( l + s ) - ( s * l );
 			let v1 = 2 * l - v2;
 

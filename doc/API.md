@@ -620,6 +620,10 @@ sets the sprite's color possibly blending with its pixel colors
 - {number} [b] - RGB blue component in range 0..255
 - {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
 
+#### Returns:
+
+- {object} - sprite instance
+
 ### function Sprite.getColor
 
 returns the sprite's RGBA color
@@ -635,6 +639,10 @@ sets the sprite's opacity
 #### Parameters:
 
 - {number} opacity - opacity between 0.0 (invisible) and 1.0 (opaque)
+
+#### Returns:
+
+- {object} - sprite instance
 
 ### function Sprite.getX
 
@@ -660,6 +668,10 @@ sets the sprite's horizontal position
 
 - {number} value - X ordinate
 
+#### Returns:
+
+- {object} - sprite instance
+
 ### function Sprite.setY
 
 sets the sprite's vertical position
@@ -678,6 +690,10 @@ sets the sprite's position
 - {number} y - Y ordinate
 - {number} [rot] - rotation in radians
 
+#### Returns:
+
+- {object} - sprite instance
+
 ### function Sprite.setScale
 
 sets the sprite's output dimensions relative to its source dimensions. Use
@@ -687,6 +703,10 @@ negative scales for horizontal/vertical mirroring/flipping.
 
 - {number} scaleX - horizontal scale
 - {number} [scaleY=scaleX] - vertical scale
+
+#### Returns:
+
+- {object} - sprite instance
 
 ### function Sprite.getScaleX
 
@@ -712,6 +732,10 @@ sets the sprite's absolute output dimensions
 
 - {number} w - width in pixels
 - {number} h - height in pixels
+
+#### Returns:
+
+- {object} - sprite instance
 
 ### function Sprite.getDimX
 
@@ -739,6 +763,10 @@ sets the sprite's velocity
 - {number} velY - vertical velocity in pixels per second
 - {number} [velRot] - rotation velocity in radians per second
 
+#### Returns:
+
+- {object} - sprite instance
+
 ### function Sprite.setVelX
 
 sets the sprite's horizontal velocity
@@ -747,6 +775,10 @@ sets the sprite's horizontal velocity
 
 - {number} velX - horizontal velocity in pixels per second
 
+#### Returns:
+
+- {object} - sprite instance
+
 ### function Sprite.setVelY
 
 sets the sprite's vertical velocity
@@ -754,6 +786,10 @@ sets the sprite's vertical velocity
 #### Parameters:
 
 - {number} velY - vertical velocity in pixels per second
+
+#### Returns:
+
+- {object} - sprite instance
 
 ### function Sprite.getVelX
 
@@ -787,6 +823,10 @@ sets the sprite's rotation velocity
 
 - {number} rot - rotation velocity in radians per second
 
+#### Returns:
+
+- {object} - sprite instance
+
 ### function Sprite.setCenter
 
 sets the sprite's center coordinates
@@ -795,6 +835,10 @@ sets the sprite's center coordinates
 
 - {number} cx - center X position, normalized from 0.0..1.0
 - {number} cy - center Y position, normalized from 0.0..1.0
+
+#### Returns:
+
+- {object} - sprite instance
 
 ### function Sprite.getCenterX
 
@@ -828,6 +872,10 @@ sets the sprite's rotation
 
 - {number} rot - rotation in radians
 
+#### Returns:
+
+- {object} - sprite instance
+
 ### function Sprite.setSource
 
 sets the sprite's source dimensions
@@ -839,6 +887,10 @@ sets the sprite's source dimensions
 - {number} w - source width in pixels
 - {number} h - source height in pixels
 
+#### Returns:
+
+- {object} - sprite instance
+
 ### function Sprite.setTile
 
 sets the sprite source tile number, given that the sprite's SpriteSet is tiled
@@ -846,6 +898,10 @@ sets the sprite source tile number, given that the sprite's SpriteSet is tiled
 #### Parameters:
 
 - {number} tile - tile number
+
+#### Returns:
+
+- {object} - sprite instance
 
 ### function Sprite.getRadius
 
@@ -862,6 +918,22 @@ sets the sprite's collision radius
 #### Parameters:
 
 - {number} r - collision radius, use -1.0 to disable
+
+#### Returns:
+
+- {object} - sprite instance
+
+### function Sprite.set
+
+sets the sprite's custom attributes
+
+#### Parameters:
+
+- {object} attributes - custom attributes as key-value pairs
+
+#### Returns:
+
+- {object} - sprite instance
 
 ### function Sprite.intersects
 
@@ -884,7 +956,7 @@ creates a new Sprite instance and appends it to this SpriteSet
 
 #### Parameters:
 
-- {number} [tile=0\|srcX=0] - tile number for tiled source or source x origin
+- {number\|boolean} [tile=0\|srcX=0] - tile number for tiled source or source x origin or false for an invisible sprite
 - {number} [srcY=0] - source y origin
 - {number} [srcW] - source width, default is parent SpriteSet texture width
 - {number} [srcH] - source height, default is parent SpriteSet texture height

@@ -5,18 +5,18 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 			this.y = y;
 			if(rot!==undefined)
 				this.rot = rot;
+			return this;
 		},
-		setX: function(x) { this.x = x; },
-		setY: function(y) { this.y = y; },
+		setX: function(x) { this.x = x; return this; },
+		setY: function(y) { this.y = y; return this; },
 		getX: function() { return this.x; },
 		getY: function() { return this.y; },
 		getRot: function() { return this.rot; },
-		setRot: function(rot) { this.rot = rot; },
+		setRot: function(rot) { this.rot = rot; return this; },
 		setSource: function(srcX,srcY,srcW,srcH) {
-			this.srcX = srcX;
-			this.srcY = srcY;
-			this.srcW = srcW;
-			this.srcH = srcH;
+			this.srcX = srcX; this.srcY = srcY;
+			this.srcW = srcW; this.srcH = srcH;
+			return this;
 		},
 		setTile: function(tile) {
 			const parent = this.parent;
@@ -29,14 +29,16 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 			const srcX = (tile%parent.tilesX)*srcW;
 			const srcY = Math.floor(tile/parent.tilesX)*srcH;
 			this.setSource(srcX+parent.border,srcY+parent.border,srcW-2*parent.border,srcH-2*parent.border);
+			return this;
 		},
 		setScale: function(scX,scY) {
 			this.w = scX * this.srcW;
 			this.h = (scY===undefined?scX:scY) * this.srcH;
+			return this;
 		},
 		getScaleX: function() { return this.w / this.srcW; },
 		getScaleY: function() { return this.h / this.srcH; },
-		setDim: function(w,h) { this.w=w; this.h=h; },
+		setDim: function(w,h) { this.w=w; this.h=h; return this; },
 		getDimX: function() { return this.w; },
 		getDimY: function() { return this.h; },
 	
@@ -45,14 +47,15 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 			this.velY = y;
 			if(rot!==undefined)
 				this.velRot = rot;
+			return this;
 		},
-		setVelX: function(x) { this.velX = x; },
-		setVelY: function(y) { this.velY = y; },
+		setVelX: function(x) { this.velX = x; return this; },
+		setVelY: function(y) { this.velY = y; return this; },
 		getVelX: function() { return this.velX; },
 		getVelY: function() { return this.velY; },
 		getVelRot: function() { return this.velRot; },
-		setVelRot: function(rot) { this.velRot = rot; },
-		setCenter: function(x,y) { this.cx = x; this.cy = y; },
+		setVelRot: function(rot) { this.velRot = rot; return this; },
+		setCenter: function(x,y) { this.cx = x; this.cy = y; return this; },
 		getCenterX: function() { return this.cx; },
 		getCenterY: function() { return this.cy; },
 	
@@ -69,12 +72,18 @@ arcajs.createSpriteSet = function(texture, tilesX=1, tilesY=1, border=0) {
 				this.b = b;
 				this.a = a;
 			}
+			return this;
 		},
 		getColor: function() { return [this.r, this.g, this.b, this.a]; },
 		getAlpha: function() { return this.a; },
-		setAlpha: function(a) { this.a = Math.floor(a*255); },
+		setAlpha: function(a) { this.a = Math.floor(a*255); return this; },
 		getRadius: function() { return this.radius; },
-		setRadius: function(r) { this.radius = r; },
+		setRadius: function(r) { this.radius = r; return this; },
+		set: function(properties) {
+			for(let key in properties)
+				this[key] = properties[key];
+			return this;
+		},
 		intersects: function(x, y) {
 			const isec = arcajs.intersects;
 			if(typeof y==='number') {

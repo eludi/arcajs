@@ -37,6 +37,7 @@ static duk_bool_t isPrototype(duk_context* ctx, int index, const char* name) {
  * @param {number} [g] - RGB green component in range 0..255
  * @param {number} [b] - RGB blue component in range 0..255
  * @param {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetColor(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
@@ -56,7 +57,8 @@ static duk_ret_t dk_SpriteSetColor(duk_context *ctx) {
 		int a = duk_get_int_default(ctx, 3, 255);
 		SpriteColorRGBA(sprite, r,g,b,a);
 	}
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -82,11 +84,13 @@ static duk_ret_t dk_SpriteGetColor(duk_context *ctx) {
  * @function Sprite.setAlpha
  * sets the sprite's opacity
  * @param {number} opacity - opacity between 0.0 (invisible) and 1.0 (opaque)
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetAlpha(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->a = duk_to_number(ctx, 0)*255.0;
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -115,11 +119,13 @@ static duk_ret_t dk_SpriteGetY(duk_context *ctx) {
  * @function Sprite.setX
  * sets the sprite's horizontal position
  * @param {number} value - X ordinate
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetX(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->x = duk_to_number(ctx, 0);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -130,7 +136,8 @@ static duk_ret_t dk_SpriteSetX(duk_context *ctx) {
 static duk_ret_t dk_SpriteSetY(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->y = duk_to_number(ctx, 0);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -139,6 +146,7 @@ static duk_ret_t dk_SpriteSetY(duk_context *ctx) {
  * @param {number} x - X ordinate
  * @param {number} y - Y ordinate
  * @param {number} [rot] - rotation in radians
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetPos(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
@@ -146,7 +154,8 @@ static duk_ret_t dk_SpriteSetPos(duk_context *ctx) {
 	sprite->y = duk_to_number(ctx, 1);
 	if(!duk_is_undefined(ctx, 2))
 		sprite->rot = duk_to_number(ctx, 2);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -155,6 +164,7 @@ static duk_ret_t dk_SpriteSetPos(duk_context *ctx) {
  * negative scales for horizontal/vertical mirroring/flipping.
  * @param {number} scaleX - horizontal scale
  * @param {number} [scaleY=scaleX] - vertical scale
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetScale(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
@@ -176,7 +186,8 @@ static duk_ret_t dk_SpriteSetScale(duk_context *ctx) {
 
 	sprite->w = scaleX * sprite->srcW;
 	sprite->h = scaleY * sprite->srcH;
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -212,12 +223,14 @@ static duk_ret_t dk_SpriteGetScaleY(duk_context *ctx) {
  * sets the sprite's absolute output dimensions
  * @param {number} w - width in pixels
  * @param {number} h - height in pixels
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetDim(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->w = duk_to_number(ctx, 0);
 	sprite->h = duk_to_number(ctx, 1);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -248,6 +261,7 @@ static duk_ret_t dk_SpriteGetDimY(duk_context *ctx) {
  * @param {number} velX - horizontal velocity in pixels per second
  * @param {number} velY - vertical velocity in pixels per second
  * @param {number} [velRot] - rotation velocity in radians per second
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetVel(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
@@ -255,29 +269,34 @@ static duk_ret_t dk_SpriteSetVel(duk_context *ctx) {
 	sprite->velY = duk_to_number(ctx, 1);
 	if(!duk_is_undefined(ctx, 2))
 		sprite->velRot = duk_to_number(ctx, 2);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
  * @function Sprite.setVelX
  * sets the sprite's horizontal velocity
  * @param {number} velX - horizontal velocity in pixels per second
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetVelX(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->velX = duk_to_number(ctx, 0);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
  * @function Sprite.setVelY
  * sets the sprite's vertical velocity
  * @param {number} velY - vertical velocity in pixels per second
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetVelY(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->velY = duk_to_number(ctx, 0);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -317,11 +336,13 @@ static duk_ret_t dk_SpriteGetVelRot(duk_context *ctx) {
  * @function Sprite.setVelRot
  * sets the sprite's rotation velocity
  * @param {number} rot - rotation velocity in radians per second
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetVelRot(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->velRot = duk_to_number(ctx, 0);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -329,12 +350,14 @@ static duk_ret_t dk_SpriteSetVelRot(duk_context *ctx) {
  * sets the sprite's center coordinates
  * @param {number} cx - center X position, normalized from 0.0..1.0
  * @param {number} cy - center Y position, normalized from 0.0..1.0
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetCenter(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->cx = duk_to_number(ctx, 0);
 	sprite->cy = duk_to_number(ctx, 1);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -374,11 +397,13 @@ static duk_ret_t dk_SpriteGetRot(duk_context *ctx) {
  * @function Sprite.setRot
  * sets the sprite's rotation
  * @param {number} rot - rotation in radians
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetRot(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->rot = duk_to_number(ctx, 0);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -388,6 +413,7 @@ static duk_ret_t dk_SpriteSetRot(duk_context *ctx) {
  * @param {number} y - source y origin in pixels
  * @param {number} w - source width in pixels
  * @param {number} h - source height in pixels
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetSource(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
@@ -395,18 +421,21 @@ static duk_ret_t dk_SpriteSetSource(duk_context *ctx) {
 	sprite->srcY = duk_to_uint16(ctx, 1);
 	sprite->srcW = duk_to_uint16(ctx, 2);
 	sprite->srcH = duk_to_uint16(ctx, 3);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
  * @function Sprite.setTile
  * sets the sprite source tile number, given that the sprite's SpriteSet is tiled
  * @param {number} tile - tile number
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetTile(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	SpriteTile(sprite, duk_to_uint16(ctx, 0));
-	return 0;
+	duk_push_this(ctx);
+	return 1;
 }
 
 /**
@@ -424,11 +453,34 @@ static duk_ret_t dk_SpriteGetRadius(duk_context *ctx) {
  * @function Sprite.setRadius
  * sets the sprite's collision radius
  * @param {number} r - collision radius, use -1.0 to disable
+ * @returns {object} - sprite instance
  */
 static duk_ret_t dk_SpriteSetRadius(duk_context *ctx) {
 	Sprite* sprite = getThisInstance(ctx);
 	sprite->radius = duk_to_number(ctx, 0);
-	return 0;
+	duk_push_this(ctx);
+	return 1;
+}
+
+/**
+ * @function Sprite.set
+ * sets the sprite's custom attributes
+ * @param {object} attributes - custom attributes as key-value pairs
+ * @returns {object} - sprite instance
+ */
+static duk_ret_t dk_SpriteSet(duk_context *ctx) {
+	duk_push_this(ctx);
+	duk_idx_t objIdx = duk_get_top_index(ctx);
+	if(!duk_is_object(ctx, 0))
+		return duk_error(ctx, DUK_ERR_SYNTAX_ERROR, "object expected as argument of Sprite.set");
+	duk_enum(ctx, 0, 0);
+	duk_idx_t enumIdx = duk_get_top_index(ctx);
+	while (duk_next(ctx, enumIdx, 1 /*get_value*/)) {
+		const char* key =  duk_to_string(ctx, -2);
+		duk_put_prop(ctx, objIdx);
+	}
+	duk_pop(ctx); // enum
+	return 1;
 }
 
 /**
@@ -472,7 +524,7 @@ duk_ret_t dk_SpriteFinalizer(duk_context *ctx) {
 /**
  * @function SpriteSet.createSprite
  * creates a new Sprite instance and appends it to this SpriteSet
- * @param {number} [tile=0|srcX=0] - tile number for tiled source or source x origin
+ * @param {number|boolean} [tile=0|srcX=0] - tile number for tiled source or source x origin or false for an invisible sprite
  * @param {number} [srcY=0] - source y origin
  * @param {number} [srcW] - source width, default is parent SpriteSet texture width
  * @param {number} [srcH] - source height, default is parent SpriteSet texture height
@@ -493,10 +545,17 @@ duk_ret_t dk_createSprite(duk_context *ctx) {
 			duk_to_uint16(ctx, 0), duk_to_uint16(ctx, 1), duk_to_uint16(ctx, 2), duk_to_uint16(ctx, 3));
 		break;
 	case 1: {
-		uint16_t tile = duk_to_uint16(ctx, 0);
-		if(tile >= sps->tilesX * sps->tilesY)
-			return duk_error(ctx, DUK_ERR_RANGE_ERROR, "tile index out of range");
-		*sprite = SpriteCreateFromTile(sps, tile);
+		if(duk_is_boolean(ctx, 0)) {
+			*sprite = SpriteCreate(sps);
+			if(!duk_get_boolean(ctx, 0))
+				sprite->a = 0;
+		}
+		else {
+			uint16_t tile = duk_to_uint16(ctx, 0);
+			if(tile >= sps->tilesX * sps->tilesY)
+				return duk_error(ctx, DUK_ERR_RANGE_ERROR, "tile index out of range");
+			*sprite = SpriteCreateFromTile(sps, tile);
+		}
 		break;
 	}
 	default:
@@ -694,6 +753,8 @@ void sprites_exports(duk_context *ctx) {
 	duk_put_prop_literal(ctx, -2, "setRadius");
 	duk_push_c_function(ctx, dk_SpriteGetRadius, 0);
 	duk_put_prop_literal(ctx, -2, "getRadius");
+	duk_push_c_function(ctx, dk_SpriteSet, 1);
+	duk_put_prop_literal(ctx, -2, "set");
 	duk_push_c_function(ctx, dk_SpriteIntersects, 2);
 	duk_put_prop_literal(ctx, -2, "intersects");
 	duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("Sprite_prototype"));

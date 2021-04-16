@@ -1,9 +1,5 @@
 #include "sprites.h"
-#ifdef _SPRITE_GL
-#include "graphicsGL.h"
-#else
-#  include "graphics.h"
-#endif
+#include "graphics.h"
 #include "modules/intersects.h"
 
 #include <stddef.h>
@@ -31,7 +27,6 @@ void SpriteDraw(Sprite* s, size_t img) {
 		s->x-cx, s->y-cy, s->w, s->h, cx, cy, s->rot, s->flip);
 }
 
-#ifndef _SPRITE_GL
 Sprite SpriteCreateFromClippedImage(uint16_t srcX, uint16_t srcY, uint16_t srcW, uint16_t srcH) {
 	Sprite sprite = { 0.0f,0.0f,0.0f, srcW,srcH, 0.5f,0.5f,
 		255,255,255,255, srcX,srcY,srcW,srcH, 0, 0, NULL, 0.0f,0.0f,0.0f, -1.0f};
@@ -175,7 +170,6 @@ void SpriteSetUpdate(SpriteSet* sps, double deltaT) {
 		}
 	}
 }
-#endif
 
 SpriteSet SpriteSetCreate(size_t img) {
 		return SpriteSetCreateTiled(img, 1, 1, 0);
@@ -193,7 +187,7 @@ SpriteSet SpriteSetCreateTiled(
 void SpriteSetDraw(SpriteSet* sps) {
 	for(unsigned i=0; i<sps->numItems; ++i) {
 		Sprite* sprite = sps->items[i];
-		if(sprite)
+		if(sprite && sprite->a>0)
 			SpriteDraw(sprite, sps->img);
 	}
 }

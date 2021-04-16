@@ -37,22 +37,22 @@ function GfxObj(seed, winSzX, winSzY, szMin, szMax) {
 	this.sprite = null;
 	var velRot=0;
 	if(this.type==0) { // circle
-		this.sprite = sprites.createSprite(29);
-		this.sprite.setColor(randi(256), randi(256), randi(256),randi(63,256));
-		this.sprite.setDim(2*this.radius, 2*this.radius);
+		this.sprite = sprites.createSprite(29)
+			.setColor(randi(256), randi(256), randi(256),randi(63,256))
+			.setDim(2*this.radius, 2*this.radius);
 	}
 	else if(this.type==1) { // rect
-		this.sprite = sprites.createSprite(28);
-		this.sprite.setColor(randi(256), randi(256), randi(256),randi(63,256));
-		this.sprite.setDim(2*this.radius, 2*this.radius);
+		this.sprite = sprites.createSprite(28)
+			.setColor(randi(256), randi(256), randi(256),randi(63,256))
+			.setDim(2*this.radius, 2*this.radius);
 	}
 	else if(this.type==2) { // img
 		this.sprite = sprites.createSprite(Math.floor(seed/3)%28);
 		this.radius = 50;
 		velRot = Math.random()*Math.PI - Math.PI*0.5;
 	}
-	this.sprite.setPos(randi(winSzX), randi(winSzY));
-	this.sprite.setVel(randi(-2*szMin, 2*szMin), randi(-2*szMin, 2*szMin), velRot);
+	this.sprite.setPos(randi(winSzX), randi(winSzY))
+		.setVel(randi(-2*szMin, 2*szMin), randi(-2*szMin, 2*szMin), velRot);
 }
 var objs = [];
 

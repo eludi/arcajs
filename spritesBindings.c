@@ -534,7 +534,7 @@ duk_ret_t dk_createSprite(duk_context *ctx) {
 	int argc = duk_get_top(ctx);
 	SpriteSet* sps = getThisInstance(ctx);
 
-	duk_push_object(ctx);
+	duk_push_object(ctx); // a Sprite is a JS object with a sprite struct member and a prototype with access methods for this struct
 	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("Sprite_prototype"));
 	duk_set_prototype(ctx, -2);
 
@@ -583,7 +583,6 @@ duk_ret_t dk_SpriteSetUpdate(duk_context *ctx) {
  * @param {Sprite} sprite - sprite instance to be removed
  */
 duk_ret_t dk_removeSprite(duk_context *ctx) {
-	//SpriteSet* sps = getThisInstance(ctx);
 	if(!duk_is_object(ctx, 0) || !isPrototype(ctx, 0, DUK_HIDDEN_SYMBOL("Sprite_prototype")))
 		return duk_error(ctx, DUK_ERR_SYNTAX_ERROR,
 			"Sprite expected as first argument of SpriteSet.removeSprite");
@@ -765,7 +764,6 @@ void sprites_exports(duk_context *ctx) {
 	duk_put_prop_literal(ctx, -2, "createSprite");
 	duk_push_c_function(ctx, dk_removeSprite, 1);
 	duk_put_prop_literal(ctx, -2, "removeSprite");
-
 	duk_push_c_function(ctx, dk_SpriteSetUpdate, 1);
 	duk_put_prop_literal(ctx, -2, "update");
 	duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("SpriteSet_prototype"));
@@ -778,7 +776,6 @@ void sprites_exports(duk_context *ctx) {
 
 	duk_push_c_function(ctx, dk_SpriteSetDraw, 1);
 	duk_put_prop_literal(ctx, -2, "drawSprites"); // set method of gfx object, which is on the stack
-
 	duk_push_c_function(ctx, dk_SpriteSetDrawTile, 9);
 	duk_put_prop_literal(ctx, -2, "drawTile"); // set method of gfx object, which is on the stack
 }

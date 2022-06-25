@@ -596,7 +596,7 @@ return function (canvas, capacity=500) {
 	}
 	this.clipRect = function(x, y, w, h) {
 		this.flush();
-		if(x!==undefined) {
+		if(typeof x === 'number') {
 			gl.enable(gl.SCISSOR_TEST);
 			gl.scissor(x, canvas.height-y-h, w, h);
 		}

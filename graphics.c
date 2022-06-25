@@ -1,55 +1,62 @@
 #include "graphics.h"
 #include "graphicsUtils.h"
-
+#include "font12x16.h"
 #include "external/stb_truetype.h"
-#include "external/stb_image.h"
 
 #include <SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-
-extern const unsigned char font12x16[];
+#define countof(arr) sizeof(arr) / sizeof(arr[0])
 
 static SDL_Renderer* renderer = NULL;
 static SDL_Texture* defaultFont;
-static float lineWidth = 1.0f;
-static float camX=0, camY=0, camSc=1.0f;
-static int blendMode = SDL_BLENDMODE_BLEND;
+static float mat[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f };
 
-static size_t uploadDefaultFont(const unsigned char* font, unsigned char wChar, unsigned char hChar) {
-	const unsigned texW = 16*wChar, texH = 16*hChar, bytesPerRow = texW/8;
-	uint32_t* data = (uint32_t*)malloc(sizeof(uint32_t)*texW*texH);
-	memset(data, 0, sizeof(uint32_t)*texW*texH);
+typedef struct {
+	float transf[4];
+	float lineWidth;
+	SDL_Color clr;
+	int blendMode;
+} GfxState;
 
-	for(unsigned y=0; y<texH; ++y)
-		for(unsigned x=0; x<bytesPerRow; ++x) {
-			unsigned char byte = font[y*bytesPerRow + x];
-			for(int bit=0; bit<8; ++bit)
-				if(byte & (1<<(7-bit)))
-					data[y*texW + x*8+bit] = 0xffffffff;
-		}
-	size_t texId = gfxImageUpload((const unsigned char*)data, texW, texH, 4);
-	free(data);
-	return texId;
-}
+static uint8_t dtransf = 0, dtransfMax = 7;
+static GfxState gs[8];
 
-void gfxInit(void* render) {
+static float windowPixelRatio;
+
+typedef struct {
+	SDL_Texture *tex;
+	SDL_Rect src;
+	SDL_bool ownsTexture;
+	float cx, cy, sc;
+} ImgResource;
+
+static ImgResource* images=NULL;
+static uint32_t numImages=0, numImagesMax=0;
+
+void gfxInit(void* render, float pixelRatio) {
+	gfxStateReset();
+
 	renderer = (SDL_Renderer*)render;
+	windowPixelRatio = pixelRatio;
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-
-	defaultFont = (SDL_Texture*)uploadDefaultFont(font12x16, 12, 16);
-}
-
-void* gfxRenderer() {
-	return renderer;
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+	gfxSVGUpload(font12x16, sizeof(font12x16), pixelRatio);
+	defaultFont = images[0].tex;
+	gfxImageTile(0, 160,0,32,32);
+	gfxImageSetCenter(1, 0.5f, 0.5f);
+	images[1].sc = 1.0f/32.0f;
+	gfxImageTile(0, 126,40,1,1);
+	gfxImageSetCenter(2, 0.5f, 0.5f);
 }
 
 void gfxClose() {
 	if(!renderer)
 		return;
-	SDL_DestroyTexture(defaultFont);
+	while(numImages)
+		gfxImageRelease(numImages-1); 
 	renderer = NULL;
 }
 
@@ -62,199 +69,45 @@ void gfxTextureFiltering(int level) {
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "2");
 }
 
-void gfxOrigin(float ox, float oy) {
-	camX = ox;
-	camY = oy;
-}
-
-void gfxOriginScreen(float ox, float oy) {
-	camX = -ox/camSc;
-	camY = -oy/camSc;
-}
-
-void gfxScale(float sc) {
-	camSc = sc;
-}
-
-
-//--- color --------------------------------------------------------
-
-void gfxColor(uint32_t color) {
-	uint8_t r = color >> 24, g = color >> 16, b = color >> 8, a = color;
-	SDL_SetRenderDrawColor(renderer, r, g, b, a);
-}
-
-void gfxColorRGB(unsigned char r, unsigned char g, unsigned char b) {
-	SDL_SetRenderDrawColor(renderer, r, g, b, SDL_ALPHA_OPAQUE);
-}
-
-void gfxColorRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
-	SDL_SetRenderDrawColor(renderer, r, g, b, a);
-}
-
-void gfxLineWidth(float w) {
-	lineWidth = w;
-}
-
-float gfxGetLineWidth() {
-	return lineWidth;
-}
-
-void gfxBlend(int mode) {
-	SDL_SetRenderDrawBlendMode(renderer, mode);
-	blendMode = mode;
-}
-int gfxGetBlend() {
-	return blendMode;
-}
-
-void gfxClipDisable() {
-	SDL_RenderSetClipRect(renderer, NULL);
-}
-
-void gfxClipRect(int x,int y, int w, int h) {
-	SDL_Rect pos={x,y,w,h};
-	SDL_RenderSetClipRect(renderer, &pos);
-}
-
-//--- primitives ---------------------------------------------------
-
-void gfxDrawLineW(float x1, float y1, float x2, float y2, float lw) {
-	const float lw2 = lw/2;
-	SDL_FRect dest;
-	if(x1==x2) {
-		dest.x = x1-lw2+1;
-		dest.w = lw;
-		if(y1==y2) {
-			dest.y = y1-lw2;
-			dest.h = lw;
-		}
-		else {
-			dest.y = y1<y2 ? y1 : y2;
-			dest.h = abs(y2-y1);
-		}
-		SDL_RenderFillRectF(renderer, &dest);
+uint32_t gfxSVGUpload(const char* svg, size_t svgLen, float scale) {
+	char* svgCopy = malloc(svgLen+1);
+	memcpy(svgCopy, svg, svgLen);
+	svgCopy[svgLen]=0;
+	int w, h, d;
+	unsigned char* data = svgRasterize(svgCopy, scale, &w, &h, &d);
+	free(svgCopy);
+	if(data == NULL) {
+		fprintf(stderr, "Could not rasterize SVG image.\n");
+		return 0;
 	}
-	else if(y1==y2) {
-		dest.x = x1 < x2 ? x1: x2;
-		dest.y = y1-lw2+1;
-		dest.w = abs(x2-x1);
-		dest.h = lw;
-		SDL_RenderFillRectF(renderer, &dest);
-	}
-	else {
-		uint8_t r, g, b, a;
-		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-		SDL_SetTextureColorMod(defaultFont, r, g, b);
-		SDL_SetTextureAlphaMod(defaultFont, a);
-		SDL_SetTextureBlendMode(defaultFont, blendMode);
-		static SDL_Rect src = { 126,40,1,1 };
-		double angle = SDL_atan2(y2 - y1, x2 - x1) * 180.0 / M_PI;
-		dest.x = x1; dest.y = y1-lw2;
-		dest.w = SDL_sqrt(SDL_pow(x2-x1,2)+SDL_pow(y2-y1,2));
-		dest.h = lw;
-		SDL_FPoint center = {0,lw2};
-		SDL_RenderCopyExF(renderer, defaultFont, &src, &dest, angle, &center, SDL_FLIP_NONE);
-	}
+	uint32_t img = gfxImageUpload(data, w, h, d, 0xff);
+	free(data);
+	return img;
 }
 
-void gfxDrawRectW(float x, float y, float w, float h, float lw) {
-	SDL_FRect pos={x,y,w,lw};
-	SDL_RenderFillRectF(renderer, &pos);
-	pos.y += h-lw;
-	SDL_RenderFillRectF(renderer, &pos);
-	pos.y = y+lw;
-	pos.x = x;
-	pos.w = lw;
-	pos.h = h-2*lw;
-	SDL_RenderFillRectF(renderer, &pos);
-	pos.x += w-lw;
-	SDL_RenderFillRectF(renderer, &pos);
-}
-
-void gfxDrawRect(float x, float y, float w, float h) {
-	float lw = lineWidth*camSc;
-	if(lw!=1.0f)
-		gfxDrawRectW((x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc, lw);
-	else {
-		SDL_FRect pos = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
-		SDL_RenderDrawRectF(renderer, &pos);
-	}
-}
-
-void gfxFillRect(float x, float y, float w, float h) {
-	SDL_FRect pos = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
-	SDL_RenderFillRectF(renderer, &pos);
-}
-
-void gfxDrawPoints(unsigned n, const float* coords) {
-	if(lineWidth==1.0f && camSc==1.0f)
-		SDL_RenderDrawPointsF(renderer, (const SDL_FPoint*)coords, n);
-	else {
-		uint8_t r, g, b, a;
-		SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-		SDL_SetTextureColorMod(defaultFont, r, g, b);
-		SDL_SetTextureAlphaMod(defaultFont, a);
-		SDL_SetTextureBlendMode(defaultFont, blendMode);
-
-		const float lw = lineWidth * camSc;
-		const float lw2 = lw/2;
-		SDL_Rect src = {160,0,32,32};
-		SDL_FRect dest = {0,0,lw,lw};
-		for(unsigned i=0; i<n; ++i) {
-			dest.x = (coords[i*2]-camX)*camSc - lw2;
-			dest.y = (coords[i*2+1]-camY)*camSc - lw2;
-			SDL_RenderCopyF(renderer, defaultFont, &src, &dest);
-		}
-	}
-}
-
-void gfxDrawLineStrip(unsigned n, const float* coords) {
-	if(lineWidth==1.0f && camSc==1.0f)
-		SDL_RenderDrawLinesF(renderer, (const SDL_FPoint*)coords, n);
-	else if(n>1) {
-		float prevX = (coords[0]-camX)*camSc, prevY = (coords[1]-camY)*camSc, lw = lineWidth*camSc;
-		for(unsigned i=1; i<n; ++i) {
-			float x = (coords[i*2]-camX)*camSc;
-			float y = (coords[i*2+1]-camY)*camSc;
-			if(lw==1.0f)
-				SDL_RenderDrawLineF(renderer, prevX, prevY, x, y);
-			else
-				gfxDrawLineW(prevX, prevY, x, y, lw);
-			prevX = x;
-			prevY = y;
-		}
-		if(n>2 && lw>1.0f)
-			gfxDrawPoints(n-2, coords+2);
-	}
-}
-
-void gfxDrawLine(float x0, float y0, float x1, float y1) {
-	const float lw = lineWidth*camSc;
-	if(lw==1.0f)
-		SDL_RenderDrawLineF(renderer, (x0-camX)*camSc,(y0-camY)*camSc, (x1-camX)*camSc,(y1-camY)*camSc);
-	else
-		gfxDrawLineW((x0-camX)*camSc,(y0-camY)*camSc, (x1-camX)*camSc,(y1-camY)*camSc, lw);
-}
-
-size_t gfxImageUpload(const unsigned char* data, int w, int h, int d) {
+uint32_t gfxImageUpload(const unsigned char* data, int w, int h, int d, uint32_t rMask) {
 	if(!renderer) {
 		fprintf(stderr,"gfxImageUpload ERROR: SDL backend not initialized\n");
 		return 0;
 	}
 	if(!data || !w || !h ||!d)
 		return 0;
+
+	uint32_t gMask, bMask, aMask;
 	if(d==1) {
-		fprintf(stderr,"ERROR: grayscale texture currently not supported\n");
-		return 0;
+		rMask = gMask = bMask = 0xff; aMask = 0;
+	}
+	else if(d==2) {
+		gMask = bMask = rMask; aMask = (rMask==0xff) ? 0xff00 : 0xff;
+	}
+	else if(rMask==0xff) {
+		gMask = 0x0000ff00; bMask = 0x00ff0000; aMask = (d==4) ? 0xff000000 : 0;
+	}
+	else {
+		gMask = 0x00ff0000; bMask = 0x0000ff00; aMask = (d==4) ? 0xff : 0;
 	}
 
-	Uint32 rmask = 0x000000ff;
-	Uint32 gmask = 0x0000ff00;
-	Uint32 bmask = 0x00ff0000;
-	Uint32 amask = (d==4) ? 0xff000000 : 0;
-
-	SDL_Surface* surf = SDL_CreateRGBSurfaceFrom((void*)data, w, h, d*8, w*d, rmask, gmask, bmask, amask);
+	SDL_Surface* surf = SDL_CreateRGBSurfaceFrom((void*)data, w, h, d*8, w*d, rMask, gMask, bMask, aMask);
 	if(!surf) {
 		SDL_Log("Creating surface failed: %s", SDL_GetError());
 		return 0;
@@ -262,163 +115,104 @@ size_t gfxImageUpload(const unsigned char* data, int w, int h, int d) {
 	SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surf);
 	SDL_FreeSurface(surf);
 	if(texture) {
-		if(d==4)
+		if(d==2 || d==4)
 			SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
 		SDL_ClearError();
 	}
-	return (size_t)texture;
+
+	if(numImagesMax==0) {
+		numImagesMax=4;
+		images = (ImgResource*)malloc(numImagesMax*sizeof(ImgResource));
+	}
+	else if(numImages == numImagesMax) {
+		numImagesMax *= 2;
+		images = (ImgResource*)realloc(images, numImagesMax*sizeof(ImgResource));
+	}
+	images[numImages].tex = texture;
+	images[numImages].src = (SDL_Rect){0, 0, w, h};
+	images[numImages].ownsTexture = SDL_TRUE;
+	images[numImages].cx = images[numImages].cy = 0.0f;
+	images[numImages].sc = 1.0f;
+	return ++numImages -1;
 }
 
-size_t gfxImageLoad(const char* fname) {
-	int w,h,d;
-	unsigned char* data = stbi_load(fname, &w, &h, &d, 0);
-	if(!data)
-		return 0;
-
-	size_t img = gfxImageUpload(data, w, h, d);
-	free(data);
-	return img;
-}
-
-void gfxImageRelease(size_t img) {
-	SDL_DestroyTexture((SDL_Texture*)img);
-}
-
-void gfxImageDimensions(size_t img, int* w, int* h) {
-	SDL_Texture* texture = (SDL_Texture*)img;
-	SDL_QueryTexture(texture, 0, 0, w, h);
-}
-
-void gfxDrawImage(size_t img, float x, float y) {
-	SDL_Texture* texture = (SDL_Texture*)img;
-	uint8_t r, g, b, a;
-	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-	SDL_SetTextureColorMod(texture, r, g, b);
-	SDL_SetTextureAlphaMod(texture, a);
-	SDL_SetTextureBlendMode(texture, blendMode);
-
-	int w,h;
-	SDL_QueryTexture(texture, 0, 0, &w, &h);
-	SDL_FRect dest = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
-	SDL_RenderCopyF(renderer, texture, 0, &dest);
-}
-
-void gfxDrawImageScaled(size_t img, float x, float y, float w, float h) {
-	SDL_Texture* texture = (SDL_Texture*)img;
-	uint8_t r, g, b, a;
-	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-	SDL_SetTextureColorMod(texture, r, g, b);
-	SDL_SetTextureAlphaMod(texture, a);
-	SDL_SetTextureBlendMode(texture, blendMode);
-
-	SDL_FRect dest = {(x-camX)*camSc,(y-camY)*camSc,w*camSc,h*camSc};
-	SDL_RenderCopyF(renderer, texture, 0, &dest);
-}
-
-void gfxDrawImageEx(size_t img,
-	int srcX, int srcY, int srcW, int srcH,
-	float destX, float destY, float destW, float destH,
-	float cx, float cy, float angle, int flip)
-{
-	SDL_Texture* texture = (SDL_Texture*)img;
-	uint8_t r, g, b, a;
-	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-	SDL_SetTextureColorMod(texture, r, g, b);
-	SDL_SetTextureAlphaMod(texture, a);
-	SDL_SetTextureBlendMode(texture, blendMode);
-
-	SDL_Rect src = { srcX, srcY, srcW, srcH };
-	SDL_FRect dest = {(destX-camX)*camSc,(destY-camY)*camSc,destW*camSc,destH*camSc};
-	SDL_FPoint ctr = { cx*camSc, cy*camSc };
-	SDL_RenderCopyExF(renderer, texture, &src, &dest, angle*180.0f/M_PI, &ctr, flip);
-}
-
-
-//--- font rendering -----------------------------------------------
-
-static int utf8CharLen( unsigned char utf8Char ) {
-    if ( utf8Char < 0x80 ) return 1;
-    if ( ( utf8Char & 0x20 ) == 0 ) return 2;
-    if ( ( utf8Char & 0x10 ) == 0 ) return 3;
-    if ( ( utf8Char & 0x08 ) == 0 ) return 4;
-    if ( ( utf8Char & 0x04 ) == 0 ) return 5;
-    return 6;
-}
-
-static unsigned char utf8ToLatin1( const char *s, size_t *readIndex ) {
-    int len = utf8CharLen( (unsigned char)( s[ *readIndex ] ) );
-    if ( len == 1 ) {
-        unsigned char c = (unsigned char)s[ *readIndex ];
-		if(c)
-        	(*readIndex)++;
-        return c;
-    }
-
-    unsigned int v = ( s[ *readIndex ] & ( 0xff >> ( len + 1 ) ) ) << ( ( len - 1 ) * 6 );
-    (*readIndex)++;
-    for ( len-- ; len > 0 ; len-- )  {
-        v |= ( (unsigned char)( s[ *readIndex ] ) - 0x80 ) << ( ( len - 1 ) * 6 );
-        (*readIndex)++;
-    }
-    return ( v > 0xff ) ? 0 : (unsigned char)v;
-}
-
-
-static void gfxDrawBitmapFont(int x, int y, const char* str) {
-	const unsigned char wChar = 12, hChar = 16;
-	SDL_Texture* texture = defaultFont;
-
-	uint8_t r, g, b, a;
-	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-	SDL_SetTextureColorMod(texture, r, g, b);
-	SDL_SetTextureAlphaMod(texture, a);
-	SDL_SetTextureBlendMode(texture, blendMode);
-
-	SDL_Rect src  = { 0, 0, wChar, hChar };
-	SDL_Rect dest = { (x-camX)*camSc, (y-camY)*camSc, wChar, hChar };
-	for(size_t readIndex=0; str[readIndex]; x += wChar) {
-		unsigned char c = utf8ToLatin1(str, &readIndex);
-		if(c) {
-			src.x = (c%16)*wChar;
-			src.y = (c/16)*hChar;
-			SDL_RenderCopyEx(renderer, texture, &src, &dest, 0, NULL, SDL_FLIP_NONE);
-		}
-		dest.x += wChar;
+void gfxImageSetCenter(uint32_t img, float cx, float cy) {
+	if(img < numImages) {
+		images[img].cx = cx * images[img].src.w;
+		images[img].cy = cy * images[img].src.h;
+		//printf("setCenter:%.2f %.2f -> %.2f %.2f\n", cx, cy, images[img].cx, images[img].cy);
 	}
 }
+
+void gfxImageRelease(uint32_t img) {
+	if(img < numImages) {
+		if(images[img].ownsTexture) {
+			SDL_DestroyTexture(images[img].tex);
+			images[img].ownsTexture = SDL_FALSE;
+		}
+		images[img].tex = NULL;
+		images[img].src.x = images[img].src.y = images[img].src.w = images[img].src.h = 0;
+	}
+	while(numImages>0 && !images[numImages-1].tex)
+		--numImages;
+}
+
+uint32_t gfxImageTile(uint32_t parent, int x, int y, int w, int h) {
+	if(parent >= numImages)
+		return 0;
+	if(numImages == numImagesMax) {
+		numImagesMax *= 2;
+		images = (ImgResource*)realloc(images, numImagesMax*sizeof(ImgResource));
+	}
+
+	images[numImages].tex = images[parent].tex;
+	images[numImages].src = (SDL_Rect){x, y, w, h};
+	images[numImages].ownsTexture = SDL_FALSE;
+	const float parentW = images[parent].src.w, parentH = images[parent].src.h;
+	images[numImages].cx = images[parent].cx * w/parentW;
+	images[numImages].cy = images[parent].cy * h/parentH;
+	images[numImages].sc = 1.0f;
+	return ++numImages - 1;
+}
+
+uint32_t gfxImageTileGrid(uint32_t parent, uint16_t tilesX, uint16_t tilesY, uint16_t border) {
+	if(!parent || parent >= numImages)
+		return 0;
+	float w = images[parent].src.w/(float)tilesX;
+	float h = images[parent].src.h/(float)tilesY;
+	uint32_t ret = numImages;
+
+	for(uint16_t j=0; j<tilesY; ++j) for(uint16_t i=0; i<tilesX; ++i) {
+		gfxImageTile(parent, i*w+border, j*h+border, w-2*border, h-2*border);
+	}
+	return ret;
+}
+
+void gfxImageDimensions(uint32_t img, int* w, int* h) {
+	if(!img || img >= numImages)
+		return;
+	if(w)
+		*w = images[img].src.w;
+	if(h)
+		*h = images[img].src.h;
+}
+
+//--- font handling ------------------------------------------------
 
 #define GLYPH_MIN 32
 #define GLYPH_COUNT 224
 
 typedef struct {
-	SDL_Texture* texture;
+	uint32_t texId;
 	int texW, texH;
 	float height, ascent, descent;
 	stbtt_bakedchar glyphData[GLYPH_COUNT];
-} FontSpec;
+} FontResource;
 
-size_t gfxFontLoad(const char* fname, float fontHeight) {
-	FILE *ff=fopen(fname, "rb");
-	if (!ff) {
-		fprintf(stderr, "font file not found\n");
-		return 0;
-	}
-	fseek(ff,0,SEEK_END);
-	size_t fsize = ftell(ff);
-	rewind(ff);
-	unsigned char* ttf_buffer = (unsigned char*)malloc(fsize);
+static FontResource* fonts=NULL;
+static uint32_t numFonts=0, numFontsMax=0;
 
-	size_t ret = 0;
-	if(fread(ttf_buffer, 1,fsize, ff)==fsize)
-		ret = gfxFontUpload(ttf_buffer, fsize, fontHeight);
-	if(!ret)
-		fprintf(stderr, "font file read error\n");
-	fclose(ff);
-	free(ttf_buffer);
-	return ret;
-}
-
-size_t gfxFontUpload(void* fontData, unsigned dataSize, float fontHeight) {
+uint32_t gfxFontUpload(void* fontData, size_t dataSize, float fontHeight) {
 	// render glyphs into bitmap buffer:
 	const unsigned texW = fontHeight>48.0f? 1024 : 512, texH = fontHeight>64.0f ? 2048 : 1024;
 	uint8_t* bitmap = malloc(texW*texH);
@@ -437,85 +231,366 @@ size_t gfxFontUpload(void* fontData, unsigned dataSize, float fontHeight) {
 		pixels[pos*4+0] = pixels[pos*4+1] = pixels[pos*4+2] = 255;
 		pixels[pos*4+3] = px;
 	}
-	size_t texId = gfxImageUpload(pixels, texW, texH, 4);
+	uint32_t texId = gfxImageUpload(pixels, texW, texH, 4, 0xff);
 	free(pixels);
 	free(bitmap);
 
-	FontSpec* fnt = (FontSpec*)malloc(sizeof(FontSpec));
-	fnt->texture = (SDL_Texture*)texId;
+	if(numFontsMax==0) {
+		numFontsMax=4;
+		fonts = (FontResource*)malloc(numFontsMax*sizeof(FontResource));
+	}
+	else if(numFonts == numFontsMax) {
+		numFontsMax *= 2;
+		fonts = (FontResource*)malloc(numFontsMax*sizeof(FontResource));
+	}
+
+	FontResource* fnt = &fonts[numFonts];
+	fnt->texId = texId;
 	fnt->texW = texW;
 	fnt->texH = texH;
 	fnt->height = fontHeight;
 	memcpy(fnt->glyphData, glyphData, GLYPH_COUNT*sizeof(stbtt_bakedchar));
 	float lineGap;
 	stbtt_GetScaledFontVMetrics(fontData,0, fontHeight, &fnt->ascent, &fnt->descent, &lineGap);
-	return (size_t)fnt;
+
+	return ++numFonts;
 }
 
-void gfxFillText(size_t font, float x, float y, const char* text) {
-	if(!font) {
-		gfxDrawBitmapFont(x, y, text);
+void gfxFontRelease(uint32_t font) {
+	if(font<1 || font>numFonts)
+		return;
+	FontResource* fnt = &fonts[font-1];
+	if(!fnt->texId)
+		return;
+	gfxImageRelease(fnt->texId);
+	fnt->texId = 0;
+
+	while(numFonts>0 && !fonts[numFonts-1].texId)
+		--numFonts;
+}
+
+//--- state --------------------------------------------------------
+
+static void setMat(const float* transf) {
+	mat[0] = cos(transf[2])*transf[3]; mat[1] = -sin(transf[2])*transf[3];
+	mat[2] = transf[0]; mat[3] = -mat[1]; mat[4] = mat[0]; mat[5] = transf[1];
+}
+
+void gfxStateReset() {
+	dtransf = 0;
+	gs[0].transf[0] = gs[0].transf[1] = gs[0].transf[2] = 0.0f;
+	gs[0].transf[3] = 1.0f;
+	gs[0].lineWidth = 1.0f;
+	gs[0].clr.r = gs[0].clr.g = gs[0].clr.b = gs[0].clr.a = 255;
+	setMat(gs[0].transf);
+	gs[0].blendMode = SDL_BLENDMODE_BLEND;
+}
+
+void gfxStateSave() {
+	if(dtransf >= dtransfMax)
+		return;
+	const uint8_t d = dtransf;
+	memcpy(&gs[++dtransf], &gs[d], sizeof(GfxState));
+}
+
+void gfxStateRestore() {
+	if(dtransf < 1)
+		return;
+	setMat(gs[--dtransf].transf);
+}
+
+void gfxColor(uint32_t color) {
+	SDL_Color* clr = &gs[dtransf].clr;
+	clr->r = color >> 24, clr->g = color >> 16, clr->b = color >> 8, clr->a = color & 0xff;
+	SDL_SetRenderDrawColor(renderer, clr->r, clr->g, clr->b, clr->a);
+}
+
+void gfxLineWidth(float w) {
+	gs[dtransf].lineWidth = w;
+}
+
+void gfxBlend(int mode) {
+	SDL_SetRenderDrawBlendMode(renderer, mode);
+	gs[dtransf].blendMode = mode;
+}
+int gfxGetBlend() {
+	return gs[dtransf].blendMode;
+}
+
+void gfxClipRect(int x, int y, int w, int h) {
+	SDL_Rect pos={x,y,w,h};
+	SDL_RenderSetClipRect(renderer, (w<0||h<0) ? NULL : &pos);
+}
+
+void gfxSetTransform(float x, float y, float rot, float sc) {
+	float* transf = &gs[dtransf].transf[0];
+	transf[0] = x;
+	transf[1] = y; 
+	transf[2] = rot;
+	transf[3] = sc;
+	setMat(transf);
+}
+
+void gfxTransform(float x, float y, float rot, float sc) {
+	float* transf = &gs[dtransf].transf[0];
+	transf[0] += mat[0]*x + mat[1]*y;
+	transf[1] += mat[3]*x + mat[4]*y; 
+	transf[2] += rot;
+	transf[3] *= sc;
+	setMat(transf);
+}
+
+
+//--- low level ops ------------------------------------------------
+
+static int utf8CharLen( unsigned char utf8Char ) {
+	if ( utf8Char < 0x80 ) return 1;
+	if ( ( utf8Char & 0x20 ) == 0 ) return 2;
+	if ( ( utf8Char & 0x10 ) == 0 ) return 3;
+	if ( ( utf8Char & 0x08 ) == 0 ) return 4;
+	if ( ( utf8Char & 0x04 ) == 0 ) return 5;
+	return 6;
+}
+
+static unsigned char utf8ToLatin1( const char *s, size_t *readIndex ) {
+	int len = utf8CharLen( (unsigned char)( s[ *readIndex ] ) );
+	if ( len == 1 ) {
+		unsigned char c = (unsigned char)s[ *readIndex ];
+		if(c)
+			(*readIndex)++;
+		return c;
+	}
+
+	unsigned int v = ( s[ *readIndex ] & ( 0xff >> ( len + 1 ) ) ) << ( ( len - 1 ) * 6 );
+	(*readIndex)++;
+	for ( len-- ; len > 0 ; len-- )  {
+		v |= ( (unsigned char)( s[ *readIndex ] ) - 0x80 ) << ( ( len - 1 ) * 6 );
+		(*readIndex)++;
+	}
+	return ( v > 0xff ) ? 0 : (unsigned char)v;
+}
+
+/// generic affine 2d array transformation using a row-wise ordered float[6] transformation matrix
+/** arrIn and arrOut must have the same size but may point to the same memory */
+static void arrayTransf2d(const float transf[], uint32_t arrSz, const float* arrIn, float* arrOut) {
+	for(uint32_t i=0; i+1<arrSz; i+=2) {
+		float x=arrIn[i], y=arrIn[i+1];
+		arrOut[i] = x*transf[0] + y*transf[1] + transf[2];
+		arrOut[i+1] = x*transf[3] + y*transf[4] + transf[5];
+	}
+}
+
+// coords must already be transformed and lw already scaled
+static void gfxDrawLineW(float x1, float y1, float x2, float y2, float lw) {
+	//printf("gfxDrawLineW(%.1f,%.1f, %.1f,%.1f, %.1f)\n", x1,y1, x2,y2, lw);
+	const float dx = x2-x1, dy=y2-y1, d=sqrt(dx*dx+dy*dy);
+	const float lw2 = lw/2.0f, nx = lw2*-dy/d, ny=lw2*dx/d;
+	float c[] = {x1-nx, y1-ny, x2-nx, y2-ny, x2+nx, y2+ny, x1+nx, y1+ny};
+	static const uint8_t indices[] = { 0,1,2, 2,3,0 };
+	const SDL_Color* clr = &gs[dtransf].clr;
+	SDL_RenderGeometryRaw(renderer, NULL, c, 2*sizeof(float), clr, 0, NULL, 0, 4, indices, 6, 1);
+}
+
+void gfxDrawImageEx(SDL_Texture* texture,
+	int srcX, int srcY, int srcW, int srcH,
+	float destX, float destY, float destW, float destH,
+	float cx, float cy, float angle, int flip)
+{
+	const SDL_Color* clr = &gs[dtransf].clr;
+	SDL_SetTextureColorMod(texture, clr->r, clr->g, clr->b);
+	SDL_SetTextureAlphaMod(texture, clr->a);
+	SDL_SetTextureBlendMode(texture, gs[dtransf].blendMode);
+
+	SDL_Rect src = { srcX, srcY, srcW, srcH };
+	const float sc = gs[dtransf].transf[3];
+	SDL_FPoint ctr = { cx*sc*destW/srcW, cy*sc*destH/srcH };
+	SDL_FRect dest = {
+		destX*mat[0] + destY*mat[1] + mat[2] - ctr.x,
+		destX*mat[3] + destY*mat[4] + mat[5] - ctr.y,
+		destW*sc, destH*sc};
+	SDL_RenderCopyExF(renderer, texture, &src, &dest, (angle + gs[dtransf].transf[2])*180.0f/M_PI, &ctr, flip);
+}
+
+//--- basic drawing operations -------------------------------------
+
+void gfxDrawRect(float x, float y, float w, float h) {
+	float lw = gs[dtransf].lineWidth, lw2 = lw/2.0f;
+	float c[] = {x,y+lw2, x+w,y+lw2, x+w-lw2,y+lw, x+w-lw2,y+h-lw, x+w,y+h-lw2, x,y+h-lw2, x+lw2,y+h-lw, x+lw2,y+lw };
+	arrayTransf2d(mat, countof(c), c, c);
+	lw *= gs[dtransf].transf[3];
+	gfxDrawLineW(c[0],c[1], c[2],c[3], lw);
+	gfxDrawLineW(c[4],c[5], c[6],c[7], lw);
+	gfxDrawLineW(c[8],c[9], c[10],c[11], lw);
+	gfxDrawLineW(c[12],c[13], c[14],c[15], lw);
+}
+
+void gfxFillRect(float x, float y, float w, float h) {
+	float c[] = {x,y, x+w,y, x+w,y+h, x,y+h };
+	static const uint8_t indices[] = { 0,1,2, 2,3,0 };
+	arrayTransf2d(mat, countof(c), c, c);
+	const SDL_Color* clr = &gs[dtransf].clr;
+	SDL_RenderGeometryRaw(renderer, NULL, c, 2*sizeof(float), clr, 0, NULL, 0, 4, indices, 6, 1);
+}
+
+void gfxFillTriangle(float x0, float y0, float x1, float y1, float x2, float y2) {
+	float c[] = {x0,y0, x1,y1, x2,y2 };
+	arrayTransf2d(mat, countof(c), c, c);
+	const SDL_Color* clr = &gs[dtransf].clr;
+	SDL_RenderGeometryRaw(renderer, NULL, c, 2*sizeof(float), clr, 0, NULL, 0, 3, NULL, 0, 0);
+}
+
+void gfxDrawLine(float x0, float y0, float x1, float y1) {
+	float c[] = {x0,y0, x1,y1 };
+	arrayTransf2d(mat, countof(c), c, c);
+	gfxDrawLineW(c[0],c[1], c[2],c[3], gs[dtransf].lineWidth * gs[dtransf].transf[3]);
+}
+
+void gfxDrawLineStrip(uint32_t numCoords, const float* coords) {
+	for(uint32_t i=2, end=numCoords*2; i<end; i+=2)
+		gfxDrawLine(coords[i-2], coords[i-1], coords[i], coords[i+1]);
+}
+
+void gfxDrawLineLoop(uint32_t numCoords, const float* coords) {
+	gfxDrawLineStrip(numCoords, coords);
+	if(numCoords>2)
+		gfxDrawLine(coords[numCoords*2-2], coords[numCoords*2-1], coords[0], coords[1]);
+}
+
+void gfxDrawPoints(uint32_t numCoords, const float* coords, uint32_t img) {
+	float lineWidth = gs[dtransf].lineWidth;
+	const float* transf = gs[dtransf].transf;
+	if(lineWidth==1.0f && transf[0]==0.0f && transf[1]==0.0f && transf[2] == 0.0f && transf[3]==1.0f) {
+		SDL_RenderDrawPointsF(renderer, (const SDL_FPoint*)coords, numCoords);
 		return;
 	}
-	FontSpec* fnt = (FontSpec*)font;
-	uint8_t r, g, b, a;
-	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-	SDL_SetTextureColorMod(fnt->texture, r, g, b);
-	SDL_SetTextureAlphaMod(fnt->texture, a);
-	SDL_SetTextureBlendMode(fnt->texture, blendMode);
+	if(!img || img >= numImages)
+		img = GFX_IMG_CIRCLE;
+	ImgResource* res = &images[img];
+	for(uint32_t i=0; i<numCoords; ++i) {
+		gfxDrawImageEx(res->tex, res->src.x,res->src.y,res->src.w,res->src.h,
+			coords[i*2],coords[i*2+1], lineWidth,lineWidth, res->cx,res->cy, 0,0);
+	}
+}
+
+void gfxDrawImage(uint32_t img, float x, float y, float rot, float sc, int flip) {
+	if(!img || img >= numImages)
+		return;
+	ImgResource* res = &images[img];
+	gfxDrawImageEx(res->tex, res->src.x,res->src.y,res->src.w,res->src.h,
+		x,y,res->src.w*res->sc*sc,res->src.h*res->sc*sc, res->cx,res->cy, rot, flip);
+}
+
+void gfxStretchImage(uint32_t img, float x, float y, float w, float h) {
+	if(!img || img >= numImages)
+		return;
+	ImgResource* res = &images[img];
+	gfxDrawImageEx(res->tex, res->src.x,res->src.y,res->src.w,res->src.h, x,y,w,h, 0,0,0,0);
+}
+
+void gfxFillTextDefault(float x, float y, const char* str) {
+	const unsigned char wChar = 12*windowPixelRatio, hChar = 16*windowPixelRatio;
+	SDL_Texture* texture = defaultFont;
+
+	const SDL_Color* clr = &gs[dtransf].clr;
+	SDL_SetTextureColorMod(texture, clr->r, clr->g, clr->b);
+	SDL_SetTextureAlphaMod(texture, clr->a);
+	SDL_SetTextureBlendMode(texture, gs[dtransf].blendMode);
+
+	SDL_Rect src  = { 0, 0, wChar, hChar };
+	float rot = gs[dtransf].transf[2]*180.0f/M_PI, sc = gs[dtransf].transf[3];
+	SDL_FRect dest = {x*mat[0] + y*mat[1] + mat[2], x*mat[3] + y*mat[4] + mat[5], wChar*sc, hChar*sc};
+	static const SDL_FPoint ctr = { 0, 0 };
+	for(size_t readIndex=0; str[readIndex]; x += wChar) {
+		unsigned char c = utf8ToLatin1(str, &readIndex);
+		if(c) {
+			src.x = (c%16)*wChar;
+			src.y = (c/16)*hChar;
+			SDL_RenderCopyExF(renderer, texture, &src, &dest, rot, &ctr, SDL_FLIP_NONE);
+		}
+		dest.x += wChar*mat[0];
+		dest.y += wChar*mat[3];
+	}
+}
+
+void gfxFillTextFont(uint32_t font, float x, float y, const char* str) {
+	const FontResource* fnt = NULL;
+	if(font>0 && font<=numFonts) {
+		fnt = &fonts[font-1];
+		if(!fnt->texId)
+			fnt = NULL;
+	}
+	if(!fnt) {
+		gfxFillTextDefault(x, y, str);
+		return;
+	}
+
+	SDL_Texture* texture = images[fnt->texId].tex;
+	const SDL_Color* clr = &gs[dtransf].clr;
+	SDL_SetTextureColorMod(texture, clr->r, clr->g, clr->b);
+	SDL_SetTextureAlphaMod(texture, clr->a);
+	SDL_SetTextureBlendMode(texture, gs[dtransf].blendMode);
 
 	y += fnt->ascent;
+	float destX = x*mat[0] + y*mat[1] + mat[2], destY = x*mat[3] + y*mat[4] + mat[5];
+	static const SDL_FPoint ctr = { 0, 0 };
+	float rot = gs[dtransf].transf[2]*180.0f/M_PI, sc = gs[dtransf].transf[3];
 
-	for(size_t readIndex=0; text[readIndex]; ) {
-		unsigned char c = utf8ToLatin1(text, &readIndex);
+	for(size_t readIndex=0; str[readIndex]; ) {
+		unsigned char c = utf8ToLatin1(str, &readIndex);
 		if(c<GLYPH_MIN || c>=GLYPH_MIN+GLYPH_COUNT)
 			c = ' '; // render as space
 
 		const stbtt_bakedchar* glyph = &fnt->glyphData[c - GLYPH_MIN];
-		int w = glyph->x1 - glyph->x0, h = glyph->y1 - glyph->y0;
-		SDL_Rect src  = { .x = glyph->x0, .y = glyph->y0, .w = w, .h = h };
-		SDL_Rect dest = { (x + glyph->xoff + 0.5f - camX)*camSc,
-			(y + glyph->yoff + 0.5f - camY)*camSc, w*camSc, h*camSc };
-		SDL_RenderCopyEx(renderer, fnt->texture, &src, &dest, 0, NULL, SDL_FLIP_NONE);
-		x += glyph->xadvance;
+		int wChar = glyph->x1 - glyph->x0, hChar = glyph->y1 - glyph->y0;
+		SDL_Rect src  = { .x = glyph->x0, .y = glyph->y0, .w = wChar, .h = hChar };
+		float xoff = (glyph->xoff + 0.5f)*mat[0] + (glyph->yoff + 0.5f)*mat[1];
+		float yoff = (glyph->xoff + 0.5f)*mat[3] + (glyph->yoff + 0.5f)*mat[4];
+		SDL_FRect dest = { destX + xoff, destY + yoff, wChar*sc, hChar*sc };
+		SDL_RenderCopyExF(renderer, texture, &src, &dest, rot, &ctr, SDL_FLIP_NONE);
+		destX += glyph->xadvance * mat[0];
+		destY += glyph->xadvance * mat[3];
 	}
 }
 
-void gfxFillTextAlign(size_t font, float x, float y, const char* text, GfxAlign align) {
-	if(align!=GFX_ALIGN_LEFT_TOP) {
-		float w,h;
-		gfxMeasureText(font, text, &w, &h, NULL, NULL);
-		switch(align) {
-		case GFX_ALIGN_LEFT_TOP: break;
-		case GFX_ALIGN_CENTER_TOP: x -= w/2; break;
-		case GFX_ALIGN_RIGHT_TOP: x -= w; break;
-		case GFX_ALIGN_LEFT_MIDDLE: y -= h/2; break;
-		case GFX_ALIGN_CENTER_MIDDLE: x -= w/2; y -= h/2; break;
-		case GFX_ALIGN_RIGHT_MIDDLE: x -= w; y -= h/2; break;
-		case GFX_ALIGN_LEFT_BOTTOM: y -= h; break;
-		case GFX_ALIGN_CENTER_BOTTOM: x -= w/2; y -= h; break;
-		case GFX_ALIGN_RIGHT_BOTTOM: x -= w; y -= h; break;
-		}
-	}
-	gfxFillText(font, x, y, text);
+void gfxFillText(uint32_t font, float x, float y, const char* str) {
+	if(font==0)
+		gfxFillTextDefault(x,y,str);
+	gfxFillTextFont(font, x,y, str);
 }
 
-void gfxMeasureText(size_t font, const char* text, float* width, float* height, float* ascent, float* descent) {
+void gfxFillTextAlign(uint32_t font, float x, float y, const char* str, int align) {
+	float width, height;
+	gfxMeasureText(font, str, &width, &height, NULL, NULL);
+	if(align & GFX_ALIGN_RIGHT_TOP)
+		x-=width;
+	else if(align & GFX_ALIGN_CENTER_TOP)
+		x-=width/2;
+	if(align & GFX_ALIGN_LEFT_BOTTOM)
+		y-=height;
+	else if(align & GFX_ALIGN_LEFT_MIDDLE)
+		y-=height/2;
+	gfxFillText(font, x,y, str);
+}
+
+void gfxMeasureText(uint32_t font, const char* text, float* width, float* height, float* ascent, float* descent) {
 	if(!font) {
+		const unsigned char wChar = 12*windowPixelRatio, hChar = 16*windowPixelRatio;
 		if(width) {
 			*width = 0;
 			for(size_t readIndex=0; text[readIndex]; utf8ToLatin1(text, &readIndex))
-				*width += 12.0f;
+				*width += wChar;
 		}
 		if(height)
-			*height = 16.0f;
+			*height = hChar;
 		if(ascent)
-			*ascent = 12.0f;
+			*ascent = wChar;
 		if(descent)
-			*descent = -4.0f;
+			*descent = wChar-hChar;
 		return;
 	}
-	FontSpec* fnt = (FontSpec*)font;
+	if(font>numFonts || !fonts[font-1].texId)
+		return;
+	const FontResource* fnt = &fonts[font-1];
 	if(width) {
 		*width = 0.0f;
 		if(text) for(size_t readIndex=0; text[readIndex]; ) {
@@ -535,8 +610,84 @@ void gfxMeasureText(size_t font, const char* text, float* width, float* height, 
 		*descent = fnt->descent;
 }
 
-void gfxFontRelease(size_t font) {
-	FontSpec* fnt = (FontSpec*)font;
-	SDL_DestroyTexture(fnt->texture);
-	free(fnt);
+//--- experimental extensions --------------------------------------
+
+void gfxDrawTiles(uint16_t tilesX, uint16_t tilesY, uint32_t stride,
+	uint32_t imgBase, const uint32_t* imgOffsets, const uint32_t* colors)
+{
+	const float w = images[imgBase].src.w, h=images[imgBase].src.h;
+	for(uint16_t j=0; j<tilesY; ++j) for(uint16_t i=0; i<tilesX; ++i) {
+		size_t index = j*stride+i;
+		if(colors)
+			gfxColor(colors[index]);
+		uint32_t img = imgOffsets ? imgBase+imgOffsets[index] : imgBase;
+		gfxDrawImage(img, i*w, j*h,0,1.0,0);
+	}
+}
+
+void gfxDrawImages(uint32_t imgBase, uint32_t numInstances, uint32_t stride,
+	const gfxArrayComponents comps, const float* arr)
+{
+	int hasColors = (comps&GFX_COMP_COLOR_RGBA) != 0;
+	SDL_Color* clr = &gs[dtransf].clr;
+	for(uint32_t i=0; i<numInstances; ++i) {
+		const float* data = &arr[i*stride];
+		uint32_t img = imgBase, j=0;
+		if(comps & GFX_COMP_IMG_OFFSET)
+			img += data[j++];
+		if(!img || img >= numImages)
+			continue;
+
+		float x = data[j++], y = data[j++];
+		float rot = (comps & GFX_COMP_ROT) ? data[j++] : 0.0f;
+		float sc = (comps & GFX_COMP_SCALE) ? data[j++] : 1.0f;
+		if(hasColors) {
+			clr->r = (comps & GFX_COMP_COLOR_R) ? data[j++] : clr->r;
+			clr->g = (comps & GFX_COMP_COLOR_G) ? data[j++] : clr->g;
+			clr->b = (comps & GFX_COMP_COLOR_B) ? data[j++] : clr->b;
+			clr->a = (comps & GFX_COMP_COLOR_A) ? data[j++] : clr->a;
+			if(!clr->a)
+				continue;
+			SDL_SetRenderDrawColor(renderer, clr->r, clr->g, clr->b, clr->a);
+		}
+		ImgResource* res = &images[img];
+		gfxDrawImageEx(res->tex, res->src.x,res->src.y,res->src.w,res->src.h,
+			x,y,res->src.w*res->sc*sc,res->src.h*res->sc*sc, res->cx,res->cy,rot,0);
+	}
+}
+
+void gfxFillTriangles(uint32_t numVertices, const float* coords,
+	const uint32_t* colors, uint32_t numIndices, const uint32_t* indices)
+{
+	const SDL_Color* clr = &gs[dtransf].clr;
+	static float coordsTrans[1000*6*2];
+	const uint32_t numTrianglesMax = 2000;
+	for(uint32_t offset=0; offset<numVertices; offset+=numTrianglesMax*3*2) {
+		uint32_t numCoords = numVertices - offset;
+		if(numCoords>numTrianglesMax*3*2)
+			numCoords = numTrianglesMax*3*2;
+		arrayTransf2d(mat, numCoords*2, &coords[offset*2], coordsTrans);
+		SDL_RenderGeometryRaw(renderer, NULL, coordsTrans, 2*sizeof(float),
+			(colors ? (SDL_Color*)(colors+offset) : clr), colors ? sizeof(uint32_t) : 0, NULL, 0, numCoords,
+			indices, numIndices, indices? 4 : 0);
+	}
+}
+
+void gfxTexTriangles(uint32_t img, uint32_t numVertices, const float* coords, const float* uvCoords,
+	const uint32_t* colors, uint32_t numIndices, const uint32_t* indices)
+{
+	SDL_Texture* tex = (!img || img >= numImages) ? NULL : images[img].tex;
+	const SDL_Color* clr = &gs[dtransf].clr;
+
+	static float coordsTrans[1000*6*2];
+	const uint32_t numTrianglesMax = 2000;
+	for(uint32_t offset=0; offset<numVertices; offset+=numTrianglesMax*3*2) {
+		uint32_t numCoords = numVertices - offset;
+		if(numCoords>numTrianglesMax*3*2)
+			numCoords = numTrianglesMax*3*2;
+		arrayTransf2d(mat, numCoords*2, &coords[offset*2], coordsTrans);
+		SDL_RenderGeometryRaw(renderer, tex, coordsTrans, 2*sizeof(float),
+			(colors ? (SDL_Color*)(colors+offset) : clr), colors ? sizeof(uint32_t) : 0, uvCoords, 2*sizeof(float), numCoords,
+			indices, numIndices, indices? 4 : 0);
+	}
 }

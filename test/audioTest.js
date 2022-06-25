@@ -24,7 +24,7 @@ function createSinSample(freq, duration) {
 	var sample = new Float32Array(numSamples);
 	for(var i=0; i<numSamples; ++i)
 		sample[i]=Math.sin(freq*i*2*Math.PI/sampleRate);
-	return audio.sample(sample);
+	return audio.uploadPCM(sample);
 }
 
 app.on('load', function() {

@@ -120,7 +120,7 @@ static size_t ArchiveLoadImage(Archive* ar, const char* fname) {
 	if(!data)
 		return 0;
 
-	size_t img = gfxImageUpload(data, w, h, d);
+	size_t img = gfxImageUpload(data, w, h, d, 0xff);
 	free(data);
 	return img;
 }
@@ -133,7 +133,7 @@ static size_t ArchiveLoadSVG(char* svg, float scale) {
 		fprintf(stderr, "Could not rasterize SVG image.\n");
 		return 0;
 	}
-	size_t img = gfxImageUpload(data, w, h, d);
+	size_t img = gfxImageUpload(data, w, h, d, 0xff);
 	free(data);
 	return img;
 }
@@ -197,9 +197,7 @@ size_t ResourceGetImage(const char* name, float scale, int filtering) {
 	for(unsigned i=0; i<ra->numImages; ++i) // lookup by name
 		if(strcmp(ra->images[i].name, name)==0)
 			return ra->images[i].handle;
-
 	gfxTextureFiltering(filtering);
-
 	size_t handle = (isImage==1) ?
 		ArchiveLoadImage(ra->ar, name) : ArchiveLoadSVG(ResourceGetText(name), scale);
 	if(!handle)
@@ -325,41 +323,7 @@ size_t ResourceCreateSVGImage(const char* svg, float scale) {
 size_t ResourceCreateImage(int width, int height, const unsigned char* data, int filtering) {
 	if(!ra)
 		return 0;
-
 	gfxTextureFiltering(filtering);
-	return gfxImageUpload(data, width, height, 4);
-}
-
-//------------------------------------------------------------------
-typedef struct {
-	size_t handle;
-	int type;
-} ProtectedHandle;
-
-static ProtectedHandle* handles=NULL;
-static unsigned numHandles=0;
-static unsigned numHandlesMax=0;
-
-uint32_t ResourceProtectHandle(size_t handle, int type) {
-	if(!handle || numHandles==UINT32_MAX)
-		return 0;
-	if(numHandlesMax==0) {
-		numHandlesMax=4;
-		handles = (ProtectedHandle*)malloc(numHandlesMax*sizeof(ProtectedHandle));
-	}
-	else if(numHandles == numHandlesMax) {
-		numHandlesMax *= 2;
-		handles = (ProtectedHandle*)realloc(handles, numHandlesMax*sizeof(ProtectedHandle));
-	}
-	handles[numHandles].handle = handle;
-	handles[numHandles].type = type;
-	return (uint32_t)++numHandles;
-}
-
-size_t ResourceValidateHandle(uint32_t handle, int type) {
-	if(!handle || handle>numHandles)
-		return 0;
-	if(handles[--handle].type != type)
-		return 0;
-	return handles[handle].handle;
+	size_t img = gfxImageUpload(data, width, height, 4, 0xff000000);
+	return img;
 }

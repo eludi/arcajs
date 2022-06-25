@@ -125,14 +125,11 @@ function connectSource(source, gain, pan) {
 	if (!source.start)
 		source.start = source.noteOn;
 
-	let pred = source;
+	let gainNode = audioCtx.createGain();
+	gainNode.gain.value = gain;
+	source.connect(gainNode);
+	let pred = gainNode;
 
-	if(gain!=1.0) {
-		let gainNode = audioCtx.createGain();
-		gainNode.gain.value = gain;
-		pred.connect(gainNode);
-		pred = gainNode;
-	}
 	if(pan) {
 		let panNode;
 		if (audioCtx.createStereoPanner) {
@@ -148,6 +145,49 @@ function connectSource(source, gain, pan) {
 		pred = panNode;
 	}
 	pred.connect(masterVolume);
+	return gainNode;
+}
+
+function note2freq(note, accidental, octave) {
+	if(typeof note === 'number')
+		return note;
+	if(note[0]>= '0' && note[0] <= '9')
+		return parseFloat(note);
+
+	function transposeFreq(base, n) {
+		const step = 1.0594630943592952646; // pow(2.0, 1.0/12.0);
+		return base * Math.pow(step, n);
+	}
+
+	let steps;
+	switch(note) {
+	case 'B':
+		steps = 2; break;
+	case 'C':
+		steps = 3; break;
+	case 'D':
+		steps = 5; break;
+	case 'E':
+		steps = 7; break;
+	case 'F':
+		steps = 8; break;
+	case 'G':
+		steps = 10; break;
+	case '-':
+		return 0.0;
+	default:
+		steps = 0;
+	}
+
+	if(accidental == 'b')
+		--steps;
+	else if(accidental == '#')
+		++steps;
+
+	if(steps>2)
+		--octave;
+	const base = 27.5 * Math.pow(2.0, octave);
+	return transposeFreq(base, steps);
 }
 
 function Melody(melody) {
@@ -256,43 +296,6 @@ function Melody(melody) {
 			}
 		}
 		return pos;
-	}
-
-	function transposeFreq(base, n) {
-		const step = 1.0594630943592952646; // pow(2.0, 1.0/12.0);
-		return base * Math.pow(step, n);
-	}
-
-	function note2freq(note, accidental, octave) {
-		let steps;
-		switch(note) {
-		case 'B':
-			steps = 2; break;
-		case 'C':
-			steps = 3; break;
-		case 'D':
-			steps = 5; break;
-		case 'E':
-			steps = 7; break;
-		case 'F':
-			steps = 8; break;
-		case 'G':
-			steps = 10; break;
-		case '-':
-			return 0.0;
-		default:
-			steps = 0;
-		}
-	
-		if(accidental == 'b')
-			--steps;
-		else if(accidental == '#')
-			++steps;
-	
-		if(steps>2)
-			--octave;
-		const base = 27.5 * Math.pow(2.0, octave);
-		return transposeFreq(base, steps);
 	}
 
 	function readNote(melody, pos, note) {
@@ -408,6 +411,9 @@ function Melody(melody) {
 	this.stop = function() {
 		melodyVolume.disconnect();
 	}
+	this.volume = function(vol) {
+		melodyVolume.gain.value = vol;
+	}
 }
 
 
@@ -436,11 +442,11 @@ return {
 		if(trackId === numTracksMax)
 			return 0xffffffff;
 	
-		let source = tracks[trackId] = audioCtx.createBufferSource();
+		let source = audioCtx.createBufferSource();
 		if(detune!==0)
 			source.playbackRate.value = Math.pow(2, detune/12);
 		source.buffer = sample.buffer;
-		connectSource(source, gain, pan);
+		tracks[trackId] = { src:source, gain:connectSource(source, gain, pan) };
 		source.start(audioCtx.currentTime + deltaT, sample.offset || 0);
 		source.addEventListener('ended', ()=>{ tracks[trackId]=null; })
 		return trackId;
@@ -448,21 +454,43 @@ return {
 	stop: function(track) {
 		if(track===undefined) for(let i=0; i<numTracksMax; ++i)
 			if(tracks[i]!==null) {
-				let source = tracks[i];
+				let source = tracks[i].src;
 				source.stop();
-				source = null;
+				tracks[i] = null;
 			}
 
-		let source = tracks[track];
-		if(!source)
+		let tr = tracks[track];
+		if(!tr)
 			return;
-		source.stop();
-		source = null;
+		if('src' in tr)
+			tr.src.stop();
+		else
+			tr.stop();
+		tracks[track] = null;
 	},
-	volume: function(v) {
-		if(v===undefined)
+	volume: function(arg0, arg1) {
+		if(arg0===undefined)
 			return masterVolume.gain.value;
-		masterVolume.gain.value = v;
+		if(arg1===undefined) {
+			masterVolume.gain.value = arg0;
+			return;
+		}
+		let tr = tracks[arg0];
+		if(!tr)
+			return;
+		if('gain' in tr)
+			tr.gain.gain.value = arg1;
+		else
+			tr.volume(arg1);
+	},
+	fadeOut: function(track, duration) {
+		let tr = tracks[track];
+		if(!tr)
+			return;
+		if('gain' in tr) {
+			tr.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+			tr.src.stop(audioCtx.currentTime + duration);
+		}
 	},
 	playing: function(track) {
 		if(track===undefined) {
@@ -471,8 +499,8 @@ return {
 					return true;
 			return false;
 		}
-		let source = tracks[track];
-		return source ? true : false;
+		let tr = tracks[track];
+		return tr ? true : false;
 	},
 	sound: function(wave, freq, duration, vol=1.0, balance=0.0) {
 		let source = createSource(wave.substr(0,3).toLowerCase(), freq);
@@ -480,9 +508,7 @@ return {
 		let trackId = findAvailableTrack();
 		if(trackId === numTracksMax)
 			return 0xffffffff;
-		tracks[trackId] = source;
-
-		connectSource(source, vol, balance);
+		tracks[trackId] = { src:source, gain:connectSource(source, vol, balance) };
 		source.addEventListener('ended', ()=>{ tracks[trackId]=null; })
 		source.start();
 		source.stop(audioCtx.currentTime + duration);
@@ -496,15 +522,138 @@ return {
 		let duration = m.replay(vol, balance);
 		setTimeout(()=>{ tracks[trackId].stop(); tracks[trackId]=null; }, duration*1000);
 	},
-	sample: function(data, sampleRate=audioCtx.sampleRate) {
-		var buffer = audioCtx.createBuffer(1, data.length, sampleRate);
-		var channel = buffer.getChannelData(0);
-		for (let i = 0, end=data.length; i < end; ++i)
-			channel[i] = data[i];
+	uploadPCM: function(data, numChannels=1) {
+		var buffer = audioCtx.createBuffer(numChannels, data.length/numChannels, audioCtx.sampleRate);
+		for(let j=0; j<numChannels; ++j) {
+			var channel = buffer.getChannelData(j);
+			for (let i = 0, end=data.length/numChannels; i < end; ++i)
+				channel[i] = data[i*numChannels+j];
+		}
 		samples.push({ id:samples.length+1, ready:true, url:'', buffer:buffer, offset:0 });
 		return samples.length;
 	},
-	sampleRate: audioCtx.sampleRate
+	sampleRate: audioCtx.sampleRate,
+
+	createSoundBuffer: function(/*arguments*/) {
+		const sampleRate = audio.sampleRate;
+		const PI2 = 2.0 * Math.PI;
+
+		function oscSin(phase, timbre) {
+			if(timbre===undefined || timbre>=1)
+				return Math.sin(PI2 * phase);
+			const s = Math.sin(PI2* phase);
+			return Math.sign(s) * Math.abs(s)**timbre;
+		}
+		function oscSqu(phase, timbre) { return (phase%1 < timbre) ? 1.0 : -1.0; }
+		function oscSaw(phase, timbre) {
+			const timbre2 = timbre/2, x = phase%1, x2=1-timbre2;
+			return (x<timbre2) ? x/timbre2 :
+				(x<x2) ? 1-2*(x-timbre2)/(1-timbre) :
+				-1+(x-x2)/timbre2;
+		}
+		function oscNoi(phase, timbre) {
+			const waveLen = Math.ceil(sampleRate/20000/timbre);
+			if(--oscNoi.counter<0) {
+				oscNoi.counter = waveLen;
+				oscNoi.amplPrev = oscNoi.amplitude;
+				oscNoi.amplitude = Math.random()*2 - 1.0;
+			}
+			return oscNoi.amplitude * (1-oscNoi.counter/waveLen) + oscNoi.amplPrev * (oscNoi.counter/waveLen);
+		}
+		oscNoi.counter = -1;
+		oscNoi.amplitude = oscNoi.amplPrev = 0;
+
+		function oscBin(phase, timbre) { // binary noise
+			const freq = timbre*20000;
+			if(--oscBin.counter < 0) {
+				oscBin.counter = Math.ceil(Math.random()*sampleRate/freq);
+				oscBin.amplitude = -oscBin.amplitude;
+			}
+			return oscBin.amplitude;
+		}
+		oscBin.counter = -1;
+		oscBin.amplitude = 1;
+
+		function defaultTimbre(osc) {
+			switch(osc) {
+			case oscSqu: return 0.5;
+			case oscBin: return 0.5;
+			default: return 1.0;
+			}
+		}
+
+		function chirp(osc, buffer, pos, phase, freq1, freq2, vol1, vol2, timbre1, timbre2, duration) {
+			const dvol = vol2-vol1, dfreq = freq2-freq1, dtimbre = timbre2-timbre1;
+			const len =sampleRate*duration, dt=1/sampleRate;
+			for(var i=0, t=0, dest=Math.floor(pos*sampleRate); i<len; ++i, ++dest, t+=dt) {
+				const rel = i/len;
+				const vol = vol1 + dvol*rel, freq=freq1 + dfreq*rel, timbre=timbre1 + dtimbre*rel;
+				buffer[dest] = Math.max(-1, Math.min(1, osc(phase, timbre)*vol));
+				phase += freq*dt;
+			}
+			return phase;
+		}
+
+		if(arguments.length===1 && Array.isArray(arguments[0]))
+			arguments = arguments[0];
+		var osc;
+		switch(arguments[0].slice(0,2)) {
+			case 'si': osc = oscSin; break;
+			case 'sa': osc = oscSaw; break;
+			case 'sq': osc = oscSqu; break;
+			case 'bi': osc = oscBin; break;
+			case 'no': osc = oscNoi; break;
+			default: throw 'invalid wave form name '+JSON.stringify(arg);
+		}
+
+		var totalDuration = 0;
+		for(var i=3; i<arguments.length; i+=4)
+			totalDuration += arguments[i];
+	
+		var buffer = new Float32Array(Math.ceil(totalDuration*sampleRate)), pos=0, phase=0;
+		var freq1, vol1, timbre1;
+		for(var i=1; i<arguments.length; i+=4) {
+			const freq2 = note2freq(arguments[i]);
+			const vol2 = arguments[i+1] || 0, duration = arguments[i+2];
+			const timbre2 = (typeof arguments[i+3]==='number') ? arguments[i+3] : defaultTimbre(osc);
+			if(duration) {
+				if(freq1===undefined)
+					freq1 = freq2;
+				if(vol1===undefined)
+					vol1 = vol2;
+				if(timbre1===undefined)
+					timbre1 = timbre2;
+				phase = chirp(osc, buffer, pos, phase, freq1, freq2, vol1, vol2, timbre1, timbre2, duration);
+				pos += duration;
+			}
+			freq1 = freq2;
+			vol1 = vol2;
+			timbre1 = timbre2;
+		}
+		return buffer;
+	},
+	mixToBuffer: function(stereoBuffer, sample, startTime, volume, balance) {
+		if(typeof sample === 'number')
+			sample = this.sampleBuffer(sample);
+		const stereoBufLen = Math.floor(stereoBuffer.length/2), sampleLen = sample.length;
+
+		const volL = volume*(-0.4*balance+0.6), volR = volume*(+0.4*balance+0.6);
+		for(var frame = Math.round(startTime*audio.sampleRate), pos = 0; frame<stereoBufLen && pos<sampleLen; ++frame, ++pos) {
+			stereoBuffer[frame*2] += sample[pos] * volL;
+			stereoBuffer[frame*2+1] += sample[pos] * volR;
+		}
+	},
+	clampBuffer: function(buffer, minValue, maxValue) {
+		for(var i=0, end=buffer.length; i<end; ++i)
+			buffer[i] = Math.min(Math.max(buffer[i], minValue), maxValue);
+	},
+	sampleBuffer: function(id) {
+		if(id>0 && id<=samples.length)
+			return samples[id-1].buffer;
+	},
+	createSound: function(...args) {
+		return this.uploadPCM(this.createSoundBuffer(args));
+	}
 }
 
 })();

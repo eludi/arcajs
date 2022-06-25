@@ -96,8 +96,8 @@ The keyboard event is triggered when a key is pressed (keydown) or released
 
 ### Callback function parameters:
 
-- {object} evt - an event structure containing event type, key name, current
-  state of modifier keys and number of repetitions
+- {object} evt - an event structure containing event type, key name, location,
+  current state of modifier keys, and number of repetitions
 
 ## textinput event
 

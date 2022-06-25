@@ -42,8 +42,3 @@ extern size_t ResourceCreatePathImage(
 extern size_t ResourceCreateSVGImage(const char* svg, float scale);
 /// returns handle to an RGBA image resource created from a buffer
 extern size_t ResourceCreateImage(int width, int height, const unsigned char* data, int filtering);
-
-/// adds an indirection making handles validable
-extern uint32_t ResourceProtectHandle(size_t handle, int type);
-/// validates a guarded handle, resolves indirection
-extern size_t ResourceValidateHandle(uint32_t handle, int type);

@@ -12,22 +12,22 @@ varying vec4 vtxColor;
 varying vec2 texCoord;
 // context shared across all vertices in this batch:
 uniform vec2 u_resolution;
-uniform vec2 u_cam;
-uniform vec2 u_scale;
+uniform mat3 u_matrix;
 
 void main() {
-	 // convert the rectangle from pixels to 0.0 to 1.0
-	 vec2 zeroToOne = (a_position-u_cam)*u_scale / u_resolution;
+	vec2 position = (u_matrix * vec3(a_position, 1)).xy;
+	// convert the rectangle from pixels to 0.0 to 1.0
+	vec2 zeroToOne = position / u_resolution;
 
-	 // convert from 0->1 to 0->2
-	 vec2 zeroToTwo = zeroToOne * 2.0;
+	// convert from 0->1 to 0->2
+	vec2 zeroToTwo = zeroToOne * 2.0;
 
-	 // convert from 0->2 to -1->+1 (clipspace)
-	 vec2 clipSpace = zeroToTwo - 1.0;
+	// convert from 0->2 to -1->+1 (clipspace)
+	vec2 clipSpace = zeroToTwo - 1.0;
 
-	 gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-	 vtxColor = a_color;
-	 texCoord = a_texCoord / vec2(16383.0,16383.0);
+	gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+	vtxColor = a_color;
+	texCoord = a_texCoord / vec2(16383.0,16383.0);
 }`;
 
 const fragmentShader = `
@@ -46,7 +46,7 @@ void main() {
 function renderFontTexture(font) {
 	let canvas = document.createElement('canvas');
 	let texW = canvas.width = 1024;
-	let texH = canvas.height = 512;
+	let texH = canvas.height = 1024;
 	let ctx = canvas.getContext('2d');
 
 	ctx.font = font;
@@ -66,7 +66,7 @@ function renderFontTexture(font) {
 		}
 		//console.log(i, ch, metrics, dim);
 		if(x+metrics.w>texW) {
-			y += currLineH+1;
+			y += currLineH+2;
 			currLineH = x = 0;
 		}
 		const currH = metrics.h + metrics.yoff;
@@ -89,7 +89,7 @@ function renderFontTexture(font) {
 		const ch = String.fromCharCode(i);
 		const metrics = dims[i-32];
 		if(x+metrics.w>texW) {
-			y += currLineH+1;
+			y += currLineH+2;
 			currLineH = x = 0;
 		}
 		const currH = metrics.h + metrics.yoff;
@@ -164,14 +164,24 @@ return function (canvas, capacity=500) {
 	const elemSz = 6*vtxSz;
 	let buf = new Float32Array(capacity * elemSz);
 	let sz = 0, idx=0;
-	let color_f = fpack.rgba(255,255,255);
-	let lineWidth=1.0, camSc=1.0, camX=0, camY=0;
+
+	let mat = new Float32Array([
+		1.0, 0.0, 0.0,
+		0.0, 1.0, 0.0,
+		0.0, 0.0, 1.0 ]);
+	let gs = [ new Float32Array([/* treansf*/0.0, 0.0, 0.0, 1.0, /*color*/fpack.rgba(255,255,255), /*lineWidth*/1.0]) ];
+	const transfMax = 8;
+	function setMat(transf, mat) {
+		mat[0] = Math.cos(transf[2])*transf[3]; mat[3] = -Math.sin(transf[2])*transf[3]; mat[6] = transf[0];
+		mat[1] = -mat[3]; mat[4] = mat[0]; mat[7] = transf[1];
+	}
+
 	let blendFunc = 1;
 	const texCoordMax = 16383;
 	let fonts = [], textures=[], tex=null;
 
 	// setup GLSL program
-	const gl = canvas.getContext("webgl");
+	const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
 	let program = createProgram(gl, vertexShader, fragmentShader);
 	const a_position = gl.getAttribLocation(program, "a_position");
 	gl.enableVertexAttribArray(a_position);
@@ -180,8 +190,7 @@ return function (canvas, capacity=500) {
 	const a_texCoord = gl.getAttribLocation(program, "a_texCoord");
 	gl.enableVertexAttribArray(a_texCoord);
 	let u_resolution = gl.getUniformLocation(program, "u_resolution");
-	let u_cam = gl.getUniformLocation(program, "u_cam");
-	let u_scale = gl.getUniformLocation(program, "u_scale");
+	let u_matrix = gl.getUniformLocation(program, "u_matrix");
 	let u_texUnit0 = gl.getUniformLocation(program, "u_texUnit0");
 	gl.useProgram(program);
 
@@ -261,7 +270,7 @@ return function (canvas, capacity=500) {
 
 	/// loads a texture from a URL
 	this.loadTexture = function(url, params={}, callback) {
-		let texInfo = { texture:gl.createTexture(), ready:false, width:1, height:1 };
+		let texInfo = { texture:gl.createTexture(), ready:false, x:0, y:0, width:1, height:1, cx:0, cy:0, sc:1 };
 		gl.bindTexture(gl.TEXTURE_2D, texInfo.texture);
 		// fill texture with a placeholder
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
@@ -286,13 +295,22 @@ return function (canvas, capacity=500) {
 				texInfo.width = image.width;
 				texInfo.height = image.height;
 			}
+			if('centerX' in params || 'centerY' in params) {
+				texInfo.cx = params.centerX || 0;
+				texInfo.cy = params.centerY || 0;
+			}
+			if(texInfo.cx)
+				texInfo.cx *= texInfo.width;
+			if(texInfo.cy)
+				texInfo.cy *= texInfo.height;
 			setTexParams(params);
 			texInfo.ready = true;
+			delete texInfo.img;
 			if(callback)
 				callback(texInfo);
 		}
 		// Asynchronously load an image
-		let image = new Image();
+		let image = texInfo.img = new Image();
 		image.src = url;
 
 		if(image.complete)
@@ -306,7 +324,7 @@ return function (canvas, capacity=500) {
 
 	/// creates a new texture from an RGBA uint8 array
 	this.createTexture = function(width, height, data, params={}) {
-		let texInfo = { texture:gl.createTexture(), width:width, height:height, ready:true };
+		let texInfo = { texture:gl.createTexture(), x:0, y:0, width:width, height:height, cx:0, cy:0, sc:1.0, ready:true };
 		gl.bindTexture(gl.TEXTURE_2D, texInfo.texture);
 		if(Array.isArray(data))
 			data = new Uint8Array(data);
@@ -314,6 +332,10 @@ return function (canvas, capacity=500) {
 			data = new Uint8Array(data.buffer);
 	
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+		if('centerX' in params || 'centerY' in params) {
+			texInfo.cx = params.centerX * width;
+			texInfo.cy = params.centerY * height;
+		}
 		setTexParams(params);
 		textures.push(texInfo);
 		return textures.length-1;
@@ -340,52 +362,113 @@ return function (canvas, capacity=500) {
 			ctx.stroke();
 		
 		const imgData = new Uint8Array(ctx.getImageData(0,0, canvas.width, canvas.height).data.buffer);
-		return this.createTexture(canvas.width, canvas.height, imgData);
+		const texId = this.createTexture(canvas.width, canvas.height, imgData);
+		this.setTextureCenter(texId, 0.5, 0.5)
+		return texId;
+	}
+	this.createTileTexture = function(parent, x,y,w,h, params) {
+		const par = textures[parent];
+		if(!par)
+			return console.error('createTileTexture() invalid parent id', parent);
+		const texId = textures.length;
+		textures.push({});
+
+		const createTileInfo = ()=>{
+			w *= par.width;
+			h *= par.height;
+			const cx = (params && ('centerX' in params)) ? params.centerX : par.cx/par.width;
+			const cy = (params && ('centerY' in params)) ? params.centerY : par.cy/par.height;
+			textures[texId] = { texture:par.texture, x:par.width*x, y:par.height*y, width:w, height:h,
+				cx:w*cx, cy:h*cy, sc:par.sc, ready:par.ready, parent:par.parent ? par.parent : parent };
+		}
+		if(par.ready)
+			createTileInfo();
+		else if(par.img)
+			par.img.addEventListener('load', createTileInfo);
+		return texId;
+	}
+	this.createTileTextures = function(parent,tilesX, tilesY, border, params) {
+		if(typeof parent === 'string')
+			parent = this.loadTexture(parent, params);
+		const par = textures[parent];
+		if(!par)
+			return console.error('createTileTextures() invalid parent id', parent);
+
+		const baseTexId = textures.length;
+		for(let i=0, end=tilesX*tilesY; i<end; ++i)
+			textures.push({});
+
+		const createTileInfos = ()=>{
+			const gridW = par.width/tilesX, tileW = gridW - 2*border;
+			const gridH = par.height/tilesY, tileH = gridH - 2*border;
+			let texId = baseTexId;
+			for(let y=0; y<tilesY; ++y) for(let x=0; x<tilesX; ++x) {
+				textures[texId++] = { texture:par.texture, x:gridW*x+border, y:gridH*y+border, width:tileW, height:tileH,
+					cx:par.cx/tilesX, cy:par.cy/tilesY, sc:par.sc, ready:par.ready, parent:par.parent ? par.parent : parent };
+			}
+		}
+
+		if(par.ready)
+			createTileInfos();
+		else if(par.img)
+			par.img.addEventListener('load', createTileInfos);
+
+		return baseTexId;
 	}
 	this.queryTexture = function(texId) {
-		if(texId<1 || texId>=textures.length)
+		if(!texId || texId<1 || texId>=textures.length)
 			return null;
 		const texInfo = textures[texId];
-		return { width:texInfo.width, height:texInfo.height, ready:texInfo.ready };
+		return { width:texInfo.width, height:texInfo.height, sc:texInfo.sc,
+			cx:texInfo.cx/texInfo.width, cy:texInfo.cy/texInfo.height, ready:texInfo.ready };
 	}
-	const setTexture = (texture)=>{
-		if(texture.texture != tex) {
-			this.flush();
-			tex = texture.texture;
+	this.setTextureCenter = function(texId, cx, cy) {
+		if(texId>0 && texId<textures.length) {
+			const tex = textures[texId];
+			const w = tex.width ? tex.width : 1, h = tex.height ? tex.height : 1;
+			textures[texId].cx = cx * w;
+			textures[texId].cy = cy * h;
 		}
-		return texture;
+	}
+
+	const setTexture = (texInfo)=>{
+		if(texInfo.texture != tex) {
+			this.flush();
+			tex = texInfo.texture;
+		}
+		return texInfo;
 	}
 
 	function vertex(x, y, u=1, v=1) {
-		buf[idx++] = x; buf[idx++] = y; buf[idx++] = color_f; buf[idx++] = fpack.int14(u,v);
+		buf[idx++] = x; buf[idx++] = y; buf[idx++] = gs[gs.length-1][4]; buf[idx++] = fpack.int14(u,v);
 	}
 
 	this.color = function(r,g,b,a=255) {
 		if(Array.isArray(r))
-			color_f = fpack.rgba(r[0],r[1], r[2], r[3]);
+			gs[gs.length-1][4] = fpack.rgba(r[0],r[1], r[2], r[3]);
 		else if(g===undefined) {
 			const v = r;
 			r = (v & 0xff000000) >>> 24;
 			g = (v & 0x00ff0000) >>> 16;
 			b = (v & 0x0000ff00) >>> 8;
 			a = (v & 0x000000ff);
-			color_f = fpack.rgba(r,g,b,a);
+			gs[gs.length-1][4] = fpack.rgba(r,g,b,a);
 		}
 		else
-			color_f = fpack.rgba(r,g,b,a);
+			gs[gs.length-1][4] = fpack.rgba(r,g,b,a);
 		return this;
 	}
 	this.colorf = function(r,g,b,a=1.0) {
-		color_f = fpack.rgba(r*255,g*255,b*255,a*255);
+		gs[gs.length-1][4] = fpack.rgba(r*255,g*255,b*255,a*255);
 		return this;
 	}
 	this.lineWidth = function(w) {
 		if(w===undefined)
-			return lineWidth;
-		if(w==lineWidth)
+			return gs[gs.length-1][5];
+		if(w==gs[gs.length-1][5])
 			return this;
 		this.flush();
-		lineWidth = Number(w);
+		gs[gs.length-1][5] = Number(w);
 		return this;
 	}
 	this.blend = function(mode) {
@@ -398,30 +481,65 @@ return function (canvas, capacity=500) {
 		setBlendFunc();
 		return this;
 	}
-	this.origin = function(ox,oy,isScreen=true) {
-		this.flush();
-		if(isScreen) {
-			camX = -ox/camSc;
-			camY = -oy/camSc;
-		}
-		else {
-			camX = ox;
-			camY = oy;
-		}
+
+	this.save = function() {
+		if(gs.length < transfMax)
+			gs.push(gs[gs.length-1].slice());
 		return this;
 	}
-	this.scale = function(sc) {
-		if(sc==camSc)
+	this.transform = function(x,y,rot=0,sc=1.0) {
+		this.flush();
+		const tr = gs[gs.length-1];
+		if(typeof x === 'object') {
+			tr[0] += mat[0]*x.x + mat[3]*x.y;
+			tr[1] += mat[1]*x.x + mat[4]*x.y;
+			if('rot' in x)
+				tr[2] += x.rot;
+			if('sc' in x)
+				tr[3] *= x.sc;
+		}
+		else {
+			tr[0] += mat[0]*x + mat[3]*y;
+			tr[1] += mat[1]*x + mat[4]*y;
+			tr[2] += rot;
+			tr[3] *= sc;
+		}
+		setMat(tr, mat);
+		return this;
+	}
+	this.setTransform = function(x,y,rot=0,sc=1.0) {
+		this.flush();
+		const tr = gs[gs.length-1];
+		tr[0] = x;
+		tr[1] = y;
+		tr[2] = rot;
+		tr[3] = sc;
+		setMat(tr, mat);
+		return this;
+	}
+	this.restore = function() {
+		const stacksz = gs.length;
+		if(stacksz<2)
 			return this;
 		this.flush();
-		camSc = sc;
+		gs.pop();
+		setMat(gs[stacksz-2], mat);
+		return this;
+	}
+	this.reset = function() {
+		this.flush();
+		gs.length = 1;
+		gs[0][0] = gs[0][1] = gs[0][2] = 0.0;
+		gs[0][3] = gs[0][5] = 1.0;
+		gs[0][4] = fpack.rgba(255,255,255);
+		setMat(gs[0], mat);
 		return this;
 	}
 
-	this.fillText = function(fontId, x,y, text, align=0) {
+	this.fillText = function(x,y, text, fontId=0, align=0) {
 		const font = fonts[fontId];
 		if(font===undefined || font.texture===null)
-			return;
+			return console.error('font not ready', font);
 		setTexture(font);
 
 		if(align!==0) {
@@ -496,9 +614,9 @@ return function (canvas, capacity=500) {
 			this.flush();
 	}
 	this.drawRect = function(x1, y1, w, h) {
-		const lw2 = lineWidth/2;
+		const lw = gs[gs.length-1][5], lw2 = lw/2;
 		y1 += lw2;
-		const x2 = x1 + w, y2 = y1 + h - lineWidth;
+		const x2 = x1 + w, y2 = y1 + h - lw;
 		this.drawLine(x1,y1,x2,y1);
 		this.drawLine(x2-lw2,y1+lw2,x2-lw2,y2-lw2);
 		this.drawLine(x2,y2,x1,y2);
@@ -507,7 +625,7 @@ return function (canvas, capacity=500) {
 	this.drawLine = function(x1,y1, x2,y2) {
 		setTexture(texWhite);
 		const dx = x2-x1, dy=y2-y1, d=Math.sqrt(dx*dx+dy*dy);
-		const lw2 = lineWidth/2, nx = lw2*-dy/d, ny=lw2*dx/d;
+		const lw2 = gs[gs.length-1][5]/2, nx = lw2*-dy/d, ny=lw2*dx/d;
 		const x3=x1+nx, y3=y1+ny, x4=x2+nx, y4=y2+ny;
 		x1-=nx; y1-=ny; x2-=nx; y2-=ny;
 		vertex(x1,y1); vertex(x2,y2); vertex(x3,y3);
@@ -517,16 +635,16 @@ return function (canvas, capacity=500) {
 	}
 
 	this.drawPoints = function(arr) {
-		const lw2 = lineWidth/2;
-		if(lineWidth<=2)
+		const lw = gs[gs.length-1][5], lw2 = lw/2;
+		if(lw<=2)
 			for(let i=0, end=arr.length-1; i<end; i+=2)
-				this.fillRect(arr[i]-lw2,arr[i+1]-lw2, lineWidth,lineWidth);
+				this.fillRect(arr[i]-lw2,arr[i+1]-lw2, lw,lw);
 		else {
 			setTexture(textures[texPointId]);
 			const tx1 = 0, ty1=0, tx2=texCoordMax, ty2=texCoordMax;
 			for(let i=0, end=arr.length-1; i<end; i+=2) {
 				const x1 = arr[i]-lw2, y1= arr[i+1]-lw2;
-				const x2 = x1 + lineWidth, y2 = y1 + lineWidth;
+				const x2 = x1 + lw, y2 = y1 + lw;
 				vertex(x1,y1, tx1,ty1);
 				vertex(x2,y1, tx2,ty1);
 				vertex(x1,y2, tx1,ty2);
@@ -545,34 +663,26 @@ return function (canvas, capacity=500) {
 		this.drawPoints(arr.slice(2,-2));
 	}
 
-	this.drawImage = function(texId, x1, y1, w1, h1, x2, y2, w2, h2, cx=0,cy=0,rot=0, flip=0) {
-		const texInfo = setTexture(textures[texId]);
-		if(x2===undefined) {
-			if(w1===undefined) {
-				w1=texInfo.width;
-				h1=texInfo.height;
-			}
-			x2 = x1 + w1;
-			y2 = y1 + h1;
-			const tx1 = 0, ty1=0, tx2=texCoordMax, ty2=texCoordMax;
-			vertex(x1,y1, tx1,ty1);
-			vertex(x2,y1, tx2,ty1);
-			vertex(x1,y2, tx1,ty2);
-			vertex(x1,y2, tx1,ty2);
-			vertex(x2,y1, tx2,ty1);
-			vertex(x2,y2, tx2,ty2);
-			if(++sz==capacity)
-				this.flush();
-			return;
+	this.drawLineLoop = function(arr) {
+		var prevX = arr[arr.length-2], prevY = arr[arr.length-1];
+		for(let i=0, end=arr.length-1; i<end; i+=2) {
+			var x = arr[i], y = arr[i+1];
+			this.drawLine(prevX, prevY, x, y);
+			prevX = x; prevY = y;
 		}
+		this.drawPoints(arr);
+	}
+
+	this._drawImage = function(texId, x1, y1, w1, h1, x2, y2, w2, h2, cx=0,cy=0,rot=0, flip=0) {
+		//console.log(texId, x1, y1, w1, h1, x2, y2, w2, h2, cx,cy,rot, flip)
+		const texInfo = setTexture(textures[texId]);
+
 		const cos = Math.cos(rot), sin=Math.sin(rot);
 		//const m = [ cos, -sin, x2, sin, cos, y2];
 
 		const xmin = -cx, ymin = -cy;
 		const xmax = xmin+w2, ymax = ymin+h2;
 
-		x2 += cx;
-		y2 += cy;
 		const v1x = cos*xmin - sin*ymin + x2;
 		const v1y = sin*xmin + cos*ymin + y2;
 		const v2x = cos*xmax - sin*ymin + x2;
@@ -606,48 +716,76 @@ return function (canvas, capacity=500) {
 		if(++sz==capacity)
 			this.flush();
 	}
-	this.drawSprites = function(sps) {
-		sps.sprites.forEach((s)=>{
-			if(s===null)
-				return;
-			const cx = s.cx*s.w, cy = s.cy*s.h;
-			this.color(s.r, s.g, s.b, s.a).drawImage(
-				sps.texture, s.srcX, s.srcY, s.srcW, s.srcH,
-				s.x-cx, s.y-cy, s.w, s.h, cx, cy, s.rot);
-		});
-	}
-	this.drawTile = function(sps, tile, x, y, w=undefined, h=undefined, align=0, rot=0, flip=0) {
-		if(sps.texWidth === 0) {
-			const texInfo = textures[sps.texture];
-			if(texInfo && texInfo.ready) {
-				sps.texWidth = texInfo.width;
-				sps.texHeight = texInfo.height;
-			}
-			else return;
-		}
-		let srcW = sps.texWidth/sps.tilesX, srcH=sps.texHeight/sps.tilesY;
-		const srcX = (tile%sps.tilesX)*srcW + sps.border;
-		const srcY = Math.floor(tile/sps.tilesX)*srcH + sps.border;
-		srcW -= 2*sps.border;
-		srcH -= 2*sps.border;
 
-		let cx=0, cy=0;
-		if(align!==0) {
-			if(align & this.ALIGN_RIGHT)
-				cx = srcW;
-			else if(align & this.ALIGN_CENTER)
-				cx = srcW/2;
-			if(align & this.ALIGN_BOTTOM)
-				cy = srcH;
-			else if(align & this.ALIGN_MIDDLE)
-				cy = srcH/2;
-		}
-		if(w===undefined)
-			w = srcW;
-		if(h===undefined)
-			h = srcH;
-		this.drawImage(sps.texture, srcX, srcY, srcW, srcH, x-cx, y-cy, w, h, cx, cy, rot, flip);
+	this.drawImage = function(texId, dstX=0, dstY=0, angle=0, scale=1, flip=this.FLIP_NONE) {
+		const tex = setTexture(textures[texId]);
+		scale *= tex.sc;
+		this._drawImage(tex.parent ? tex.parent : texId, tex.x, tex.y, tex.width, tex.height,
+			dstX, dstY, tex.width*scale, tex.height*scale, tex.cx*scale, tex.cy*scale, angle, flip);
 	}
+
+	this.stretchImage = function(texId, x, y, w, h) {
+		const tex = setTexture(textures[texId]);
+		this._drawImage(tex.parent ? tex.parent : texId, tex.x, tex.y, tex.width, tex.height, x, y, w, h);
+	}
+
+	this.drawSprite = function(s) {
+		if('color' in s)
+			this.color(s.color);
+		const x = s.x || 0, y = s.y || 0, rot = s.rot || 0, sc = s.sc || 1;
+		this.drawImage(s.image, x,y,rot,sc,s.flip);
+	}
+
+	this.fillTriangle = function(x0,y0, x1,y1, x2,y2) {
+		setTexture(texWhite);
+		vertex(x0,y0); vertex(x1,y1); vertex(x2,y2);
+		vertex(x0,y0); vertex(x0,y0); vertex(x0,y0); // fake triangle FIXME?
+		if(++sz==capacity)
+			this.flush();
+	}
+	this.fillTriangles = function(arr) {
+		for(var i=0, numTriangles=Math.floor(arr.length/6); i<numTriangles; ++i)
+			this.fillTriangle(arr[i],arr[i+1], arr[i+2],arr[i+3], arr[i+4],arr[i+5]);
+	}
+	this.drawTiles = function(imgBase, tilesX, tilesY, imgOffsets=undefined, colors=undefined, stride=tilesX) {
+		const texInfo = setTexture(textures[imgBase]);
+		const w=texInfo.width, h = texInfo.height;
+		for(var j=0; j<tilesY; ++j) for(var i=0; i<tilesX; ++i) {
+			const index = j*stride+i;
+			if(colors)
+				this.color(colors[index]);
+			const img = imgOffsets ? imgBase+imgOffsets[index] : imgBase;
+			this.drawImage(img, i*w, j*h);
+		}
+	}
+	this.drawImages = function(imgBase, stride, comps, arr) {
+		const numInstances = Math.floor(arr.length/stride);
+		const hasColors = (comps&this.COMP_COLOR_RGBA) != 0;
+		var r=255, g=255, b=255, a=255; // TODO set to current color
+		for(var i=0; i<numInstances; ++i) {
+			const data = arr.subarray(i*stride, i*stride+stride);
+			var img = imgBase, j=0;
+			if(comps & this.COMP_IMG_OFFSET)
+				img += data[j++];
+			if(!img || img >= textures.length)
+				continue;
+	
+			const x = data[j++], y = data[j++];
+			const rot = (comps & this.COMP_ROT) ? data[j++] : 0.0;
+			const sc = (comps & this.COMP_SCALE) ? data[j++] : 1.0;
+			if(hasColors) {
+				r = (comps & this.COMP_COLOR_R) ? data[j++] : r;
+				g = (comps & this.COMP_COLOR_G) ? data[j++] : g;
+				b = (comps & this.COMP_COLOR_B) ? data[j++] : b;
+				a = (comps & this.COMP_COLOR_A) ? data[j++] : a;
+				if(a<=0)
+					continue;
+				this.color(r, g, b, a);
+			}
+			this.drawImage(img, x,y,rot,sc);
+		}
+	}
+
 	function initBuf() {
 		// Create a buffer for vertex attribute data:
 		let glBuf = gl.createBuffer();
@@ -664,10 +802,8 @@ return function (canvas, capacity=500) {
 	}
 
 	this.flush = function() {
-		// set the resolution
 		gl.uniform2f(u_resolution, canvas.width, canvas.height);
-		gl.uniform2f(u_cam, camX, camY);
-		gl.uniform2f(u_scale, camSc, camSc);
+		gl.uniformMatrix3fv(u_matrix, false, mat);
 		gl.uniform1i(u_texUnit0, 0);
 
 		gl.activeTexture(gl.TEXTURE0);
@@ -689,13 +825,14 @@ return function (canvas, capacity=500) {
 		setBlendFunc();
 	}
 
-	this._frameEnd = this.flush;
-
+	this._frameEnd = this.reset;
 
 	initBuf();
 	const texWhite = textures[this.createTexture(2,2,new Uint8Array([
 		255,255,255,255, 255,255,255,255, 255,255,255,255, 255,255,255,255]))];
 	const texPointId = this.createCircleTexture(32);
+	this.setTextureCenter(texPointId,0.5,0.5);
+	textures[texPointId].sc = 1/64;
 	this.loadFont('bold 20px monospace');
 	tex = texWhite.texture;
 
@@ -718,10 +855,21 @@ return function (canvas, capacity=500) {
 	defineConst(this, "FLIP_X", 1.0);
 	defineConst(this, "FLIP_Y", 2.0);
 	defineConst(this, "FLIP_XY", 3.0);
+	defineConst(this, "IMG_CIRCLE", texPointId);
+	defineConst(this, "IMG_SQUARE", texWhite);
 	defineConst(this, "BLEND_NONE", 0);
 	defineConst(this, "BLEND_ALPHA", 1);
 	defineConst(this, "BLEND_ADD", 2);
 	defineConst(this, "BLEND_MOD", 4);
 	defineConst(this, "BLEND_MUL", 8);
+	defineConst(this, "COMP_IMG_OFFSET", 1<<0);
+	defineConst(this, "COMP_ROT", 1<<3);
+	defineConst(this, "COMP_SCALE", 1<<4);
+	defineConst(this, "COMP_COLOR_R", 1<<5);
+	defineConst(this, "COMP_COLOR_G", 1<<6);
+	defineConst(this, "COMP_COLOR_B", 1<<7);
+	defineConst(this, "COMP_COLOR_A", 1<<8);
+	defineConst(this, "COMP_COLOR_RGB", 7<<5);
+	defineConst(this, "COMP_COLOR_RGBA", 15<<5);
 }
 })();

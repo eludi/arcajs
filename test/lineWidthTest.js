@@ -1,4 +1,4 @@
-var cam = {x:0,y:0, sc:1};
+var cam = {x:0,y:0, rot:0, sc:1};
 var img = app.getResource('eludi.icon.svg');
 
 var points = new Float32Array(2*(1+Math.floor(app.width/50))*(1+Math.floor(app.height/50)));
@@ -35,7 +35,7 @@ app.on('keyboard', function(evt) {
 });
 
 app.on('draw', function(gfx) {
-	gfx.origin(cam.x, cam.y).scale(cam.sc);
+	gfx.transform(cam);
 
 	gfx.color(255,85,255,85).drawImage(img,350,200,100,100)
 	gfx.color(255,255,85,85).lineWidth(10).drawPoints(points);
@@ -84,6 +84,6 @@ app.on('draw', function(gfx) {
 	gfx.color(255,255,255,127).lineWidth(30).drawRect(250,200,100,100);
 	gfx.color(255,85,85).lineWidth(1).drawRect(250,200,100,100);
 
-	gfx.origin(0,0).scale(1.0);
-	gfx.color(255,255,255).fillText(0,50,0, JSON.stringify(cam));
+	gfx.reset();
+	gfx.color(255,255,255).fillText(50,0, JSON.stringify(cam));
 });

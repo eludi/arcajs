@@ -28,7 +28,6 @@ body > canvas {
 <script type="text/javascript">arcajs={};</script>
 <script type="text/javascript" src="../arcajs_browser_runtime/infra.js"></script>
 <script type="text/javascript" src="../arcajs_browser_runtime/graphicsGL.js"></script>
-<script type="text/javascript" src="../arcajs_browser_runtime/sprites.js"></script>
 <script type="text/javascript" src="../arcajs_browser_runtime/audio.js"></script>
 <script type="text/javascript" src="../arcajs_browser_runtime/intersects.js"></script>
 <script type="text/javascript" src="../arcajs_browser_runtime/app.js"></script>
@@ -58,7 +57,7 @@ function loadjs(url, callback) {
 	}
 	document.getElementsByTagName("head")[0].appendChild(node);
 }
-var main = urlParams().main ? (urlParams().main+'.js') : "gfxTest.js";
+var main = urlParams().main ? (urlParams().main+'.js') : "spriteCollisionTest.js";
 document.title += ' '+main;
 loadjs(main);
 </script>

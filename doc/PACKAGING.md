@@ -19,9 +19,9 @@ from their different contexts. Arcajs interprets the following parameters:
 ```javascript
 {
 	"name":"application window title",
-	"display":"fullscreen", // either "fullscreen" or "window" (default)
-	"window_width": 640, // window width, only relevant if display is "window"
-	"window_height": 480, // window height, only relevant if display is "window"
+	"display":"fullscreen", // either "fullscreen", "window" (default), or "resizable"
+	"window_width": 640, // initial window width, only relevant if display is "window" or "resizable"
+	"window_height": 480, // initial window height, only relevant if display is "window" or "resizable"
 	"console_y": 0, // overlay console vertical position
 	"console_height": 448, // overlay debug console height, set 0 to disable
 	"background_color" : "#000", // initial background color

@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20210415a";
+const char* appVersion = "v0.20220625a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -51,7 +51,8 @@ static int isModifier(int sym) {
 	return 0;
 }
 
-static const char* keySymToKey(int sym) {
+static const char* keySymToKey(int sym, int* location) {
+	*location=0;
 	if(sym>='a' && sym<='z') {
 		static char s[2] = { 0, 0 };
 		s[0] = sym;
@@ -63,10 +64,16 @@ static const char* keySymToKey(int sym) {
 	case SDLK_RALT:
 		return "AltGraph";
 	case SDLK_LSHIFT:
+		*location=1;
+		return "Shift";
 	case SDLK_RSHIFT:
+		*location=2;
 		return "Shift";
 	case SDLK_LCTRL:
+		*location=1;
+		return "Control";
 	case SDLK_RCTRL:
+		*location=2;
 		return "Control";
 	case SDLK_DOWN:
 		return "ArrowDown";
@@ -77,7 +84,9 @@ static const char* keySymToKey(int sym) {
 	case SDLK_RIGHT:
 		return "ArrowRight";
 	case SDLK_RETURN:
+		return "Enter";
 	case SDLK_KP_ENTER:
+		*location=3;
 		return "Enter";
 	case SDLK_SPACE:
 		return " ";
@@ -201,7 +210,8 @@ int handleEvents(void* udata) {
 		// NO break;
 	case SDL_KEYUP: {
 		SDL_KeyCode sym = evt.key.keysym.sym;
-		const char* key = keySymToKey(sym);
+		int location;
+		const char* key = keySymToKey(sym, &location);
 		//if(evt.type==SDL_KEYDOWN) printf("keydown %s\n", key);
 		if(key) {
 			int isShift = (evt.key.keysym.mod & KMOD_SHIFT);
@@ -209,6 +219,7 @@ int handleEvents(void* udata) {
 			Value_set(event, "evt", Value_str("keyboard"));
 			Value_set(event, "type", Value_str(evt.type==SDL_KEYDOWN ? "keydown" : "keyup"));
 			Value_set(event, "key", Value_str(key));
+			Value_set(event, "location", Value_int(location));
 			Value_set(event, "ctrlKey", Value_bool(evt.key.keysym.mod & KMOD_CTRL));
 			Value_set(event, "altKey", Value_bool(evt.key.keysym.mod & KMOD_ALT));
 			Value_set(event, "shiftKey", Value_bool(isShift));
@@ -270,6 +281,19 @@ int handleEvents(void* udata) {
 		Value_set(event, "char", Value_str(input));
 		Value_append(events, event);
 		//printf("textinput %s\n", input);
+		break;
+	}
+	case SDL_WINDOWEVENT: {
+		switch(evt.window.event) {
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+			WindowDimensions(evt.window.data1, evt.window.data2);
+			Value* event = Value_new(VALUE_MAP, NULL);
+			Value_set(event, "evt", Value_str("resize"));
+			Value_set(event, "width", Value_int(evt.window.data1));
+			Value_set(event, "height", Value_int(evt.window.data2));
+			Value_append(events, event);
+			break;
+		}
 		break;
 	}
 	case SDL_QUIT:
@@ -365,8 +389,12 @@ int main(int argc, char **argv) {
 		scriptNames = jsonGetStringArray(json, "scripts");
 
 		char* display = jsonGetString(json, "display");
-		if(display && strcmp(display, "fullscreen")==0)
-			windowFlags |= WINDOW_FULLSCREEN;
+		if(display) {
+			if(strcmp(display, "fullscreen")==0)
+				windowFlags |= WINDOW_FULLSCREEN;
+			else if(strcmp(display, "resizable")==0)
+				windowFlags |= WINDOW_RESIZABLE;
+		}
 		free(display);
 
 		jsonClose(json);
@@ -385,7 +413,6 @@ int main(int argc, char **argv) {
 		windowTitle = ResourceBaseName(archiveName);
 	if(windowTitle && strlen(windowTitle) && windowTitle[0]!='.')
 		WindowTitle(windowTitle);
-	WindowResizable(0);
 
 	const char* storagePath = SDL_GetPrefPath("eludi", "arcajs");
 	if(storageFileName) {
@@ -404,7 +431,7 @@ int main(int argc, char **argv) {
 
 	Value* events = Value_new(VALUE_LIST, NULL);
 	WindowEventHandler(handleEvents, events);
-	gfxInit(WindowRenderer());
+	gfxInit(WindowRenderer(), WindowPixelRatio());
 	if(consoleSzY)
 		ConsoleCreate(0,0,consoleY, winSzX, consoleSzY);
 
@@ -414,13 +441,14 @@ int main(int argc, char **argv) {
 			WindowShowPointer(0);
 			int iconW, iconH;
 			float textW;
-			gfxColorRGBA(255,255,255,255);
+			gfxColor(0xffFFffFF);
 			gfxImageDimensions(icon, &iconW, &iconH);
-			gfxDrawImage(icon, (winSzX-iconW)/2.0f, (winSzY-iconH)/2.0f);
+			gfxDrawImage(icon, (winSzX-iconW)/2.0f, (winSzY-iconH)/2.0f, 0,1,0);
 			gfxMeasureText(0, windowTitle, &textW, NULL, NULL, NULL);
 			gfxFillText(0, (winSzX-textW)/2.0f, (winSzY+iconH)/2.0f+8, windowTitle);
 		}
 	}
+
 	WindowUpdate();
 	free(windowTitle);
 	windowTitle = NULL;

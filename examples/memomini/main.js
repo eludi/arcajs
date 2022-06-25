@@ -1,21 +1,21 @@
-var tileSet = app.getResource('basic_shapes.svg');
-var icons = app.getResource('icons.svg');
+var tileSet = app.createTileResources('basic_shapes.svg', 4,3);
+var iconClose = app.getResource('iconClose.svg');
 var circle = app.createCircleResource(128);
 const scorePerClick = [100,25,10,5,4,3,2,1];
 
 const styleUI = {
     font: app.getResource('BebasNeue-Regular.ttf', {size:56}),
-    bg: [0,0,0,0],
-    fg: [255,255,255,85],
-    fgFocus: [220,255,170,255],
-    bgFocus: [0,0,0,0]
+    bg: 0x00,
+    fg: 0xffFFff55,
+    fgFocus: 0xccffaaff,
+    bgFocus: 0x00,
 };
 
 app.setBackground([0x33, 0x33, 0x33]);
 var buttons = [];
 
+const tilesX=5, tilesY=4;
 var numShapes = 12;
-var tilesX=5, tilesY=4;
 
 function randi(v1, v2) {
     if(v2===undefined) { v2=v1; v1=0; }
@@ -33,17 +33,6 @@ function padZeros(value, numDigits) {
 const UI = {
     Button: function(style, image, x,y,w,h, callback) {
         this.isSelected = false;
-        var imgDims = app.queryImage(image);
-        var srcX = 0, srcY = 0, srcW=imgDims.width, srcH=imgDims.height;
-
-        this.setSource = function(x,y,w,h) {
-            srcX=x;
-            srcY=y;
-            if(w!==undefined) {
-                srcW=w;
-                srcH=h;
-            }
-        }
 
         this.handlePointer = function(evt) {
             if(evt.x<x || evt.y<y || evt.x >= x+w || evt.y>=y+h)
@@ -58,8 +47,7 @@ const UI = {
         }
         this.update = function(deltaT, tNow) { }
         this.draw = function(gfx) {
-            gfx.color(this.isSelected ? style.fgFocus : style.fg)
-                .drawImage(image,srcX, srcY,srcW,srcH, x,y,w,h);
+            gfx.color(this.isSelected ? style.fgFocus : style.fg).stretchImage(image, x,y,w,h);
         }
     },
 
@@ -79,7 +67,7 @@ const UI = {
             hilighted = tHilighted*3-Math.floor(tHilighted*3)>0.5;
         }
         this.draw = function(gfx) {
-            gfx.color(hilighted ? style.fgFocus : style.fg).fillText(style.font, x,y, this.text, align);
+            gfx.color(hilighted ? style.fgFocus : style.fg).fillText(x,y, this.text, style.font, align);
         }
     }
 }
@@ -113,8 +101,9 @@ function Game(tilesX, tilesY, tileSet) {
 
     var numCirclesToDraw = 0;
     var circles = [];
-    var cd = layout.gridSz/2, cx = app.width/2-cd/2, cy = app.height/2-cd;
-    for(var angle=Math.PI*0.85; angle>=Math.PI*0.15; angle-=Math.PI*0.025)
+    var cd = layout.gridSz/2, cx = app.width/2, cy = app.height/2;
+    const circleSc = cd/128/2;
+    for(var angle=Math.PI*0.85; angle>=Math.PI*0.15; angle-=Math.PI*0.05)
         circles.push(cx+2.5*cd*Math.cos(angle), cy+2.5*cd*Math.sin(angle));
     circles.push(cx-1.5*cd, cy-1.5*cd, cx+1.5*cd, cy-1.5*cd);
 
@@ -265,9 +254,10 @@ function Game(tilesX, tilesY, tileSet) {
             return;
         }
         if(state==='over') {
-            gfx.color(220,255,170);
+            gfx.color(220,255,170).lineWidth(layout.gridSz/2);
             for(var i=0, end=Math.min(++numCirclesToDraw,circles.length) ; i<end; i+=2)
-                gfx.drawImage(circle, circles[i], circles[i+1], cd, cd);
+                gfx.drawImage(circle, circles[i], circles[i+1], 0, circleSc);
+            gfx.drawLineStrip(circles.slice(0,Math.min(numCirclesToDraw,circles.length-4)));
             return;
         }
 
@@ -282,12 +272,9 @@ function Game(tilesX, tilesY, tileSet) {
                     gfx.fillRect(x-d,y-d, sz, sz);
                     continue;
                 }
-                const shape = tile.shape;
-                const srcX = shape % tileSet.tilesX, srcY = Math.floor(shape/tileSet.tilesX), srcSz = tileSet.sz;
                 gfx.color(tile.bg[0],tile.bg[1],tile.bg[2], tile.opacity).fillRect(x-d,y-d, sz,sz);
-                gfx.color(tile.fg[0],tile.fg[1],tile.fg[2], tile.opacity).drawImage(
-                    tileSet.img,
-                    srcX*srcSz,srcY*srcSz,tileSet.sz,tileSet.sz, x-d,y-d, sz,sz);
+                gfx.color(tile.fg[0],tile.fg[1],tile.fg[2], tile.opacity).stretchImage(
+                    tileSet.img + tile.shape, x-d,y-d,sz,sz);
             }
 
         if(cursorVisible) {
@@ -319,10 +306,9 @@ function start() {
 }
 
 app.on('load', function() {
-    var btnClose = new UI.Button(styleUI, icons,app.width-48,8,40,40, function() {
+    var btnClose = new UI.Button(styleUI, iconClose,app.width-48,8,40,40, function() {
         app.close();
     });
-    btnClose.setSource(0,128,128,128);
     buttons.push(btnClose);
 
     start();

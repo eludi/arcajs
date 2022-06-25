@@ -5,7 +5,6 @@
 - [console](#module-console)
 - [graphics](#module-gfx)
 - [intersects](#module-intersects)
-- [sprites](#module-sprite)
 
 ## module console
 
@@ -66,7 +65,7 @@ app.on('keyboard', function(evt) {
 - {object} keyboardEvent - the keyboard event to be translated and re-emitted
 - {number} index - the index of the gamepad
 - {array} axes - key names of the keys to be interpreted as gamepad axes. Each pair of keys define an axis.
-- {array} [buttons] - key names of the keys to be interpreted as gamepad buttons.
+- {array} [buttons] - key names of the keys to be interpreted as gamepad buttons or objects {key:'keyName', location:index}.
 
 ### function app.getResource
 
@@ -115,6 +114,49 @@ creates an image resource from an SVG path description
 
 - {number} handle of the created image resource
 
+### function app.createTileResources
+
+creates tiled image resources based on an existing image resource
+
+#### Parameters:
+
+- {number\|string} parent - image resource handle or name
+- {number} tilesX - number of tiles in horizontal direction
+- {number} [tilesY=1] - number of tiles in vertical direction
+- {number} [border=0] - border around tiles in pixels
+- {object} [params] - optional additional parameters as key-value pairs such as filtering or scale. Only effective if parent is a resource file name.
+
+#### Returns:
+
+- {number} handle of the first created tile image resource
+
+### function app.createTileResource
+
+creates image resource based on an existing image resource
+
+#### Parameters:
+
+- {number} parent - image resource handle
+- {number} x - relative new image horizontal origin (0.0..1.0)
+- {number} y - relative new image vertical origin (0.0..1.0)
+- {number} w - relative new image width (0.0..1.0)
+- {number} h - relative new image height (0.0..1.0)
+- {object} [params] - additional optional parameters: centerX, centerY
+
+#### Returns:
+
+- {number} handle of the created image resource
+
+### function app.setImageCenter
+
+sets image origin and rotation center relative to upper left (0\|0) and lower right (1.0\|1.0) corners
+
+#### Parameters:
+
+- {number} img - image resource handle
+- {number} cx - relative horizontal image center
+- {number} cy - relative vertical image center
+
 ### function app.createSVGResource
 
 creates an image resource from an inline SVG string
@@ -160,6 +202,37 @@ sets window title
 #### Parameters:
 
 - {string} title - new title
+
+### function app.resizable
+
+sets window resizability
+
+#### Parameters:
+
+- {bool} isResizable
+
+### function app.fullscreen
+
+toggles window fullscreen or returns fullscreen state
+
+#### Parameters:
+
+- {bool} [fullscreen]
+
+#### Returns:
+
+- {bool} current fullscreen state, if called without parameter
+
+### function app.transformArray
+
+transforms a Float32Array by applying a function on all groups of members
+
+#### Parameters:
+
+- {buffer} arr - Float32Array to be transformed
+- {number} stride - number of elements of a single logical record
+- {any} [param] - zero or more fixed parameters to be passed to the callback function
+- {function} callback - function transforming a single logical record at once, signature function(input, output[, param0,...])
 
 ### function app.setPointer
 
@@ -292,7 +365,180 @@ converts a HSL color defined by hue, saturation, lightness, and optionally opaci
 - {number} app.height - window height in logical pixels
 - {number} app.pixelRatio - ratio physical to logical pixels
 
-## module gfx
+## module audio
+
+a collection of basic sound synthesis and replay functions
+
+```javascript
+var audio = app.require('audio');
+```
+
+### function audio.volume
+
+sets or returns master volume or volume of a currently playing track
+
+#### Parameters:
+
+- {number} [track] - track ID
+- {number} [v] - new volume, a number between 0.0 and 1.0
+
+#### Returns:
+
+- {number} the current master volume if called without arguments
+
+### function audio.playing
+
+checks if a track or any track is currently playing
+
+#### Parameters:
+
+- {number} [track] - track ID
+
+#### Returns:
+
+- {boolean} true if the given track (or any track) is playing, otherwise false
+
+### function audio.stop
+
+immediate stops an individual track or all tracks
+
+#### Parameters:
+
+- {number} [track] - track ID
+
+### function audio.fadeOut
+
+linearly fades out a currently playing track
+
+#### Parameters:
+
+- {number} track - track ID
+- {number} deltaT - time from now in seconds until silence
+
+### function audio.replay
+
+immediately plays a buffered PCM sample
+
+#### Parameters:
+
+- {number\|array} sample - sample handle or array of alternative samples (randomly chosen)
+- {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
+- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+- {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less
+
+#### Returns:
+
+- {number} track number playing this sound or UINT_MAX if no track is available
+
+### function audio.sound
+
+immediately plays an oscillator-generated sound
+
+#### Parameters:
+
+- {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
+- {number} freq - frequency in Hz
+- {number} duration - duration in seconds
+- {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
+- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+
+#### Returns:
+
+- {number} track number playing this sound or UINT_MAX if no track is available
+
+### function audio.createSound
+
+creates a complex oscillator-generated sound
+
+#### Parameters:
+
+- {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
+- {number\|string} - one or more control points consisting of frequency/time interval/volume/shape
+
+#### Returns:
+
+- {number} a handle identifying this sound for later replay
+
+### function audio.createSoundBuffer
+
+creates a complex oscillator-generated sound buffer
+
+#### Parameters:
+
+- {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
+- {number\|string} - one or more control points consisting of frequency/time interval/volume/shape
+
+#### Returns:
+
+- {Float32Array} a PCM sound buffer
+
+### function audio.melody
+
+immediately plays an FM-generated melody based on a compact string notation
+
+#### Parameters:
+
+- {string} melody - melody notated as a series of wave form descriptions and notes
+- {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
+- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+
+#### Returns:
+
+- {number} track number playing this sound or UINT_MAX if no track is available
+
+### function audio.uploadPCM
+
+uploads PCM data from an array of floating point numbers and returns a handle for later playback
+
+#### Parameters:
+
+- {array\|Float32Array} data - array of PCM sample values in range -1.0..1.0
+- {number} [numChannels=1] - number of channels, 1=mono, 2=stereo
+
+#### Returns:
+
+- {number} sample handle to be used in audio
+
+### function audio.sampleBuffer
+
+provides access to a sample's buffer
+
+#### Parameters:
+
+- {number} sample - sample handle
+
+#### Returns:
+
+- {Float32Array} - float32 buffer object containing the PCM samples
+
+### function audio.clampBuffer
+
+clamps a sample buffer' value range to given minimum and maximum values
+
+#### Parameters:
+
+- {Float32Array} buffer - sample buffer to be truncated
+- {number} [minValue=-1.0] - minimum value
+- {number} [maxValue=+1.0] - maximum value
+
+### function audio.mixToBuffer
+
+mixes a mono PCM sample to an existing stereo buffer. Both need to have the same sample
+rate as the current audio device.
+
+#### Parameters:
+
+- {Float32Array} target - target stereo buffer
+- {number\|Float32Array} source - source mono sample or buffer
+- {number} [startTime=0.0] - start time offset
+- {number} [volume=1.0] - maximum value
+- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+
+### Properties:
+
+- {number} audio.sampleRate - audio device sample rate in Hz
+
+## module graphics2
 
 drawing functions, only available within the  draw event callback function
 
@@ -310,25 +556,10 @@ sets the current drawing color
 
 #### Parameters:
 
-- {number\|array\|buffer} r - RGB red component in range 0..255 or color array/array buffer
+- {number} r - RGB red component in range 0..255 or unified uint32 color
 - {number} [g] - RGB green component in range 0..255
 - {number} [b] - RGB blue component in range 0..255
 - {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
-
-#### Returns:
-
-- {object} - this gfx object
-
-### function gfx.colorf
-
-sets the current drawing color using normalized floating point values
-
-#### Parameters:
-
-- {number} r - RGB red component in range 0.0..1.0
-- {number} g - RGB green component in range 0.0..1.0
-- {number} b - RGB blue component in range 0.0..1.0
-- {number} [a=255] - opacity between 0.0 (invisible) and 1.0 (opaque)
 
 #### Returns:
 
@@ -340,11 +571,11 @@ sets current drawing line width in pixels.
 
 #### Parameters:
 
-- {number} [w] - line width in pixels
+- {number} w - line width in pixels
 
 #### Returns:
 
-- {object\|number} - this gfx object or current line width, if called without width parameter
+- {object} - this gfx object
 
 ### function gfx.blend
 
@@ -358,32 +589,6 @@ sets current drawing blend mode.
 
 - {object\|number} - this gfx object or current blend mode, if called without parameter
 
-### function gfx.origin
-
-sets drawing origin
-
-#### Parameters:
-
-- {number} ox - horizontal origin
-- {number} oy - vertical origin
-- {boolean} [isScreen=true] - flag switching between screen and model space
-
-#### Returns:
-
-- {object} - this gfx object
-
-### function gfx.scale
-
-sets drawing scale
-
-#### Parameters:
-
-- {number} sc - scale
-
-#### Returns:
-
-- {object} - this gfx object
-
 ### function gfx.clipRect
 
 sets viewport/clipping rectangle (in screen coordinates) or turns clipping off if called without parameters
@@ -394,6 +599,45 @@ sets viewport/clipping rectangle (in screen coordinates) or turns clipping off i
 - {number} [y] - Y ordinate
 - {number} [w] - width
 - {number} [h] - height
+
+### function gfx.transform
+
+sets the current transformation
+
+#### Parameters:
+
+- {number} x - horizontal translation
+- {number} y - vertical translation
+- {number} [rot=0] - rotation angle in radians
+- {number} [sc=1] - scale factor
+
+#### Returns:
+
+- {object} this gfx object for chained calls
+
+### function gfx.save
+
+saves current rendering state, can be nested up to 7 times
+
+#### Returns:
+
+- {object} this gfx object for chained calls
+
+### function gfx.restore
+
+restores the last stored rendering state
+
+#### Returns:
+
+- {object} this gfx object for chained calls
+
+### function gfx.resets
+
+restores the initial rendering state, pops also all stored states
+
+#### Returns:
+
+- {object} this gfx object for chained calls
 
 ### function gfx.drawRect
 
@@ -436,36 +680,73 @@ draws a series of connected lines using the current color and line width.
 
 - {array\|Float32Array} arr - array of vertex ordinates
 
-### function gfx.drawPoints
+### function gfx.drawLineLoop
 
-draws an array of individual points using the current color and line width.
+draws a closed series of connected lines using the current color and line width.
 
 #### Parameters:
 
 - {array\|Float32Array} arr - array of vertex ordinates
 
+### function gfx.drawPoints
+
+draws a series points using an optionally defined image as point sprite and the current line width.
+
+#### Parameters:
+
+- {array\|Float32Array} arr - array of vertex ordinates
+- {number} [img=gfx.IMG_CIRCLE] - point sprite image handle
+
+### function gfx.fillTriangle
+
+draws a single filled triangle using the current color.
+
+#### Parameters:
+
+- {number} x1 - X ordinate first point
+- {number} y1 - Y ordinate first point
+- {number} x2 - X ordinate second point
+- {number} y2 - Y ordinate second point
+- {number} x3 - X ordinate third point
+- {number} y3 - Y ordinate third point
+
+### function gfx.fillTriangles
+
+draws filled triangles.
+
+#### Parameters:
+
+- {array\|Float32Array} arr - array of vertex ordinates
+- {array\|Uint32Array} [colors] - optional array of vertex colors
+
 ### function gfx.drawImage
 
-gfx.drawImage(dstX, dstY[, dstW, dstH])(dstX, dstY[, dstW, dstH])
-gfx.drawImage(srcX,srcY, srcW, srcH, dstX, dstY, dstW, dstH[, cX, cY, angle, flip])
+gfx.drawImage(img[,dstX, dstY, angle, scale, flip])
 
 draws an image or part of an image at a given target position, optionally scaled
 
 #### Parameters:
 
 - {number} img - image handle
-- {number} dstX - destination X position
-- {number} dstY - destination Y position
-- {number} [destW=srcW] - destination width
-- {number} [dstH=srcH] - destination height
-- {number} [srcX=0] - source origin X in pixels
-- {number} [srcY=0] - source origin Y in pixels
-- {number} [srcW=imgW] - source width in pixels
-- {number} [srcH=imgH] - source height in pixels
-- {number} [cX=0] - rotation center X offset in pixels
-- {number} [cY=0] - rotation center Y offset in pixels
+- {number} [dstX=0] - destination X position
+- {number} [dstY=0] - destination Y position
 - {number} [angle=0] - rotation angle in radians
+- {number} [scale=1] - scale factor
 - {number} [flip=gfx.FLIP_NONE] - flip image in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions
+
+### function gfx.stretchImage
+
+gfx.stretchImage(img,x1,y1,w,h)
+
+draws a stretched image controlled by a corner and width and height
+
+#### Parameters:
+
+- {number} img - image handle
+- {number} x1 - X ordinate upper left corner
+- {number} y1 - Y ordinate upper left corner
+- {number} w - width
+- {number} h - height
 
 ### function gfx.fillText
 
@@ -473,11 +754,49 @@ writes text using a specified font.
 
 #### Parameters:
 
-- {number} font - font resource handle, use 0 for built-in default 12x16 pixel font
 - {number} x - X ordinate
 - {number} y - Y ordinate
 - {string} text - text
+- {number} [font=0] - font handle
 - {number} [align=gfx.ALIGN_LEFT_TOP] - horizontal and vertical alignment, one of the gfx.ALIGN_xyz constants
+
+### function gfx.drawTiles
+
+draws a rectangular grid of multiple tiled images
+
+#### Parameters:
+
+- {number} imgBase - base image handle
+- {number} tilesX - number of tiles in horizontal direction
+- {number} tilesY - number of tiles in vertical direction
+- {Uint32Array} imgOffsets - array of image handle offsets
+- {Uint32Array} [colors] - optional tile color array
+- {number} [stride=tilesX] - number of array elements to proceed to next row
+- {Float32Array} arr - data array containing at least the positions of the images to be drawn and optionally further components
+
+### function gfx.drawImages
+
+draws multiple images based on a data array
+
+#### Parameters:
+
+- {number} imgBase - base image handle
+- {number} stride - number of array elements to proceed to next image data record
+- {number} components - components contained in data array, a bitwise combination of gfx.COMP_xyz constants
+- {Float32Array} arr - data array containing at least the positions of the images to be drawn and optionally further components
+
+### function gfx.drawSprite
+
+draws a sprite object based on various object attributes
+
+#### Parameters:
+
+- {object} s - sprite object. The following attributes are interpreted:
+
+- {number} image - image handle
+- {number} x,y,[rot=0],[sc=1] - position
+- {number} [color=0xFFffFFff] - color and opacity
+- {number} [flip=0] - horizontal (1) and vertical (2) flip flags
 
 ### Constants:
 
@@ -505,523 +824,17 @@ writes text using a specified font.
 - {number} gfx.BLEND_ADD
 - {number} gfx.BLEND_MOD
 - {number} gfx.BLEND_MUL
-
-## module audio
-
-a collection of basic sound synthesis and replay functions
-
-```javascript
-var audio = app.require('audio');
-```
-
-### function audio.volume
-
-sets or returns master volume, a number between 0.0 and 1.0
-
-#### Parameters:
-
-- {number} [v] - sets master volume
-
-#### Returns:
-
-- {number} the current master volume if called without parameter
-
-### function audio.playing
-
-checks if a track or any track is currently playing
-
-#### Parameters:
-
-- {number} [track] - track ID
-
-#### Returns:
-
-- {boolean} true if the given track (or any track) is playing, otherwise false
-
-### function audio.stop
-
-immediate stops an individual track or all tracks
-
-#### Parameters:
-
-- {number} [track] - track ID
-
-### function audio.replay
-
-immediately plays a buffered PCM sample
-
-#### Parameters:
-
-- {number\|array} sample - sample handle or array of alternative samples (randomly chosen)
-- {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
-- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
-- {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less
-
-#### Returns:
-
-- {number} track number playing this sound or UINT_MAX if no track is available
-
-### function audio.sound
-
-immediately plays an FM-generated sound
-
-#### Parameters:
-
-- {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
-- {number} freq - frequency in Hz
-- {number} duration - duration in seconds
-- {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
-- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
-
-#### Returns:
-
-- {number} track number playing this sound or UINT_MAX if no track is available
-
-### function audio.melody
-
-immediately plays an FM-generated melody based on a compact string notation
-
-#### Parameters:
-
-- {string} melody - melody notated as a series of wave form descriptions and notes
-- {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
-- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
-
-#### Returns:
-
-- {number} track number playing this sound or UINT_MAX if no track is available
-
-### function audio.sample
-
-creates an audio sample from an array of floating point numbers
-
-#### Parameters:
-
-- {array\|Float32Array} data - array of PCM sample values in range -1.0..1.0
-
-#### Returns:
-
-- {number} sample handle to be used in audio.replay
-
-### Properties:
-
-- {number} audio.sampleRate - audio device sample rate in Hz
-
-## module Sprite
-
-### function Sprite.setColor
-
-sets the sprite's color possibly blending with its pixel colors
-
-#### Parameters:
-
-- {number\|array\|buffer} r - RGB red component in range 0..255 or combined color array/array buffer
-- {number} [g] - RGB green component in range 0..255
-- {number} [b] - RGB blue component in range 0..255
-- {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.getColor
-
-returns the sprite's RGBA color
-
-#### Returns:
-
-- {array} color [r,g,b,a], components in range 0..255
-
-### function Sprite.setAlpha
-
-sets the sprite's opacity
-
-#### Parameters:
-
-- {number} opacity - opacity between 0.0 (invisible) and 1.0 (opaque)
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.getX
-
-returns the sprite's X ordinate
-
-#### Returns:
-
-- {number} X ordinate
-
-### function Sprite.getY
-
-returns the sprite's Y ordinate
-
-#### Returns:
-
-- {number} Y ordinate
-
-### function Sprite.setX
-
-sets the sprite's horizontal position
-
-#### Parameters:
-
-- {number} value - X ordinate
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.setY
-
-sets the sprite's vertical position
-
-#### Parameters:
-
-- {number} value - y ordinate
-
-### function Sprite.setPos
-
-sets the sprite's position
-
-#### Parameters:
-
-- {number} x - X ordinate
-- {number} y - Y ordinate
-- {number} [rot] - rotation in radians
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.setScale
-
-sets the sprite's output dimensions relative to its source dimensions. Use
-negative scales for horizontal/vertical mirroring/flipping.
-
-#### Parameters:
-
-- {number} scaleX - horizontal scale
-- {number} [scaleY=scaleX] - vertical scale
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.getScaleX
-
-returns the sprite's horizontal scale relative to its source width
-
-#### Returns:
-
-- {number} - horizontal size
-
-### function Sprite.getScaleY
-
-returns the sprite's vertical scale relative to its source height
-
-#### Returns:
-
-- {number} - vertical size
-
-### function Sprite.setDim
-
-sets the sprite's absolute output dimensions
-
-#### Parameters:
-
-- {number} w - width in pixels
-- {number} h - height in pixels
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.getDimX
-
-returns the sprite's output width
-
-#### Returns:
-
-- {number} output width
-
-### function Sprite.getDimY
-
-returns the sprite's output height
-
-#### Returns:
-
-- {number} output height
-
-### function Sprite.setVel
-
-sets the sprite's velocity
-
-#### Parameters:
-
-- {number} velX - horizontal velocity in pixels per second
-- {number} velY - vertical velocity in pixels per second
-- {number} [velRot] - rotation velocity in radians per second
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.setVelX
-
-sets the sprite's horizontal velocity
-
-#### Parameters:
-
-- {number} velX - horizontal velocity in pixels per second
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.setVelY
-
-sets the sprite's vertical velocity
-
-#### Parameters:
-
-- {number} velY - vertical velocity in pixels per second
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.getVelX
-
-returns the sprite's horizontal velocity
-
-#### Returns:
-
-- {number} - velocity in pixels per second
-
-### function Sprite.getVelY
-
-returns the sprite's vertical velocity
-
-#### Returns:
-
-- {number} - velocity in pixels per second
-
-### function Sprite.getVelRot
-
-returns the sprite's rotation velocity
-
-#### Returns:
-
-- {number} - rotation velocity in radians per second
-
-### function Sprite.setVelRot
-
-sets the sprite's rotation velocity
-
-#### Parameters:
-
-- {number} rot - rotation velocity in radians per second
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.setCenter
-
-sets the sprite's center coordinates
-
-#### Parameters:
-
-- {number} cx - center X position, normalized from 0.0..1.0
-- {number} cy - center Y position, normalized from 0.0..1.0
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.getCenterX
-
-returns the sprite's center X offset from left border
-
-#### Returns:
-
-- {number} X offset
-
-### function Sprite.getCenterY
-
-returns the sprite's center Y offset from top border
-
-#### Returns:
-
-- {number} Y offset
-
-### function Sprite.getRot
-
-returns the sprite's rotation
-
-#### Returns:
-
-- {number} rotation in radians
-
-### function Sprite.setRot
-
-sets the sprite's rotation
-
-#### Parameters:
-
-- {number} rot - rotation in radians
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.setSource
-
-sets the sprite's source dimensions
-
-#### Parameters:
-
-- {number} x - source x origin in pixels
-- {number} y - source y origin in pixels
-- {number} w - source width in pixels
-- {number} h - source height in pixels
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.setTile
-
-sets the sprite source tile number, given that the sprite's SpriteSet is tiled
-
-#### Parameters:
-
-- {number} tile - tile number
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.getRadius
-
-returns the sprite's collision radius
-
-#### Returns:
-
-- {number} - collision radius, -1.0 if disabled
-
-### function Sprite.setRadius
-
-sets the sprite's collision radius
-
-#### Parameters:
-
-- {number} r - collision radius, use -1.0 to disable
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.set
-
-sets the sprite's custom attributes
-
-#### Parameters:
-
-- {object} attributes - custom attributes as key-value pairs
-
-#### Returns:
-
-- {object} - sprite instance
-
-### function Sprite.intersects
-
-tests on intersection/collision with another sprite or a point
-
-The test is either based on radius if set (faster), or on possibly rotated bounding rectangle
-
-#### Parameters:
-
-- {Sprite\|number} arg1 - other sprite to be tested on collision or point X ordinate
-- {number} [arg2] - point Y ordinate
-
-#### Returns:
-
-- {boolean} - true in case of intersection, otherwise false
-
-### function SpriteSet.createSprite
-
-creates a new Sprite instance and appends it to this SpriteSet
-
-#### Parameters:
-
-- {number\|boolean} [tile=0\|srcX=0] - tile number for tiled source or source x origin or false for an invisible sprite
-- {number} [srcY=0] - source y origin
-- {number} [srcW] - source width, default is parent SpriteSet texture width
-- {number} [srcH] - source height, default is parent SpriteSet texture height
-
-#### Returns:
-
-- {object} - created sprite instance
-
-### function SpriteSet.update
-
-updates position of contained sprites based on their velocity and passed time
-
-#### Parameters:
-
-- {number} deltaT - time since last update in seconds
-
-### function SpriteSet.removeSprite
-
-removes a sprite from this sprite set
-
-#### Parameters:
-
-- {Sprite} sprite - sprite instance to be removed
-
-### function gfx.drawSprites
-
-draws the contained sprites in sequence of their insertion
-
-#### Parameters:
-
-- {object} spriteset - SpriteSet instance
-
-### function gfx.drawTile
-
-draws a tile of a tiled sprite set
-
-#### Parameters:
-
-- {object} spriteset - SpriteSet instance
-- {number} tile - tile number
-- {number} x - X ordinate
-- {number} y - Y ordinate
-- {number} [w] - width
-- {number} [h] - height
-- {number} [align=gfx.ALIGN_LEFT_TOP] - horizontal and vertical alignment, a combination of the gfx.ALIGN_xyz constants
-- {number} [angle=0] - rotation angle in radians
-- {number} [flip=gfx.FLIP_NONE] - flip tile in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions
-
-### function app.createSpriteSet
-
-creates a new SpriteSet instance
-
-a SpriteSet is a group of graphics sharing the same texture (atlas) that
-are drawn and updated together
-
-#### Parameters:
-
-- {number} texture - texture image resource handle
-- {number} [tilesX=1] - number for tiles in horizontal direction
-- {number} [tilesY=1] - number for tiles in vertical direction
-- {number} [border=0] - border width (of each tile) in pixels
-
-#### Returns:
-
-- {object} - created SpriteSet instance
+- {number} gfx.IMG_CIRCLE
+- {number} gfx.IMG_SQUARE
+- {number} gfx.COMP_IMG_OFFSET
+- {number} gfx.COMP_ROT
+- {number} gfx.COMP_SCALE
+- {number} gfx.COMP_COLOR_R
+- {number} gfx.COMP_COLOR_G
+- {number} gfx.COMP_COLOR_B
+- {number} gfx.COMP_COLOR_A
+- {number} gfx.COMP_COLOR_RGB
+- {number} gfx.COMP_COLOR_RGBA
 
 ## module intersects
 
@@ -1145,6 +958,24 @@ Test if a circle and a convex polygon intersect
 
 - {boolean} true if the two objects intersect
 
+### function intersects.circleTriangles
+
+Test if a circle and a list of optionally transformed triangles intersect
+
+#### Parameters:
+
+- {number} cx - circle center X ordinate
+- {number} cy - circle center Y ordinate
+- {number} cr - circle radius
+- {array\|ArrayBuffer} triangles - triangle ordinates
+- {number} [tx=0] - triangles x translation
+- {number} [ty=0] - triangles y translation
+- {number} [trot=0] - triangles rotation
+
+#### Returns:
+
+- {boolean} true if the two objects intersect
+
 ### function intersects.alignedRectAlignedRect
 
 Test if two axis-aligned rectangles intersect
@@ -1188,6 +1019,62 @@ Test if two convex polygons intersect
 
 - {array\|ArrayBuffer} polygon1 - polygon 1 ordinates
 - {array\|ArrayBuffer} polygon2 - polygon 2 ordinates
+
+#### Returns:
+
+- {boolean} true if the two objects intersect
+
+### function intersects.polygonTriangles
+
+Test if a convex polygon and a triangle list intersect, both optionally transformed
+
+#### Parameters:
+
+- {array\|ArrayBuffer} polygon - polygon ordinates
+- {number} x1 - polygon x translation
+- {number} y1 - polygon y translation
+- {number} rot1 - polygon rotation
+- {array\|ArrayBuffer} triangles - triangle ordinates
+- {number} [x2=0] - triangles x translation
+- {number} [y2=0] - triangles y translation
+- {number} [rot2=0] - triangles rotation
+
+#### Returns:
+
+- {boolean} true if the two objects intersect
+
+### function intersects.trianglesTriangles
+
+Test if two triangle lists intersect, both optionally transformed
+
+#### Parameters:
+
+- {array\|ArrayBuffer} tr1 - first triangle ordinates
+- {number} x1 - first triangles x translation
+- {number} y1 - first triangles y translation
+- {number} rot1 - first triangles rotation
+- {array\|ArrayBuffer} second tr2 - second triangle ordinates
+- {number} [x2=0] - second triangles x translation
+- {number} [y2=0] - second triangles y translation
+- {number} [rot2=0] - triangles rotation
+
+#### Returns:
+
+- {boolean} true if the two objects intersect
+
+### function intersects.sprites
+
+Test if two sprite objects intersect
+
+The test is based on the following object attributes:
+- position (x,y,rot) currently NO scale
+- bounding radius (radius) or rectangle (w,h) with optional center (cx,cy)
+- optionally convex hull (shape) or triangle list (triangles)
+
+#### Parameters:
+
+- {object} s1 - first sprite
+- {object} s2 - second sprite
 
 #### Returns:
 

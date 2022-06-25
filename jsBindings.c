@@ -4,6 +4,7 @@
 #include "graphics.h"
 #include "resources.h"
 #include "audio.h"
+#include "graphics.h"
 #include "console.h"
 #include "httpRequest.h"
 
@@ -17,12 +18,14 @@
 
 #include <SDL_thread.h>
 #include <SDL_loadso.h>
+#include <SDL_filesystem.h>
 
 extern float clampf(float f, float min, float max);
+extern uint32_t hsla2rgba(float h, float s, float l, float a);
 extern float randf();
 extern const char* appVersion;
-extern void sprites_exports(duk_context *ctx);
 extern void intersects_exports(duk_context *ctx);
+extern void bindGraphics(duk_context *ctx);
 
 uint32_t rgbaColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
 	return (r << 24) + (g << 16) + (b << 8) + a;
@@ -68,6 +71,23 @@ uint32_t readFloatArray(duk_context *ctx, duk_idx_t idx, float** arr, float** bu
 		for(uint32_t i=0; i<n; ++i) {
 			duk_get_prop_index(ctx, idx, i);
 			(*buf)[i] = duk_get_number(ctx, -1);
+			duk_pop(ctx);
+		}
+	}
+	return n;
+}
+
+uint32_t readUint8Array(duk_context *ctx, duk_idx_t idx, uint8_t** arr, uint8_t** buf) {
+	duk_size_t n=0;
+	*buf = NULL;
+	if(duk_is_buffer_data(ctx, idx))
+		*arr = duk_get_buffer_data(ctx, idx, &n);
+	else if(duk_is_array(ctx, idx)) {
+		n = duk_get_length(ctx, idx);
+		*arr = *buf = (uint8_t*)malloc(n);
+		for(duk_size_t i=0; i<n; ++i) {
+			duk_get_prop_index(ctx, idx, i);
+			(*buf)[i] = duk_get_uint(ctx, -1);
 			duk_pop(ctx);
 		}
 	}
@@ -209,12 +229,8 @@ static void dk_encodeURI(duk_context *ctx, duk_idx_t objIdx) {
 	duk_pop_2(ctx); // pop enum obj and funcIdx
 }
 
-static duk_ret_t dk_dummy(duk_context *ctx) {
-	return 0;
-}
-
 #define ERROR_MAXLEN 512
-static char s_lastError[ERROR_MAXLEN];
+char s_lastError[ERROR_MAXLEN];
 
 //--- timeouts -----------------------------------------------------
 
@@ -467,12 +483,37 @@ static duk_ret_t dk_appEmit(duk_context *ctx) {
  * @param {object} keyboardEvent - the keyboard event to be translated and re-emitted
  * @param {number} index - the index of the gamepad
  * @param {array} axes - key names of the keys to be interpreted as gamepad axes. Each pair of keys define an axis.
- * @param {array} [buttons] - key names of the keys to be interpreted as gamepad buttons.
+ * @param {array} [buttons] - key names of the keys to be interpreted as gamepad buttons or objects {key:'keyName', location:index}.
  */
 
+float getPropFloatDefault(duk_context *ctx, duk_idx_t idx, const char* key, float defaultValue) {
+	float ret = defaultValue;
+	if(duk_get_prop_string(ctx, idx, key))
+		ret = duk_to_number(ctx, -1);
+	duk_pop(ctx);
+	return ret;
+}
+
+uint32_t getPropUint32Default(duk_context *ctx, duk_idx_t idx, const char* key, uint32_t defaultValue) {
+	uint32_t ret = defaultValue;
+	if(duk_get_prop_string(ctx, idx, key))
+		ret = duk_to_uint32(ctx, -1);
+	duk_pop(ctx);
+	return ret;
+}
+
+uint32_t getPropFloatBuffer(duk_context *ctx, duk_idx_t idx, const char* key, float** arr) {
+	if(!duk_is_object(ctx, idx))
+		return 0;
+	duk_size_t bufSz = 0;
+	*arr = (duk_get_prop_string(ctx, idx, key) && duk_is_buffer_data(ctx, -1)) ?
+		duk_get_buffer_data(ctx, -1, &bufSz) : NULL;
+	duk_pop(ctx);
+	return bufSz/sizeof(float);
+}
 
 static void readImageResourceParams(
-	duk_context *ctx, duk_idx_t idx, float* scale, int* filtering)
+	duk_context *ctx, duk_idx_t idx, float* scale, int* filtering, float* cx, float* cy)
 {
 	if(!duk_is_object(ctx, idx))
 		return;
@@ -486,14 +527,20 @@ static void readImageResourceParams(
 			*filtering = duk_to_int(ctx, -1);
 		duk_pop(ctx);
 	}
+	if(cx)
+		*cx = getPropFloatDefault(ctx, idx, "centerX", 0.0f);
+	if(cy)
+		*cy = getPropFloatDefault(ctx, idx, "centerY", 0.0f);
 }
 
 static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 	int filtering = 1;
 	float scale = 1.0;
-	readImageResourceParams(ctx, 1, &scale, &filtering);
+	float cx = 0.0f, cy=0.0f;
+	readImageResourceParams(ctx, 1, &scale, &filtering, &cx, &cy);
 
-	size_t handle = ResourceProtectHandle(ResourceGetImage(name, scale, filtering), RESOURCE_IMAGE);
+	size_t handle = ResourceGetImage(name, scale, filtering);
+	gfxImageSetCenter(handle, cx, cy);
 	if(!handle)
 		handle = ResourceGetAudio(name);
 	if(!handle) {
@@ -502,7 +549,7 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 				scale = duk_to_number(ctx, -1);
 			duk_pop(ctx);
 		}
-		handle = ResourceProtectHandle(ResourceGetFont(name, scale), RESOURCE_FONT);
+		handle = ResourceGetFont(name, scale);
 	}
 	if(handle) {
 		duk_push_number(ctx, (double)handle);
@@ -560,7 +607,8 @@ static duk_ret_t dk_createCircleResource(duk_context *ctx) {
 	float strokeWidth = argc>2 ? duk_to_number(ctx, 2) : 0.0f;
 	uint32_t strokeColor = argc>3 ? array2color(ctx, 3) : 0xffffffff;
 	size_t img = ResourceCreateCircleImage(radius, fillColor, strokeWidth, strokeColor);
-	duk_push_uint(ctx, ResourceProtectHandle(img, RESOURCE_IMAGE));
+	gfxImageSetCenter(img, 0.5f, 0.5f);
+	duk_push_uint(ctx, img);
 	return 1;
 }
 
@@ -586,8 +634,86 @@ static duk_ret_t dk_createPathResource(duk_context *ctx) {
 	float strokeWidth = argc>4 ? duk_to_number(ctx, 4) : 0.0f;
 	uint32_t strokeColor = argc>5 ? array2color(ctx, 5) : 0xffffffff;
 	size_t img = ResourceCreatePathImage(width, height, path, fillColor, strokeWidth, strokeColor);
-	duk_push_uint(ctx, ResourceProtectHandle(img, RESOURCE_IMAGE));
+	duk_push_uint(ctx, img);
 	return 1;
+}
+
+/**
+ * @function app.createTileResources
+ * creates tiled image resources based on an existing image resource
+ * @param {number|string} parent - image resource handle or name
+ * @param {number} tilesX - number of tiles in horizontal direction
+ * @param {number} [tilesY=1] - number of tiles in vertical direction
+ * @param {number} [border=0] - border around tiles in pixels
+ * @param {object} [params] - optional additional parameters as key-value pairs such as filtering or scale. Only effective if parent is a resource file name.
+ * @returns {number} handle of the first created tile image resource
+ */
+static duk_ret_t dk_createTileResources(duk_context *ctx) {
+	uint32_t parent;
+	if(duk_is_number(ctx,0))
+		parent = duk_to_uint32(ctx, 0);
+	else {
+		int filtering = 1;
+		float scale = 1.0f, cx = 0.0f, cy=0.0f;
+		readImageResourceParams(ctx, 4, &scale, &filtering, &cx, &cy);
+		parent = ResourceGetImage(duk_to_string(ctx,0), scale, filtering);
+		gfxImageSetCenter(parent, cx, cy);
+	}
+	uint16_t tilesX = duk_to_uint16(ctx, 1);
+	uint16_t tilesY = duk_get_uint_default(ctx, 2, 1);
+	uint16_t border = duk_get_uint_default(ctx, 3, 0);
+	uint32_t img = gfxImageTileGrid(parent, tilesX, tilesY, border);
+	duk_push_uint(ctx, img);
+	return 1;
+}
+
+/**
+ * @function app.createTileResource
+ * creates image resource based on an existing image resource
+ * @param {number} parent - image resource handle
+ * @param {number} x - relative new image horizontal origin (0.0..1.0)
+ * @param {number} y - relative new image vertical origin (0.0..1.0)
+ * @param {number} w - relative new image width (0.0..1.0)
+ * @param {number} h - relative new image height (0.0..1.0)
+ * @param {object} [params] - additional optional parameters: centerX, centerY
+ * @returns {number} handle of the created image resource
+ */
+static duk_ret_t dk_createTileResource(duk_context *ctx) {
+	uint32_t parent = duk_to_uint32(ctx, 0);
+	int parentW=0, parentH=0;
+	gfxImageDimensions(parent, &parentW, &parentH);
+	if(!parentW || !parentH)
+		return duk_error(ctx, DUK_ERR_ERROR, "app.createTileResource() invalid parent image handle %s", duk_to_string(ctx, 0));
+	float x = duk_to_number(ctx, 1);
+	float y = duk_to_number(ctx, 2);
+	float w = duk_to_number(ctx, 3);
+	float h = duk_to_number(ctx, 4);
+
+	uint32_t img = gfxImageTile(parent, roundf(x*parentW), roundf(y*parentH), roundf(w*parentW), roundf(h*parentH));
+
+	if( duk_is_object(ctx, 5)) {
+		float cx = getPropFloatDefault(ctx, 5, "centerX", INFINITY);
+		float cy = getPropFloatDefault(ctx, 5, "centerY", INFINITY);
+		if(isfinite(cx) && isfinite(cy))
+			gfxImageSetCenter(img, cx, cy);
+	}
+	duk_push_uint(ctx, img);
+	return 1;
+}
+
+/**
+ * @function app.setImageCenter
+ * sets image origin and rotation center relative to upper left (0|0) and lower right (1.0|1.0) corners
+ * @param {number} img - image resource handle
+ * @param {number} cx - relative horizontal image center
+ * @param {number} cy - relative vertical image center
+ */
+static duk_ret_t dk_appSetImageCenter(duk_context *ctx) {
+	uint32_t img = duk_to_uint32(ctx, 0);
+	float cx = duk_to_number(ctx, 1);
+	float cy = duk_to_number(ctx, 2);
+	gfxImageSetCenter(img, cx, cy);
+	return 0;
 }
 
 /**
@@ -600,9 +726,11 @@ static duk_ret_t dk_createPathResource(duk_context *ctx) {
 static duk_ret_t dk_createSVGResource(duk_context *ctx) {
 	const char* svg = duk_to_string(ctx, 0);
 	float scale = 1.0;
-	readImageResourceParams(ctx, 1, &scale, NULL);
+	float cx = 0.0f, cy=0.0f;
+	readImageResourceParams(ctx, 1, &scale, NULL, &cx, &cy);
 	size_t img = ResourceCreateSVGImage(svg, scale);
-	duk_push_uint(ctx, ResourceProtectHandle(img, RESOURCE_IMAGE));
+	gfxImageSetCenter(img, cx, cy);
+	duk_push_uint(ctx, img);
 	return 1;
 }
 
@@ -619,7 +747,8 @@ static duk_ret_t dk_createImageResource(duk_context *ctx) {
 	int width = duk_to_int(ctx, 0), height = duk_to_int(ctx, 1);
 	size_t img = 0;
 	int filtering = 1;
-	readImageResourceParams(ctx, 3, NULL, &filtering);
+	float cx = 0.0f, cy=0.0f;
+	readImageResourceParams(ctx, 3, NULL, &filtering, &cx, &cy);
 
 	if(duk_is_buffer_data(ctx, 2)) {
 		duk_size_t nBytes;
@@ -648,7 +777,8 @@ static duk_ret_t dk_createImageResource(duk_context *ctx) {
 		img = ResourceCreateImage(width, height, data, filtering);
 		free(data);
 	}
-	duk_push_uint(ctx, ResourceProtectHandle(img, RESOURCE_IMAGE));
+	gfxImageSetCenter(img, cx, cy);
+	duk_push_uint(ctx, img);
 	return 1;
 }
 
@@ -680,6 +810,84 @@ static duk_ret_t dk_appSetBackground(duk_context *ctx) {
  */
 static duk_ret_t dk_appSetTitle(duk_context *ctx) {
 	WindowTitle(duk_to_string(ctx, 0));
+	return 0;
+}
+
+/**
+ * @function app.resizable
+ * sets window resizability
+ * @param {bool} isResizable
+ */
+static duk_ret_t dk_appSetResizable(duk_context *ctx) {
+	WindowResizable(duk_to_boolean(ctx, 0));
+	return 0;
+}
+
+/**
+ * @function app.fullscreen
+ * toggles window fullscreen or returns fullscreen state
+ * @param {bool} [fullscreen]
+ * @returns {bool} current fullscreen state, if called without parameter
+ */
+static duk_ret_t dk_appFullscreen(duk_context *ctx) {
+	int isFullscreen = WindowIsFullscreen();
+	if(duk_is_undefined(ctx, 0)) {
+		duk_push_boolean(ctx, isFullscreen);
+		return 1;
+	}
+	int goFullscreen = duk_to_boolean(ctx, 0);
+	if(goFullscreen != isFullscreen)
+		WindowToggleFullScreen();
+	return 0;
+}
+
+/**
+ * @function app.transformArray
+ * transforms a Float32Array by applying a function on all groups of members
+ * @param {buffer} arr - Float32Array to be transformed
+ * @param {number} stride - number of elements of a single logical record
+ * @param {any} [param] - zero or more fixed parameters to be passed to the callback function
+ * @param {function} callback - function transforming a single logical record at once, signature function(input, output[, param0,...])
+ */
+static duk_ret_t dk_transformArray(duk_context *ctx) {
+	int argc = duk_get_top(ctx);
+
+	float *arr = NULL;
+	uint32_t arrLen = 0;
+	if(duk_is_buffer_data(ctx, 0)) {
+		duk_size_t nBytes;
+		arr = duk_get_buffer_data(ctx, 0, &nBytes);
+		if(nBytes%sizeof(float) == 0)
+			arrLen = nBytes / sizeof(float);
+	}
+	if(!arrLen)
+		return duk_error(ctx, DUK_ERR_ERROR, "app.transformArray() expects Float32Array as first argument");
+
+	uint32_t stride = duk_to_uint32(ctx, 1);
+	if(arrLen%stride != 0)
+		return duk_error(ctx, DUK_ERR_ERROR, "app.transformArray() first argument array size is not multiple of stride");
+
+	if(!duk_is_function(ctx, argc-1))
+		return duk_error(ctx, DUK_ERR_ERROR, "app.transformArray() expects callback function as last argument");
+
+	duk_push_external_buffer(ctx);
+	duk_config_buffer(ctx, -1, arr, arrLen*sizeof(float));
+
+	uint32_t recordSz = sizeof(float)*stride;
+	float* output = duk_push_fixed_buffer(ctx, recordSz);
+	duk_idx_t outBufIndex = duk_get_top_index(ctx), inBufIndex = outBufIndex-1;
+
+	for(size_t i=0, end=arrLen/stride; i<end; ++i) {
+		memcpy(output, &arr[i*stride], recordSz);
+		duk_dup(ctx, argc-1); // callback
+		duk_push_buffer_object(ctx, inBufIndex, i*recordSz, recordSz, DUK_BUFOBJ_FLOAT32ARRAY); // input
+		duk_push_buffer_object(ctx, outBufIndex, 0, recordSz, DUK_BUFOBJ_FLOAT32ARRAY); // output
+		for(int i=3; i<argc; ++i)
+			duk_dup(ctx, i-1); // params
+		duk_call(ctx, argc-1);
+		duk_pop(ctx); // neglect return value
+		memcpy(&arr[i*stride], output, recordSz);
+	}
 	return 0;
 }
 
@@ -908,14 +1116,11 @@ static duk_ret_t dk_appExports(duk_context *ctx) {
  */
 static duk_ret_t dk_gfxQueryFont(duk_context *ctx) {
 	size_t font = duk_to_number(ctx, 0);
-	if(font>0)
-		font = ResourceValidateHandle(font, RESOURCE_FONT);
 
 	int noText = duk_is_undefined(ctx, 1);
 	const char* text = noText ? "m" : duk_to_string(ctx, 1);
 	float width, height, ascent, descent;
 	gfxMeasureText(font, text, &width, &height, &ascent, &descent);
-
 	duk_push_object(ctx);
 	if(!noText) {
 		duk_push_number(ctx, width);
@@ -937,15 +1142,13 @@ static duk_ret_t dk_gfxQueryFont(duk_context *ctx) {
  * @returns {object} an object having the properties width and height
  */
 static duk_ret_t dk_gfxQueryImage(duk_context *ctx) {
-	size_t img = ResourceValidateHandle(duk_get_uint(ctx, 0), RESOURCE_IMAGE);
-	if(!img) {
+	int width=0, height=0;
+	uint32_t img = duk_get_uint(ctx, 0);
+	gfxImageDimensions(img, &width, &height);
+	if(!width || !height) {
 		snprintf(s_lastError, ERROR_MAXLEN, "invalid image handle %s", duk_to_string(ctx, 0));
 		return duk_error(ctx, DUK_ERR_REFERENCE_ERROR, s_lastError);
 	}
-
-	int width, height;
-	gfxImageDimensions(img, &width, &height);
-
 	duk_push_object(ctx);
 	duk_push_number(ctx, width);
 	duk_put_prop_string(ctx, -2, "width");
@@ -1015,10 +1218,16 @@ static void bindApp(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "createCircleResource");
 	duk_push_c_function(ctx, dk_createPathResource, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "createPathResource");
+	duk_push_c_function(ctx, dk_createTileResources, 5);
+	duk_put_prop_literal(ctx, -2, "createTileResources");
+	duk_push_c_function(ctx, dk_createTileResource, 6);
+	duk_put_prop_literal(ctx, -2, "createTileResource");
 	duk_push_c_function(ctx, dk_createSVGResource, 2);
 	duk_put_prop_string(ctx, -2, "createSVGResource");
 	duk_push_c_function(ctx, dk_createImageResource, 4);
 	duk_put_prop_string(ctx, -2, "createImageResource");
+	duk_push_c_function(ctx, dk_appSetImageCenter, 3);
+	duk_put_prop_string(ctx, -2, "setImageCenter");
 	duk_push_c_function(ctx, dk_gfxQueryImage, 1);
 	duk_put_prop_string(ctx, -2, "queryImage");
 	duk_push_c_function(ctx, dk_gfxQueryFont, 2);
@@ -1030,6 +1239,12 @@ static void bindApp(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "setBackground");
 	duk_push_c_function(ctx, dk_appSetTitle, 1);
 	duk_put_prop_string(ctx, -2, "setTitle");
+	duk_push_c_function(ctx, dk_appSetResizable, 1);
+	duk_put_prop_string(ctx, -2, "resizable");
+	duk_push_c_function(ctx, dk_appFullscreen, 1);
+	duk_put_prop_string(ctx, -2, "fullscreen");
+	duk_push_c_function(ctx, dk_transformArray, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "transformArray");
 	duk_push_c_function(ctx, dk_appSetPointer, 1);
 	duk_put_prop_string(ctx, -2, "setPointer");
 	duk_push_c_function(ctx, dk_appPrompt, 3);
@@ -1062,416 +1277,6 @@ static void bindApp(duk_context *ctx) {
 	memset(httpRequests, 0, sizeof(HttpRequest)*httpRequestsMax);
 }
 
-//--- SDL graphics primitives --------------------------------------
-/** @module gfx
- *
- * drawing functions, only available within the  draw event callback function
- *
- * ```javascript
- * app.on('draw', function(gfx) {
- *     gfx.color(255, 0, 0);
- *     gfx.fillRect(50, 50, 200, 100);
- *     //...
- * });
- * ```
- */
-
-/**
- * @function gfx.color
- * sets the current drawing color
- * @param {number|array|buffer} r - RGB red component in range 0..255 or color array/array buffer
- * @param {number} [g] - RGB green component in range 0..255
- * @param {number} [b] - RGB blue component in range 0..255
- * @param {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
- * @returns {object} - this gfx object
- */
-static duk_ret_t dk_gfxColor(duk_context *ctx) {
-	if(duk_is_array(ctx, 0))
-		gfxColor(array2color(ctx, 0));
-	else if(duk_is_undefined(ctx, 1))
-		gfxColor(duk_to_uint(ctx, 0));
-	else {
-		int r = duk_to_int(ctx, 0);
-		int g = duk_to_int(ctx, 1);
-		int b = duk_to_int(ctx, 2);
-		int a = duk_get_int_default(ctx, 3, 255);
-		gfxColorRGBA(r,g,b,a);
-	}
-	duk_push_this(ctx);
-	return 1;
-}
-
-/**
- * @function gfx.colorf
- * sets the current drawing color using normalized floating point values
- * @param {number} r - RGB red component in range 0.0..1.0
- * @param {number} g - RGB green component in range 0.0..1.0
- * @param {number} b - RGB blue component in range 0.0..1.0
- * @param {number} [a=255] - opacity between 0.0 (invisible) and 1.0 (opaque)
- * @returns {object} - this gfx object
- */
-static duk_ret_t dk_gfxColorf(duk_context *ctx) {
-	float r = duk_to_number(ctx, 0);
-	float g = duk_to_number(ctx, 1);
-	float b = duk_to_number(ctx, 2);
-	float a = duk_get_number_default(ctx, 3, 1.0);
-	gfxColorRGBA(r*255,g*255,b*255,a*255);
-	duk_push_this(ctx);
-	return 1;
-}
-
-/**
- * @function gfx.lineWidth
- * sets current drawing line width in pixels.
- * @param {number} [w] - line width in pixels
- * @returns {object|number} - this gfx object or current line width, if called without width parameter
- */
-static duk_ret_t dk_gfxLineWidth(duk_context *ctx) {
-	if(duk_is_undefined(ctx, 0)) {
-		duk_push_number(ctx, gfxGetLineWidth());
-		return 1;
-	}
-	gfxLineWidth(duk_to_number(ctx, 0));
-	duk_push_this(ctx);
-	return 1;
-}
-
-/**
- * @function gfx.blend
- * sets current drawing blend mode.
- * @param {number} [mode] - blend mode, one of the gfx.BLEND_xyz constants
- * @returns {object|number} - this gfx object or current blend mode, if called without parameter
- */
-static duk_ret_t dk_gfxBlend(duk_context *ctx) {
-	if(duk_is_undefined(ctx, 0)) {
-		duk_push_number(ctx, gfxGetBlend());
-		return 1;
-	}
-	gfxBlend(duk_to_number(ctx, 0));
-	duk_push_this(ctx);
-	return 1;
-}
-
-/**
- * @function gfx.origin
- * sets drawing origin
- * @param {number} ox - horizontal origin
- * @param {number} oy - vertical origin
- * @param {boolean} [isScreen=true] - flag switching between screen and model space
- * @returns {object} - this gfx object
- */
-static duk_ret_t dk_gfxOrigin(duk_context *ctx) {
-	float scx = duk_to_number(ctx, 0);
-	float scy = duk_to_number(ctx, 1);
-	int isScreen = duk_get_boolean_default(ctx, 2, 1);
-	if(isScreen)
-		gfxOriginScreen(scx,scy);
-	else
-		gfxOrigin(scx,scy);
-	duk_push_this(ctx);
-	return 1;
-}
-
-/**
- * @function gfx.scale
- * sets drawing scale
- * @param {number} sc - scale
- * @returns {object} - this gfx object
- */
-static duk_ret_t dk_gfxScale(duk_context *ctx) {
-	gfxScale(duk_to_number(ctx, 0));
-	duk_push_this(ctx);
-	return 1;
-}
-
-/**
- * @function gfx.clipRect
- * sets viewport/clipping rectangle (in screen coordinates) or turns clipping off if called without parameters
- * @param {number} [x] - X ordinate
- * @param {number} [y] - Y ordinate
- * @param {number} [w] - width
- * @param {number} [h] - height
- */
-static duk_ret_t dk_gfxClipRect(duk_context *ctx) {
-	if(duk_is_undefined(ctx, 0)) {
-		gfxClipDisable();
-		return 0;
-	}
-	int x = duk_to_int(ctx, 0);
-	int y = duk_to_int(ctx, 1);
-	int w = duk_to_int(ctx, 2);
-	int h = duk_to_int(ctx, 3);
-	gfxClipRect(x,y,w,h);
-	return 0;
-}
-
-/**
- * @function gfx.drawRect
- * draws a rectangular boundary line identified by a left upper coordinate, width, and height.
- * @param {number} x - X ordinate
- * @param {number} y - Y ordinate
- * @param {number} w - width
- * @param {number} h - height
- */
-static duk_ret_t dk_gfxDrawRect(duk_context *ctx) {
-	float x = duk_to_number(ctx, 0);
-	float y = duk_to_number(ctx, 1);
-	float w = duk_to_number(ctx, 2);
-	float h = duk_to_number(ctx, 3);
-	gfxDrawRect(x,y,w,h);
-	return 0;
-}
-
-/**
- * @function gfx.fillRect
- * fills a rectangular screen area identified by a left upper coordinate, width, and height.
- * @param {number} x - X ordinate
- * @param {number} y - Y ordinate
- * @param {number} w - width
- * @param {number} h - height
- */
-static duk_ret_t dk_gfxFillRect(duk_context *ctx) {
-	float x = duk_to_number(ctx, 0);
-	float y = duk_to_number(ctx, 1);
-	float w = duk_to_number(ctx, 2);
-	float h = duk_to_number(ctx, 3);
-	gfxFillRect(x,y,w,h);
-	return 0;
-}
-
-/**
- * @function gfx.drawLine
- * draws a line between two coordinates.
- * @param {number} x1 - X ordinate first point
- * @param {number} y1 - Y ordinate first point
- * @param {number} x2 - X ordinate second point
- * @param {number} y2 - Y ordinate second point
- */
-static duk_ret_t dk_gfxDrawLine(duk_context *ctx) {
-	float x0 = duk_to_number(ctx, 0);
-	float y0 = duk_to_number(ctx, 1);
-	float x1 = duk_to_number(ctx, 2);
-	float y1 = duk_to_number(ctx, 3);
-	gfxDrawLine(x0,y0,x1,y1);
-	return 0;
-}
-
-/**
- * @function gfx.drawLineStrip
- * draws a series of connected lines using the current color and line width.
- * @param {array|Float32Array} arr - array of vertex ordinates
- */
-static duk_ret_t dk_gfxDrawLineStrip(duk_context *ctx) {
-	float *arr, *buf;
-	uint32_t n = readFloatArray(ctx, 0, &arr, &buf);
-	gfxDrawLineStrip(n/2, arr);
-	free(buf);
-	return 0;
-}
-
-/**
- * @function gfx.drawPoints
- * draws an array of individual points using the current color and line width.
- * @param {array|Float32Array} arr - array of vertex ordinates
- */
-static duk_ret_t dk_gfxDrawPoints(duk_context *ctx) {
-	float *arr, *buf;
-	uint32_t n = readFloatArray(ctx, 0, &arr, &buf);
-	gfxDrawPoints(n/2, arr);
-	free(buf);
-	return 0;
-}
-
-/**
- * @function gfx.drawImage
- *
- * gfx.drawImage(dstX, dstY[, dstW, dstH])(dstX, dstY[, dstW, dstH])
- * gfx.drawImage(srcX,srcY, srcW, srcH, dstX, dstY, dstW, dstH[, cX, cY, angle, flip])
- *
- * draws an image or part of an image at a given target position, optionally scaled
- * @param {number} img - image handle
- * @param {number} dstX - destination X position
- * @param {number} dstY - destination Y position
- * @param {number} [destW=srcW] - destination width
- * @param {number} [dstH=srcH] - destination height
- * @param {number} [srcX=0] - source origin X in pixels
- * @param {number} [srcY=0] - source origin Y in pixels
- * @param {number} [srcW=imgW] - source width in pixels
- * @param {number} [srcH=imgH] - source height in pixels
- * @param {number} [cX=0] - rotation center X offset in pixels
- * @param {number} [cY=0] - rotation center Y offset in pixels
- * @param {number} [angle=0] - rotation angle in radians
- * @param {number} [flip=gfx.FLIP_NONE] - flip image in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions
- */
-static duk_ret_t dk_gfxDrawImage(duk_context *ctx) {
-	int argc = duk_get_top(ctx);
-	if(argc<3)
-		return 0;
-
-	size_t img = ResourceValidateHandle(duk_get_uint(ctx, 0), RESOURCE_IMAGE);
-	if(!img) {
-		snprintf(s_lastError, ERROR_MAXLEN, "invalid image handle %s", duk_to_string(ctx, 0));
-		return duk_error(ctx, DUK_ERR_REFERENCE_ERROR, s_lastError);
-	}
-
-	if(argc<5) {
-		float x = duk_to_number(ctx, 1);
-		float y = duk_to_number(ctx, 2);
-		gfxDrawImage(img, x, y);
-	}
-	else if(argc<6) {
-		float x = duk_to_number(ctx, 1);
-		float y = duk_to_number(ctx, 2);
-		float w = duk_to_number(ctx, 3);
-		float h = duk_to_number(ctx, 4);
-		gfxDrawImageScaled(img, x, y, w, h);
-	}
-	else if(argc>8) {
-		int srcX = duk_to_int(ctx, 1);
-		int srcY = duk_to_int(ctx, 2);
-		int srcW = duk_to_int(ctx, 3);
-		int srcH = duk_to_int(ctx, 4);
-		float destX = duk_to_number(ctx, 5);
-		float destY = duk_to_number(ctx, 6);
-		float destW = duk_to_number(ctx, 7);
-		float destH = duk_to_number(ctx, 8);
-		float cx = argc>9 ? duk_to_number(ctx, 9) : 0.0f;
-		float cy = argc>10 ? duk_to_number(ctx, 10) : 0.0f;
-		float angle = argc>11 ? duk_to_number(ctx, 11) : 0.0f;
-		int flip = argc>12 ? duk_to_int(ctx, 12) : 0;
-		gfxDrawImageEx(img, srcX, srcY, srcW, srcH, destX, destY, destW, destH, cx, cy, angle, flip);
-	}
-	return 0;
-}
-
-/**
- * @function gfx.fillText
- * writes text using a specified font.
- * @param {number} font - font resource handle, use 0 for built-in default 12x16 pixel font
- * @param {number} x - X ordinate
- * @param {number} y - Y ordinate
- * @param {string} text - text
- * @param {number} [align=gfx.ALIGN_LEFT_TOP] - horizontal and vertical alignment, one of the gfx.ALIGN_xyz constants
- */
-static duk_ret_t dk_gfxFillText(duk_context *ctx) {
-	size_t font = duk_get_number_default(ctx, 0, 0);
-	if(font>0)
-		font = ResourceValidateHandle(font, RESOURCE_FONT);
-	float x = duk_to_number(ctx, 1);
-	float y = duk_to_number(ctx, 2);
-	int align = duk_get_int_default(ctx, 4, 0);
-	if(!duk_is_buffer_data(ctx, 3))
-		gfxFillTextAlign(font, x, y, duk_to_string(ctx, 3), align);
-	else {
-		duk_size_t len;
-		void* ptr = duk_get_buffer_data(ctx, 3, &len);
-		char* s = (char*)malloc(len+1);
-		memcpy(s, ptr, len);
-		s[len] = 0;
-		gfxFillTextAlign(font, x, y, s, align);
-		free(s);
-	}
-	return 0;
-}
-
-static void bindGraphicsCommon(duk_context* ctx) {
-	const duk_number_list_entry gfx_consts[] = {
-/// @constant {number} gfx.ALIGN_LEFT
-		{ "ALIGN_LEFT", (double)0 },
-/// @constant {number} gfx.ALIGN_CENTER
-		{ "ALIGN_CENTER", (double)1 },
-/// @constant {number} gfx.ALIGN_RIGHT
-		{ "ALIGN_RIGHT", (double)2 },
-/// @constant {number} gfx.ALIGN_TOP
-		{ "ALIGN_TOP", (double)0 },
-/// @constant {number} gfx.ALIGN_MIDDLE
-		{ "ALIGN_MIDDLE", (double)4 },
-/// @constant {number} gfx.ALIGN_BOTTOM
-		{ "ALIGN_BOTTOM", (double)8 },
-/// @constant {number} gfx.ALIGN_LEFT_TOP
-		{ "ALIGN_LEFT_TOP", (double)0 },
-/// @constant {number} gfx.ALIGN_CENTER_TOP
-		{ "ALIGN_CENTER_TOP", (double)1 },
-/// @constant {number} gfx.ALIGN_RIGHT_TOP
-		{ "ALIGN_RIGHT_TOP", (double)2 },
-/// @constant {number} gfx.ALIGN_LEFT_MIDDLE
-		{ "ALIGN_LEFT_MIDDLE", (double)4 },
-/// @constant {number} gfx.ALIGN_CENTER_MIDDLE
-		{ "ALIGN_CENTER_MIDDLE", (double)5 },
-/// @constant {number} gfx.ALIGN_RIGHT_MIDDLE
-		{ "ALIGN_RIGHT_MIDDLE", (double)6 },
-/// @constant {number} gfx.ALIGN_LEFT_BOTTOM
-		{ "ALIGN_LEFT_BOTTOM", (double)8 },
-/// @constant {number} gfx.ALIGN_CENTER_BOTTOM
-		{ "ALIGN_CENTER_BOTTOM", (double)9 },
-/// @constant {number} gfx.ALIGN_RIGHT_BOTTOM
-		{ "ALIGN_RIGHT_BOTTOM", (double)10 },
-
-/// @constant {number} gfx.FLIP_NONE
-		{ "FLIP_NONE", 0.0 },
-/// @constant {number} gfx.FLIP_X
-		{ "FLIP_X", 1.0 },
-/// @constant {number} gfx.FLIP_Y
-		{ "FLIP_Y", 2.0 },
-/// @constant {number} gfx.FLIP_XY
-		{ "FLIP_XY", 3.0 },
-
-/// @constant {number} gfx.BLEND_NONE
-		{ "BLEND_NONE", 0.0 },
-/// @constant {number} gfx.BLEND_ALPHA
-		{ "BLEND_ALPHA", 1.0 },
-/// @constant {number} gfx.BLEND_ADD
-		{ "BLEND_ADD", 2.0 },
-/// @constant {number} gfx.BLEND_MOD
-		{ "BLEND_MOD", 4.0 },
-/// @constant {number} gfx.BLEND_MUL
-		{ "BLEND_MUL", 8.0 },
-
-		{ NULL, 0.0 }
-	};
-	duk_put_number_list(ctx, -1, gfx_consts);
-
-	sprites_exports(ctx);
-}
-
-static void bindGraphics(duk_context *ctx) {
-	duk_push_object(ctx);
-
-	duk_push_c_function(ctx, dk_gfxOrigin, 3);
-	duk_put_prop_string(ctx, -2, "origin");
-	duk_push_c_function(ctx, dk_gfxScale, 1);
-	duk_put_prop_string(ctx, -2, "scale");
-	duk_push_c_function(ctx, dk_dummy, 0);
-	duk_put_prop_string(ctx, -2, "flush");
-	duk_push_c_function(ctx, dk_gfxColor, 4);
-	duk_put_prop_string(ctx, -2, "color");
-	duk_push_c_function(ctx, dk_gfxColorf, 4);
-	duk_put_prop_string(ctx, -2, "colorf");
-	duk_push_c_function(ctx, dk_gfxLineWidth, 1);
-	duk_put_prop_string(ctx, -2, "lineWidth");
-	duk_push_c_function(ctx, dk_gfxBlend, 1);
-	duk_put_prop_string(ctx, -2, "blend");
-	duk_push_c_function(ctx, dk_gfxClipRect, 4);
-	duk_put_prop_string(ctx, -2, "clipRect");
-	duk_push_c_function(ctx, dk_gfxDrawRect, 4);
-	duk_put_prop_string(ctx, -2, "drawRect");
-	duk_push_c_function(ctx, dk_gfxFillRect, 4);
-	duk_put_prop_string(ctx, -2, "fillRect");
-	duk_push_c_function(ctx, dk_gfxDrawLine, 4);
-	duk_put_prop_string(ctx, -2, "drawLine");
-	duk_push_c_function(ctx, dk_gfxDrawLineStrip, 1);
-	duk_put_prop_string(ctx, -2, "drawLineStrip");
-	duk_push_c_function(ctx, dk_gfxDrawPoints, 1);
-	duk_put_prop_string(ctx, -2, "drawPoints");
-	duk_push_c_function(ctx, dk_gfxDrawImage, DUK_VARARGS);
-	duk_put_prop_string(ctx, -2, "drawImage");
-	duk_push_c_function(ctx, dk_gfxFillText, 5);
-	duk_put_prop_string(ctx, -2, "fillText");
-
-	bindGraphicsCommon(ctx);
-	duk_put_global_string(ctx, DUK_HIDDEN_SYMBOL("gfx"));
-}
-
 //--- audio bindings -----------------------------------------------
 
 /** @module audio
@@ -1485,17 +1290,21 @@ static void bindGraphics(duk_context *ctx) {
 
 /**
  * @function audio.volume
- * sets or returns master volume, a number between 0.0 and 1.0
- * @param {number} [v] - sets master volume
- * @returns {number} the current master volume if called without parameter
+ * sets or returns master volume or volume of a currently playing track
+ * @param {number} [track] - track ID
+ * @param {number} [v] - new volume, a number between 0.0 and 1.0
+ * @returns {number} the current master volume if called without arguments
  */
 static duk_ret_t dk_audioVolume(duk_context *ctx) {
-	if(duk_is_undefined(ctx, 0) || duk_is_null(ctx, 0)) {
+	if(duk_is_undefined(ctx, 0)) {
 		duk_push_number(ctx, AudioGetVolume());
 		return 1;
 	}
-	float volume = duk_to_number(ctx, 0);
-	AudioSetVolume(volume);
+	if(duk_is_undefined(ctx, 1)) {
+		float volume = duk_to_number(ctx, 0);
+		AudioSetVolume(volume);
+	}
+	AudioAdjustVolume(duk_to_number(ctx, 0), duk_to_number(ctx, 1));
 	return 0;
 }
 
@@ -1532,6 +1341,17 @@ static duk_ret_t dk_audioStop(duk_context *ctx) {
 }
 
 /**
+ * @function audio.fadeOut
+ * linearly fades out a currently playing track
+ * @param {number} track - track ID
+ * @param {number} deltaT - time from now in seconds until silence
+ */
+static duk_ret_t dk_audioFadeOut(duk_context *ctx) {
+	AudioFadeOut(duk_to_number(ctx, 0), duk_to_number(ctx, 1));
+	return 0;
+}
+
+/**
  * @function audio.replay
  * immediately plays a buffered PCM sample
  * @param {number|array} sample - sample handle or array of alternative samples (randomly chosen)
@@ -1561,9 +1381,26 @@ static duk_ret_t dk_audioReplay(duk_context *ctx) {
 	return 1;
 }
 
+static SoundWave readWaveForm(duk_context *ctx, duk_idx_t idx) {
+	const char* w = duk_to_string(ctx, idx);
+	if(strncmp(w, "sine", 2)==0)
+		return WAVE_SINE;
+	else if(strncmp(w, "triangle", 2)==0)
+		return WAVE_TRIANGLE;
+	else if(strncmp(w, "square", 2)==0)
+		return WAVE_SQUARE;
+	else if(strncmp(w, "sawtooth", 2)==0)
+		return WAVE_SAWTOOTH;
+	else if(strncmp(w, "noise", 2)==0)
+		return WAVE_NOISE;
+	else if(strncmp(w, "bin", 2)==0)
+		return WAVE_BINNOISE;
+	return WAVE_NONE;
+}
+
 /**
  * @function audio.sound
- * immediately plays an FM-generated sound
+ * immediately plays an oscillator-generated sound
  * @param {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
  * @param {number} freq - frequency in Hz
  * @param {number} duration - duration in seconds
@@ -1572,26 +1409,97 @@ static duk_ret_t dk_audioReplay(duk_context *ctx) {
  * @returns {number} track number playing this sound or UINT_MAX if no track is available
  */
 static duk_ret_t dk_audioSound(duk_context *ctx) {
-	SoundWave waveForm = WAVE_NONE;
-	const char* w = duk_to_string(ctx, 0);
-	if(strncmp(w, "sine", 3)==0)
-		waveForm = WAVE_SINE;
-	else if(strncmp(w, "triangle", 3)==0)
-		waveForm = WAVE_TRIANGLE;
-	else if(strncmp(w, "square", 3)==0)
-		waveForm = WAVE_SQUARE;
-	else if(strncmp(w, "sawtooth", 3)==0)
-		waveForm = WAVE_SAWTOOTH;
-	else if(strncmp(w, "noise", 3)==0)
-		waveForm = WAVE_NOISE;
+	SoundWave waveForm = readWaveForm(ctx, 0);
 	if(!waveForm)
 		return 0;
-
 	int freq = duk_to_int(ctx, 1);
 	float duration = duk_to_number(ctx, 2);
 	float volume = duk_get_number_default(ctx, 3, 1.0);
 	float balance = duk_get_number_default(ctx, 4, 0.0);
 	duk_push_number(ctx, AudioSound(waveForm, freq, duration, volume, balance));
+	return 1;
+}
+
+/**
+ * @function audio.createSound
+ * creates a complex oscillator-generated sound
+ * @param {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
+ * @param {number|string} - one or more control points consisting of frequency/time interval/volume/shape 
+ * @returns {number} a handle identifying this sound for later replay
+ */
+static duk_ret_t dk_audioCreateSound(duk_context *ctx) {
+	SoundWave waveForm = readWaveForm(ctx, 0);
+	if(!waveForm)
+		return 0;
+	duk_idx_t argc = duk_get_top(ctx);
+	float* params = malloc(sizeof(float)*(--argc));
+	for(duk_idx_t i=1; i<=argc; ++i) {
+		float param;
+		if(duk_is_number(ctx, i))
+			param = duk_get_number(ctx, i);
+		else {
+			const char* s = duk_to_string(ctx, i);
+			size_t slen = strlen(s);
+			if(slen == 2 || slen == 3) {
+				char note = s[0];
+				char accidental = (slen==3 && (s[1] == '#' || s[1]=='b')) ? s[1] : ' ';
+
+				if(note!='-' && (s[slen-1] < '0' || s[slen-1]>'9'))
+					return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
+				int octave = s[slen-1] - '0';
+				param = note2freq(note, accidental, octave);
+			}
+			else return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
+		}
+		params[i-1] = param;
+	}
+	duk_push_number(ctx, AudioCreateSound(waveForm, argc/4, params));
+	return 1;
+}
+
+/**
+ * @function audio.createSoundBuffer
+ * creates a complex oscillator-generated sound buffer
+ * @param {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
+ * @param {number|string} - one or more control points consisting of frequency/time interval/volume/shape 
+ * @returns {Float32Array} a PCM sound buffer
+ */
+static duk_ret_t dk_audioCreateSoundBuffer(duk_context *ctx) {
+	SoundWave waveForm = readWaveForm(ctx, 0);
+	if(!waveForm)
+		return 0;
+	duk_idx_t argc = duk_get_top(ctx);
+	float* params = malloc(sizeof(float)*(--argc));
+	for(duk_idx_t i=1; i<=argc; ++i) {
+		float param;
+		if(duk_is_number(ctx, i))
+			param = duk_get_number(ctx, i);
+		else {
+			const char* s = duk_to_string(ctx, i);
+			size_t slen = strlen(s);
+			if(slen == 2 || slen == 3) {
+				char note = s[0];
+				char accidental = (slen==3 && (s[1] == '#' || s[1]=='b')) ? s[1] : ' ';
+
+				if(note!='-' && (s[slen-1] < '0' || s[slen-1]>'9'))
+					return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
+				int octave = s[slen-1] - '0';
+				param = note2freq(note, accidental, octave);
+			}
+			else return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
+		}
+		params[i-1] = param;
+	}
+
+	uint32_t numSamples;
+	float* buf = AudioCreateSoundBuffer(waveForm, argc/4, params, &numSamples);
+	if(!buf || !numSamples)
+		return duk_error(ctx, DUK_ERR_ERROR,  "failed to create sound");
+	uint32_t bufSz = numSamples*sizeof(float);
+
+	memcpy(duk_push_fixed_buffer(ctx, bufSz), buf, bufSz);
+	free(buf);
+	duk_push_buffer_object(ctx, -1, 0, bufSz, DUK_BUFOBJ_FLOAT32ARRAY);
 	return 1;
 }
 
@@ -1614,21 +1522,95 @@ static duk_ret_t dk_audioMelody(duk_context *ctx) {
 }
 
 /**
- * @function audio.sample
- * creates an audio sample from an array of floating point numbers
+ * @function audio.uploadPCM
+ * uploads PCM data from an array of floating point numbers and returns a handle for later playback
  * @param {array|Float32Array} data - array of PCM sample values in range -1.0..1.0
- * @returns {number} sample handle to be used in audio.replay
+ * @param {number} [numChannels=1] - number of channels, 1=mono, 2=stereo
+ * @returns {number} sample handle to be used in audio
  */
-static duk_ret_t dk_audioSample(duk_context *ctx) {
+static duk_ret_t dk_audioUploadPCM(duk_context *ctx) {
 	float *waveData, *buf;
 	uint32_t sampleLen = readFloatArray(ctx, 0, &waveData, &buf);
+	uint8_t numChannels = duk_get_uint_default(ctx, 1, 1u);
 	if(!buf) {
 		buf = (float*)malloc(sampleLen*sizeof(float));
 		memcpy(buf, waveData, sampleLen*sizeof(float));
 	}
-	size_t sample = AudioSample(buf, sampleLen, 0);
+	size_t sample = AudioUploadPCM(buf, sampleLen/numChannels, numChannels, 0);
 	duk_push_number(ctx, sample);
 	return 1;
+}
+
+/**
+ * @function audio.sampleBuffer
+ * provides access to a sample's buffer
+ * @param {number} sample - sample handle
+ * @returns {Float32Array} - float32 buffer object containing the PCM samples
+ */
+static duk_ret_t dk_audioSampleBuffer(duk_context *ctx) {
+	uint32_t sampleLen, handle = duk_to_uint32(ctx, 0);
+	float *waveData = AudioSampleBuffer(handle, &sampleLen);
+	if(!sampleLen || !waveData)
+		return duk_error(ctx, DUK_ERR_ERROR,  "invalid sample handle %u\n", handle);
+	duk_push_external_buffer(ctx);
+	size_t bufSz = sampleLen*sizeof(float);
+	duk_config_buffer(ctx, -1, waveData, bufSz);
+	duk_push_buffer_object(ctx, -1, 0, bufSz, DUK_BUFOBJ_FLOAT32ARRAY);
+	return 1;
+}
+
+/**
+ * @function audio.clampBuffer
+ * clamps a sample buffer' value range to given minimum and maximum values
+ * @param {Float32Array} buffer - sample buffer to be truncated
+ * @param {number} [minValue=-1.0] - minimum value
+ * @param {number} [maxValue=+1.0] - maximum value
+ */
+static duk_ret_t dk_audioClampBuffer(duk_context *ctx) {
+	float *waveData, *buf;
+	uint32_t bufSz = readFloatArray(ctx, 0, &waveData, &buf);
+	if(buf) {
+		free(buf);
+		return duk_error(ctx, DUK_ERR_ERROR,  "Float32Array buffer expected as first argument\n");
+	}
+	float minValue = duk_get_number_default(ctx, 1, -1.0);
+	float maxValue = duk_get_number_default(ctx, 2, +1.0);
+	AudioClampBuffer(bufSz, waveData, minValue, maxValue);
+	return 0;
+}
+
+/**
+ * @function audio.mixToBuffer
+ * mixes a mono PCM sample to an existing stereo buffer. Both need to have the same sample
+ * rate as the current audio device.
+ * @param {Float32Array} target - target stereo buffer
+ * @param {number|Float32Array} source - source mono sample or buffer
+ * @param {number} [startTime=0.0] - start time offset
+ * @param {number} [volume=1.0] - maximum value
+ * @param {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+ */
+static duk_ret_t dk_audioMixToBuffer(duk_context *ctx) {
+	float *stereoBuffer, *buf=NULL, *sampleBuffer;
+	uint32_t stereoBufSz = readFloatArray(ctx, 0, &stereoBuffer, &buf), sampleBufSz;
+	if(buf) {
+		free(buf);
+		return duk_error(ctx, DUK_ERR_ERROR,  "Float32Array buffer expected as first argument\n");
+	}
+
+	if(duk_is_number(ctx, 1))
+		sampleBuffer = AudioSampleBuffer(duk_to_uint32(ctx, 1), &sampleBufSz);
+	else
+		sampleBufSz = readFloatArray(ctx, 1, &sampleBuffer, &buf);
+	if(buf || !sampleBuffer) {
+		free(buf);
+		return duk_error(ctx, DUK_ERR_ERROR,  "Float32Array buffer or sample handle expected as second argument\n");
+	}
+
+	double startTime = duk_get_number_default(ctx, 2, 0.0);
+	float volume = duk_get_number_default(ctx, 3, 1.0);
+	float balance = duk_get_number_default(ctx, 4, 0.0);
+	AudioMixToBuffer(stereoBufSz/2, stereoBuffer, sampleBufSz, sampleBuffer, startTime, volume, balance);
+	return 0;
 }
 
 /// @property {number} audio.sampleRate - audio device sample rate in Hz
@@ -1640,20 +1622,32 @@ static duk_ret_t dk_audioSampleRate(duk_context * ctx) {
 static void audio_exports(duk_context *ctx) {
 	duk_push_object(ctx);
 
-	duk_push_c_function(ctx, dk_audioVolume, 1);
+	duk_push_c_function(ctx, dk_audioVolume, 2);
 	duk_put_prop_string(ctx, -2, "volume");
 	duk_push_c_function(ctx, dk_audioPlaying, 1);
 	duk_put_prop_string(ctx, -2, "playing");
 	duk_push_c_function(ctx, dk_audioStop, 1);
 	duk_put_prop_string(ctx, -2, "stop");
+	duk_push_c_function(ctx, dk_audioFadeOut, 2);
+	duk_put_prop_string(ctx, -2, "fadeOut");
 	duk_push_c_function(ctx, dk_audioReplay, 4);
 	duk_put_prop_string(ctx, -2, "replay");
 	duk_push_c_function(ctx, dk_audioSound, 5);
 	duk_put_prop_string(ctx, -2, "sound");
+	duk_push_c_function(ctx, dk_audioCreateSound, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "createSound");
+	duk_push_c_function(ctx, dk_audioCreateSoundBuffer, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "createSoundBuffer");
 	duk_push_c_function(ctx, dk_audioMelody, 3);
 	duk_put_prop_string(ctx, -2, "melody");
-	duk_push_c_function(ctx, dk_audioSample, 2);
-	duk_put_prop_string(ctx, -2, "sample");
+	duk_push_c_function(ctx, dk_audioUploadPCM, 2);
+	duk_put_prop_string(ctx, -2, "uploadPCM");
+	duk_push_c_function(ctx, dk_audioSampleBuffer, 1);
+	duk_put_prop_string(ctx, -2, "sampleBuffer");
+	duk_push_c_function(ctx, dk_audioClampBuffer, 3);
+	duk_put_prop_string(ctx, -2, "clampBuffer");
+	duk_push_c_function(ctx, dk_audioMixToBuffer, 5);
+	duk_put_prop_string(ctx, -2, "mixToBuffer");
 	dk_defineReadOnlyProperty(ctx,"sampleRate", -1, dk_audioSampleRate);
 }
 
@@ -1822,8 +1816,8 @@ static unsigned numModules = 0u;
 static unsigned numModulesMax = 0u;
 
 static void* moduleLoad(const char* dllName) {
-	size_t len = strlen(dllName);
-	char* dllNameWithSuffix = malloc(len+5);
+	size_t len = strlen(dllName), dllNameWithSuffixLen = len+5;
+	char* dllNameWithSuffix = malloc(dllNameWithSuffixLen);
 	strncpy(dllNameWithSuffix, dllName, len);
 #if defined __WIN32__ || defined WIN32
 	const char* suffix = ".dll";
@@ -1831,8 +1825,19 @@ static void* moduleLoad(const char* dllName) {
 	const char* suffix = ".so";
 #endif
 	strcpy(dllNameWithSuffix+len, suffix);
-
 	void* libHandle = SDL_LoadObject(dllNameWithSuffix);
+
+	if(!libHandle) {
+		char* basePath = SDL_GetBasePath();
+		size_t basePathLen = strlen(basePath);
+
+		char* fullPath = (char*)malloc(basePathLen + dllNameWithSuffixLen);
+		strcpy(fullPath, basePath);
+		strcat(fullPath,dllNameWithSuffix);
+		libHandle = SDL_LoadObject(fullPath);
+		SDL_free(basePath);
+		free(fullPath);
+	}
 	free(dllNameWithSuffix);
 	if(!libHandle)
 		return 0;
@@ -1949,7 +1954,12 @@ void jsvmDispatchEvent(size_t vm, const char* event, const Value* data) {
 		duk_pop(ctx);
 
 	duk_idx_t nargs = 0;
-	for(const Value* arg=data; arg!=NULL; arg = arg->next, ++nargs)
+	if(strcmp(event, "resize")==0) {
+		duk_push_int(ctx, Value_get(data, "width")->i);
+		duk_push_int(ctx, Value_get(data, "height")->i);
+		nargs = 2;
+	}
+	else for(const Value* arg=data; arg!=NULL; arg = arg->next, ++nargs)
 		dk_push_value(ctx, arg);
 	callEventHandler(ctx, event, isMethod, nargs);
 	duk_pop_2(ctx); // pop result and global stash
@@ -1965,7 +1975,7 @@ void jsvmDispatchDrawEvent(size_t vm) {
 		duk_bool_t isMethod = duk_is_object(ctx, -1);
 		if(!isMethod)
 			duk_pop(ctx);
-
+		gfxStateReset();
 		duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("gfx"));
 		callEventHandler(ctx, "draw", isMethod, 1);
 	}

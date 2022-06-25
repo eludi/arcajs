@@ -6,7 +6,7 @@ var lines = app.createSVGResource('<svg width="64" height="64"><line x1="0" y1="
 var solid = app.createImageResource(1,1, new Uint8Array([0xff, 0xff, 0xff, 0xff]));
 
 app.on('draw', function(gfx) {
-	gfx.color(255,255,255).drawImage(c1,0,0);
+	gfx.color(255,255,255).drawImage(c1,60,60);
 	gfx.drawImage(path,0,120);
 	gfx.drawImage(logo,120,0);
 	gfx.drawImage(lines,240,120);

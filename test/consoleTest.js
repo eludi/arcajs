@@ -14,9 +14,9 @@ app.on('update', function(deltaT, tNow) {
 });
 
 app.on('draw', function(gfx) {
-	gfx.colorf(0,0,0,0.5).fillRect(0,app.height-20, app.width,20);
-	gfx.color(255,255,85).fillText(0,0,app.height-40,'>'+lineBuf+(now%1>0.5?'':'_'));
-	gfx.colorf(1.0,1.0,1.0).fillText(0, 0,app.height-18, info);
+	gfx.color(0,0,0,127).fillRect(0,app.height-20, app.width,20);
+	gfx.color(255,255,85).fillText(0,app.height-40,'>'+lineBuf+(now%1>0.5?'':'_'));
+	gfx.color(0xffFFffFF).fillText(0,app.height-18, info);
 });
 
 app.on('textinput', function(evt) {

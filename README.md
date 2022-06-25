@@ -4,8 +4,8 @@ arcajs is a simple and lightweight cross-platform Javascript 2D multimedia/game
 framework that runs both within a browser and on its own compact and optimized
 stand-alone runtime environment. This unique combination enables you to write
 portable games and multimedia apps that efficiently run on a wide range of
-modern devices, from low-end single board computers (such as the Raspberry Pi
-Zero) over smartphones and tablets up to powerful gaming PCs.
+modern devices, from low-end single board computers (such as the Raspberry Pi)
+over smartphones and tablets up to powerful gaming PCs.
 
 ## Components
 
@@ -43,28 +43,26 @@ using arcajs could look as follows:
 ```javascript
 var audio = app.require('audio');
 
-var img = app.getResource('hello_arcajs.svg');
-var sprites = app.createSpriteSet(img), hello;
-
-app.on('load', function() {
-    hello = sprites.createSprite();
-    hello.setPos(app.width/2, app.height/2);
-    hello.setVelRot(Math.PI/2);
-});
+var hello = {
+    x: app.width/2,
+    y: app.height/2,
+    rot: 0,
+    sc: 0,
+    image: app.getResource('hello_arcajs.svg', {centerX:0.5, centerY:0.5})
+};
 
 app.on('resize', function(winSzX, winSzY) {
-    if(hello)
-        hello.setPos(winSzX/2, winSzY/2);
+    hello.x = winSzX/2;
+    hello.y = winSzY/2;
 });
 
 app.on('update', function(deltaT, now) {
-    sprites.update(deltaT);
-    if(hello)
-        hello.setScale(Math.sin(now*3));
+    hello.rot = now*Math.PI/2
+    hello.sc = Math.sin(now*3);
 });
 
 app.on('draw', function(gfx) {
-    gfx.drawSprites(sprites);
+    gfx.drawSprite(hello);
 });
 
 app.on('pointer', function(evt) {
@@ -76,10 +74,12 @@ app.on('pointer', function(evt) {
 As one can see from this little example, writing apps with arcajs requires just
 a basic understanding of Javascript.
 
-The unified entry point to the entire arcajs API is the global app object. It
-provides functions for accessing modules, resources, and creating game
-entities. Furthermore, the app object allows your program to register for
-various events that are the core entry points for its interaction flow.
+Ordinary Javascript objects are used for defining and managing the basic
+entities of your application (in this example `hello`).
+The unified entry point to the entire arcajs API is the global `app` object. It
+provides functions for accessing modules and resources. Furthermore, the app
+object allows your program to register for various events that are the core
+entry points for its interaction flow.
 
 ## Running your program
 
@@ -105,7 +105,7 @@ into a single executable, as described in [PACKAGING.md](doc/PACKAGING.md).
 
 If you want to deploy your application on the web, you currently have to put all
 your scripts and resources in the same folder as the web runtime and adapt the
-web runtime's index.html file' last script tag to execute your application
+web runtime's index.html file's last script tag to execute your application
 logic:
 
 ```html

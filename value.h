@@ -60,7 +60,7 @@ extern void Value_append(Value* parent, Value* child);
 /// set key-value of a map
 extern void Value_set(Value* parent, const char* key, Value* value);
 /// get value of a map identified by its key
-extern Value* Value_get(Value* parent, const char* key);
+extern const Value* Value_get(const Value* parent, const char* key);
 /// returns key n of a map or NULL, if beyond range
 extern const char* Value_key(const Value* parent, unsigned n);
 /// get list element

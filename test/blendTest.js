@@ -13,6 +13,9 @@ app.on('draw', function(gfx) {
     gfx.color(255,0,0,127).fillRect(ox-50,oy+25,128,128);
     gfx.color(0,255,0,127).fillRect(ox,oy-50,128,128);
     gfx.color(0,0,255,127).fillRect(ox+50,oy+25,128,128);
+
+	gfx.blend(1).color(255,255,255);
+	gfx.fillText(0,app.height-20, 'blend mode '+blendMode);
 });
 
 app.on('keyboard', function(evt) {

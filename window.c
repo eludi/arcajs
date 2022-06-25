@@ -84,19 +84,21 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 	int32_t sdlFlags = SDL_WINDOW_ALLOW_HIGHDPI;
 	const char* title = "arcajs";
 
+	SDL_DisplayMode dm;
+	if (SDL_GetDesktopDisplayMode(0, &dm) != 0) {
+		fprintf(stderr,"SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
+		return 1;
+	}
+
 	if(windowFlags & WINDOW_FULLSCREEN) {
-		SDL_DisplayMode dm;
-		if (SDL_GetDesktopDisplayMode(0, &dm) != 0) {
-			fprintf(stderr,"SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
-			return 1;
-		}
 		sdlFlags |= SDL_WINDOW_FULLSCREEN;
 		wnd.window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
 			dm.w*wnd.pixelRatio, dm.h*wnd.pixelRatio, sdlFlags);
-		//SDL_SetRelativeMouseMode(SDL_TRUE);
 		wnd.fullscreen = 1;
 	}
 	else {
+		if(windowFlags & WINDOW_RESIZABLE)
+			sdlFlags |= SDL_WINDOW_RESIZABLE;
 		wnd.window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
 			sizeX*wnd.pixelRatio, sizeY*wnd.pixelRatio, sdlFlags);
 		wnd.fullscreen = 0;
@@ -105,6 +107,7 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 		fprintf(stderr,"ERROR: could not create window: %s\n", SDL_GetError());
 		return 1;
 	}
+	SDL_SetWindowDisplayMode(wnd.window, &dm);
 
 	//printf("%s ", SDL_GetCurrentVideoDriver());
 	SDL_GetWindowSize(wnd.window, &wnd.szX, &wnd.szY);
@@ -243,7 +246,7 @@ static int WindowHandleEvents() {
 	}
 	case SDL_WINDOWEVENT:
 		switch(evt.window.event) {
-		case SDL_WINDOWEVENT_RESIZED:
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
 			wnd.szX = evt.window.data1;
 			wnd.szY = evt.window.data2;
 			break;
@@ -302,6 +305,10 @@ void WindowToggleFullScreen() {
 	SDL_SetWindowFullscreen(wnd.window, wnd.fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
 }
 
+int WindowIsFullscreen() {
+	return wnd.fullscreen;
+} 
+
 void WindowShowPointer(int visible) {
 	SDL_ShowCursor(visible ? SDL_ENABLE : SDL_DISABLE);
 }
@@ -345,6 +352,11 @@ int WindowWidth() {
 
 int WindowHeight() {
 	return wnd.szY;
+}
+
+void WindowDimensions(int width, int height) {
+	wnd.szX = width;
+	wnd.szY = height;
 }
 
 float WindowPixelRatio() {

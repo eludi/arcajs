@@ -13,24 +13,58 @@
 #ifndef M_PI
 #  define M_PI 3.14159265358979323846
 #endif
+#define PI2 (2.0f * M_PI)
 
 //--- low-level functions ------------------------------------------
 float randf() { return rand() / ((float)RAND_MAX+1.0f); }
-float oscSilence(float phase) { (void)phase; return 0; }
-float oscSine(float phase) { return sin(2.0f * M_PI * phase); }
-float oscTriangle(float phase) {
-	float x = fmod(phase, 1.0f);
-	float y = 4.0f*x - 1.0f;
-	return(x>0.5) ? 2.0f - y : y;
-}
-float oscSquare(float phase) { return fmod(phase, 1.0f)<0.5 ? 1.0 : -1.0; }
-float oscSawtooth(float phase) { return 2.0f * fmod(phase, 1.0f) - 1.0f; }
-float oscNoise(float phase) { (void)phase; return randf(); }
+float fsign(float f) { return (f > 0.0f) ? 1.0f : ((f < 0.0f) ? -1.0f : 0.0f); }
 
-static Oscillator_t Oscs[] = { oscSilence, oscSine, oscTriangle, oscSquare, oscSawtooth, oscNoise };
+float oscSilence(float phase, float timbre, OscillatorCtx* ctx) { (void)phase; (void)timbre; (void)ctx; return 0; }
+float oscSine(float phase, float timbre, OscillatorCtx* ctx) {
+	(void)ctx;
+	float s = sin(PI2 * phase);
+	return (timbre>=1.0f) ? s : fsign(s) * powf(fabs(s), timbre);
+}
+float oscSquare(float phase, float timbre, OscillatorCtx* ctx) { (void)ctx; return fmod(phase, 1.0f)<timbre ? 1.0f : -1.0f; }
+float oscSawtooth(float phase, float timbre, OscillatorCtx* ctx) {
+	(void)ctx;
+	const float timbre2 = timbre/2, x = fmod(phase, 1.0f), x2=1-timbre2;
+	return (x<timbre2) ? x/timbre2 :
+		(x<x2) ? 1.0f-2.0f*(x-timbre2)/(1.0f-timbre) :
+		-1.0f+(x-x2)/timbre2;
+}
+float oscNoise(float phase, float timbre, OscillatorCtx* ctx) {
+	(void)phase;
+	const uint32_t waveLen = ceilf(AudioSampleRate()/20000/timbre);
+	if(--ctx->counter==0) {
+		ctx->counter = fmaxf(1.0f, waveLen);
+		ctx->amplPrev = ctx->ampl;
+		ctx->ampl = 2*randf() - 1.0f;
+	}
+	float fraction = (float)ctx->counter/waveLen;
+	return ctx->ampl * (1.0f-fraction) + ctx->amplPrev * fraction;
+}
+float oscBin(float phase, float timbre, OscillatorCtx* ctx) { // binary noise
+	(void)phase; 
+	const uint16_t freq = timbre*20000;
+	if(--ctx->counter == 0) {
+		ctx->counter = fmaxf(1.0f, randf()*AudioSampleRate()/freq);
+		ctx->ampl = ctx->ampl == 1.0f ? -1.0f : 1.0f;
+	}
+	return ctx->ampl;
+}
 
 Oscillator_t AudioOscillator(SoundWave waveForm) {
+	static Oscillator_t Oscs[] = { oscSilence, oscSine, oscSawtooth, oscSquare, oscSawtooth, oscNoise, oscBin };
 	return Oscs[waveForm];
+}
+
+float defaultTimbre(SoundWave waveForm) {
+	switch(waveForm) {
+	case WAVE_TRIANGLE:
+	case WAVE_SQUARE: return 0.5f;
+	default: return 1.0;
+	}
 }
 
 float envelope(float attack, float decay, float sustainLvl, float sustainLen, float release, float t) {
@@ -63,7 +97,7 @@ static void skipWhitespace(char** c) {
 		++(*c);
 }
 
-static float note2freq(char note, char accidental, int octave) {
+float note2freq(char note, char accidental, int octave) {
 	int steps;
 	switch(note) {
 	case 'B':
@@ -196,6 +230,13 @@ static size_t Melody_nextNote(Melody* melo, float* freq, float* duration) {
 	const char* c = melo->note;
 	while(*c) {
 		skipWhitespace((char**)&c);
+/*
+		if(*c>='0' && *c<='9') {
+			*freq = *c - '0';
+			while(*++c >='0' && *c<='9')
+				*freq = 10*(*freq) + (*c - '0');
+		}
+*/
 		if(*c!='-' && (*c<'A' || *c>'G')) {
 			fprintf(stderr, "invalid note %c at pos %u\n", *c, numNotes);
 			break;
@@ -260,6 +301,8 @@ static void Melody_chunk(Melody* melo, uint32_t sampleRate, uint32_t chunkSz, fl
 			if(numSamples > chunkSz)
 				numSamples = chunkSz;
 			Oscillator_t osc = AudioOscillator(melo->waveForm);
+			OscillatorCtx ctx = { 0.0f, 0.0f, 1 };
+			float timbre = defaultTimbre(melo->waveForm);
 			float sustainLen = melo->noteLen - melo->attack - melo->decay - melo->release;
 
 			for(uint32_t i=0; i<numSamples; ++i, ++chunk) {
@@ -267,7 +310,7 @@ static void Melody_chunk(Melody* melo, uint32_t sampleRate, uint32_t chunkSz, fl
 				if(!melo->noteFreq)
 					*chunk = 0.0f;
 				else
-					*chunk = (*osc)(melo->noteFreq*t) * envelope(melo->attack, melo->decay,
+					*chunk = (*osc)(melo->noteFreq*t, timbre, &ctx) * envelope(melo->attack, melo->decay,
 						melo->sustain, sustainLen, melo->release, t) * melo->gain;
 			}
 			melo->t += (float)numSamples/sampleRate;
@@ -281,12 +324,15 @@ static void Melody_chunk(Melody* melo, uint32_t sampleRate, uint32_t chunkSz, fl
 //--- SDL interface ------------------------------------------------
 typedef struct {
 	SoundWave waveForm;
+	OscillatorCtx octx;
 	const float* waveData;
 	Melody* melody;
 	int freq;
 	uint32_t numSamples;
+	uint8_t numChannels;
 	double sample;
 	float volume[2];
+	float volumeDelta[2];
 	float playbackRate;
 } SoundSpec;
 
@@ -300,6 +346,7 @@ typedef struct {
 	float* waveData;
 	uint32_t waveLen;
 	uint32_t offset;
+	uint8_t numChannels;
 } SampleSpec;
 
 static SampleSpec* samples=NULL;
@@ -329,6 +376,7 @@ static void audioCallback(void *user_data, Uint8 *raw_buffer, int bytes) {
 			Melody_chunk(t->melody, audioSpec.freq, chunkSz, (float*)t->waveData);
 			t->sample = 0.0;
 			t->numSamples = chunkSz;
+			t->numChannels = 1;
 		}
 		continue;
 	}
@@ -339,24 +387,28 @@ static void audioCallback(void *user_data, Uint8 *raw_buffer, int bytes) {
 			SoundSpec* t = &tracks[k];
 			if(t->sample >= t->numSamples)
 				continue;
-			float amplitude = 0.0f;
+			float amplitude[] = { 0.0f, 0.0f };
 			if(t->waveForm) {
+				float timbre = defaultTimbre(t->waveForm);
 				double time = t->sample / audioSpec.freq;
-				amplitude = vol * (Oscs[t->waveForm])(t->freq * time);
+				amplitude[0] = amplitude[1] = vol * AudioOscillator(t->waveForm)(t->freq * time, timbre, &t->octx);
 			}
 			else if(t->waveData) {
 				if(t->playbackRate==1.0f)
-					amplitude = vol * t->waveData[(uint32_t)t->sample];
-				else { // linearly interpolate
+					for(uint8_t j=0; j<audioSpec.channels; ++j)
+						amplitude[j] = vol * t->waveData[(uint32_t)t->sample * t->numChannels + (j%t->numChannels)];
+				else { // linearly interpolate mono samples
 					double fract = fmod(t->sample, 1.0f);
 					uint32_t pos0 = t->sample, pos1 = pos0+1;
 					float amp0 = t->waveData[pos0];
 					float amp1 = (pos1>=t->numSamples) ? 0.0f : t->waveData[pos1];
-					amplitude = vol * ((1.0f-fract)*amp0 + fract*amp1);
+					amplitude[0] = amplitude[1] = vol * ((1.0f-fract)*amp0 + fract*amp1);
 				}
 			}
-			for(int j=0; j<audioSpec.channels; ++j)
-				v[j] += t->volume[j] * amplitude;
+			for(uint8_t j=0; j<audioSpec.channels; ++j) {
+				t->volume[j] += t->volumeDelta[j];
+				v[j] += t->volume[j] * amplitude[j];
+			}
 			t->sample += t->playbackRate;
 		}
 		for(int j=0; j<audioSpec.channels; ++j)
@@ -453,11 +505,14 @@ uint32_t AudioSound(SoundWave waveForm, int freq, float duration, float volume, 
 		if(!AudioPlaying(i)) {
 			SoundSpec* track = &tracks[i];
 			track->waveForm = waveForm;
+			track->octx.ampl = track->octx.amplPrev = 0.0f;
+			track->octx.counter = 1;
 			track->waveData = NULL;
 			track->melody = NULL;
 			track->freq = freq;
 			track->sample = 0.0;
 			track->numSamples = 0.5f + audioSpec.freq * duration;
+			track->numChannels = 1;
 			track->playbackRate = 1.0f;
 			track->volume[0] = volume*(-0.4f*balance+0.6f);
 			track->volume[1] = volume*(+0.4f*balance+0.6f);
@@ -468,9 +523,9 @@ uint32_t AudioSound(SoundWave waveForm, int freq, float duration, float volume, 
 	return ret;
 }
 
-uint32_t AudioPlay(const float* data, uint32_t waveLen, float volume, float balance, float detune) {
+uint32_t AudioPlay(const float* data, uint32_t waveLen, uint8_t numChannels, float volume, float balance, float detune) {
 	uint32_t ret = UINT_MAX;
-	if(!devId)
+	if(!devId || (numChannels!=1 && detune))
 		return ret;
 	SDL_LockAudioDevice(devId);
 	for(uint32_t i=0; i<numTracks; ++i)
@@ -482,9 +537,11 @@ uint32_t AudioPlay(const float* data, uint32_t waveLen, float volume, float bala
 			track->freq = 0;
 			track->sample = 0.0;
 			track->numSamples = waveLen;
+			track->numChannels = numChannels;
 			track->playbackRate = pow(2.0f, detune/12.0f);
 			track->volume[0] = volume*(-0.4f*balance+0.6f);
 			track->volume[1] = volume*(+0.4f*balance+0.6f);
+			track->volumeDelta[0] = track->volumeDelta[1] = 0.0f;
 			ret = i;
 			break;
 		}
@@ -536,12 +593,37 @@ void AudioStop(uint32_t track) {
 	SDL_UnlockAudioDevice(devId);
 }
 
-size_t AudioUploadMP3(void* mp3data, uint32_t numBytes) {
-	drmp3_config cfg = { 1, audioSpec.freq };
+void AudioFadeOut(uint32_t track, float deltaT) {
+	if(!devId || track>=numTracks)
+		return;
+	SDL_LockAudioDevice(devId);
+	SoundSpec* t = &tracks[track];
+	uint32_t numSamples = AudioSampleRate()*deltaT, numSamplesMax = t->sample + numSamples;
+	if(numSamplesMax < t->numSamples)
+		t->numSamples = numSamplesMax;
+
+	t->volumeDelta[0] = -t->volume[0] / numSamples;
+	t->volumeDelta[1] = -t->volume[1] / numSamples;
+	SDL_UnlockAudioDevice(devId);
+}
+
+void AudioAdjustVolume(uint32_t track, float volume) {
+	if(!devId || track>=numTracks)
+		return;
+	SDL_LockAudioDevice(devId);
+	SoundSpec* t = &tracks[track];
+	float factor = volume/(t->volume[0] + t->volume[1])/2.0f;
+	t->volume[0] *= factor;
+	t->volume[1] *= factor;
+	SDL_UnlockAudioDevice(devId);
+}
+
+uint32_t AudioUploadMP3(void* mp3data, uint32_t numBytes) {
+	drmp3_config cfg = { 0/*numChannels unknown*/, audioSpec.freq };
 	uint64_t pcmSamples;
 
 	float* pcmData = drmp3_open_memory_and_read_f32(mp3data, numBytes, &cfg, &pcmSamples);
-	if(!pcmSamples || cfg.outputChannels!=1 || cfg.outputSampleRate!=audioSpec.freq) {
+	if(!pcmSamples || !cfg.outputChannels || cfg.outputChannels>2 || cfg.outputSampleRate!=audioSpec.freq) {
 		drmp3_free(pcmData);
 		return 0;
 	}
@@ -551,28 +633,31 @@ size_t AudioUploadMP3(void* mp3data, uint32_t numBytes) {
 		if(pcmData[offset]>0.002 || pcmData[offset]<-0.002)
 			break;
 	//printf("offset:%u %f secs\n", offset, (float)offset/audioSpec.freq);
-	return AudioSample(pcmData, pcmSamples, offset);
+	return AudioUploadPCM(pcmData, pcmSamples, cfg.outputChannels, offset);
 }
 
-size_t AudioUploadWAV(void* wavdata, uint32_t numBytes) {
+uint32_t AudioUploadWAV(void* wavdata, uint32_t numBytes) {
 	SDL_RWops* rwo = SDL_RWFromConstMem(wavdata, (int)numBytes);
 	SDL_AudioSpec wavSpec;
 	uint8_t* buf;
 	uint32_t buflen;
 	if(!SDL_LoadWAV_RW(rwo, 1, &wavSpec, &buf, &buflen))
 		return 0;
+	uint8_t numChannels = wavSpec.channels>2 ? 2 : wavSpec.channels;
 
 	SDL_AudioCVT cvt;
-	SDL_BuildAudioCVT(&cvt, wavSpec.format, wavSpec.channels, wavSpec.freq, AUDIO_F32, 1, audioSpec.freq);
+	SDL_BuildAudioCVT(&cvt, wavSpec.format, wavSpec.channels, wavSpec.freq, AUDIO_F32, numChannels, audioSpec.freq);
 	cvt.len = buflen;
 	cvt.buf = malloc(cvt.len * cvt.len_mult);
 	memcpy(cvt.buf, buf, buflen);
 	SDL_FreeWAV(buf);
 	SDL_ConvertAudio(&cvt);
-	return AudioSample((float*)cvt.buf, cvt.len_cvt/sizeof(float), 0);
+	return AudioUploadPCM((float*)cvt.buf, cvt.len_cvt/sizeof(float)/numChannels, numChannels, 0);
 }
 
-size_t AudioSample(float* waveData, uint32_t waveLen, uint32_t offset) {
+uint32_t AudioUploadPCM(float* waveData, uint32_t waveLen, uint8_t numChannels, uint32_t offset) {
+	if(!waveLen || offset>waveLen || numChannels<1 || numChannels>2)
+		return 0;
 	if(numSamplesMax==0) {
 		numSamplesMax=4;
 		samples = (SampleSpec*)malloc(numSamplesMax*sizeof(SampleSpec));
@@ -584,13 +669,113 @@ size_t AudioSample(float* waveData, uint32_t waveLen, uint32_t offset) {
 	samples[numSamples].waveData = waveData;
 	samples[numSamples].waveLen = waveLen;
 	samples[numSamples].offset = offset;
+	samples[numSamples].numChannels = numChannels;
 	return ++numSamples;
 }
 
-uint32_t AudioReplay(size_t sample, float volume, float balance, float detune) {
+uint32_t AudioReplay(uint32_t sample, float volume, float balance, float detune) {
 	if(!sample || sample>numSamples)
 		return UINT_MAX;
-	--sample;
+	uint8_t numChannels = samples[--sample].numChannels;
+	if(numChannels!=1 && (detune || balance))
+		return UINT_MAX;
+
 	uint32_t offset = samples[sample].offset;
-	return AudioPlay(samples[sample].waveData+offset, samples[sample].waveLen-offset, volume, balance, detune);
+	return AudioPlay(samples[sample].waveData+offset*numChannels,
+		samples[sample].waveLen-offset, numChannels, volume, balance, detune);
+}
+
+//--- experimental extensions custom sound generators --------------
+
+float* AudioSampleBuffer(uint32_t sample, uint32_t* numSamples) {
+	if(numSamples)
+		*numSamples = 0;
+
+	if(!sample)
+		return NULL;
+	SampleSpec* s = &samples[--sample];
+	if(s->numChannels!=1)
+		return NULL;
+	if(numSamples)
+		*numSamples = s->waveLen - s->offset;
+	return s->waveData + s->offset;
+}
+
+void AudioMixToBuffer(uint32_t stereoBufLen, float* stereoBuffer, uint32_t sampleLen, const float* sampleBuf,
+	double startTime, float volume, float balance)
+{
+	if(!stereoBufLen || !stereoBuffer || !sampleBuf || !sampleLen)
+		return;
+	const float volL = volume*(-0.4f*balance+0.6f), volR = volume*(+0.4f*balance+0.6f);
+	for(uint32_t frame = round(startTime*AudioSampleRate()), pos = 0; frame<stereoBufLen && pos<sampleLen; ++frame, ++pos) {
+		stereoBuffer[frame*2] += sampleBuf[pos] * volL;
+		stereoBuffer[frame*2+1] += sampleBuf[pos] * volR;
+	}
+}
+
+void AudioClampBuffer(uint32_t bufSz, float* buffer, float minValue, float maxValue) {
+	for(uint32_t i=0; i<bufSz; ++i)
+		if(buffer[i] < minValue)
+			buffer[i] = minValue;
+		else if(buffer[i] > maxValue)
+			buffer[i] = maxValue;
+}
+
+static float chirp(Oscillator_t osc, OscillatorCtx* ctx, float* samples, uint32_t numSamples,
+	float phase, float freq1, float freq2, float vol1, float vol2, float timbre1, float timbre2)
+{
+	const float dvol = vol2-vol1, dfreq = freq2-freq1, dtimbre = timbre2-timbre1, dt=1.0f/AudioSampleRate();
+	float t=0;
+	for(uint32_t i=0; i<numSamples; ++i, t+=dt) {
+		const float rel = (float)i/(float)numSamples;
+		const float vol = vol1 + dvol*rel, freq=freq1 + dfreq*rel, timbre=timbre1 + dtimbre*rel;
+		samples[i] = fmaxf(-1.0f, fminf(1.0f, osc(phase, timbre, ctx)*vol));
+		phase += freq*dt;
+	}
+	return phase;
+}
+
+float* AudioCreateSoundBuffer(SoundWave waveForm, uint8_t numControlPoints, const float shape[], uint32_t* numSamples) {
+	Oscillator_t osc = AudioOscillator(waveForm);
+	OscillatorCtx ctx = { 0.0f, 0.0f, 1 };
+
+	uint32_t pos=0, nSamples=0;
+	for(uint8_t i=0; i<numControlPoints; ++i)
+		nSamples += fmaxf(0.0f, shape[i*4+2]) * AudioSampleRate();
+	if(numSamples)
+		*numSamples = nSamples;
+	if(!nSamples)
+		return NULL;
+	float* buffer = malloc(sizeof(float)*nSamples);
+
+	float phase=0, freq1, vol1, timbre1;
+	for(uint8_t i=0; i<numControlPoints; ++i) {
+
+		const float freq2 = shape[i*4], vol2 = shape[i*4+1];
+		const float duration = shape[i*4+2], timbre2 = shape[i*4+3];
+		if(duration>0.0f) {
+			if(i==0) {
+				freq1 = freq2;
+				vol1 = vol2;
+				timbre1 = timbre2;
+			}
+			uint32_t chirpSz = duration*AudioSampleRate();
+			phase = chirp(osc, &ctx, &buffer[pos], chirpSz, phase, freq1, freq2, vol1, vol2, timbre1, timbre2);
+			pos += chirpSz;
+		}
+		freq1 = freq2;
+		vol1 = vol2;
+		timbre1 = timbre2;
+	}
+	return buffer;
+}
+
+uint32_t AudioCreateSound(SoundWave waveForm, uint8_t numControlPoints, const float shape[]) {
+	if(!numControlPoints)
+		return 0;
+	uint32_t numSamples;
+	float* samples = AudioCreateSoundBuffer(waveForm, numControlPoints, shape, &numSamples);
+	if(!numSamples)
+		return 0;
+	return AudioUploadPCM(samples, numSamples, 1, 0);
 }

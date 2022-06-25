@@ -11,7 +11,7 @@ for(var i=0; i<1250; i+=10) {
 }
 
 app.on('draw', function(gfx) {
-    gfx.colorf(1.0,1.0,1.0);
+    gfx.color(0xffFFffFF);
     for(var i=1; i<12; i+=2)
         gfx.lineWidth(i).drawLine(i, i*10,20, i*10, 120);
     gfx.lineWidth(32);
@@ -19,11 +19,13 @@ app.on('draw', function(gfx) {
     gfx.lineWidth(1);
     gfx.drawPoints(sineWave);
 
-    var coords = [ 140,60, 175,120, 205,10 ];
+    const coords = [ 140,60, 175,120, 205,10 ], coords2 = [ 155,60, 173,91, 195,10 ];
     gfx.color(85,255,85).drawLineStrip(coords);
-    gfx.origin(-90,0).lineWidth(8);
+    gfx.drawLineLoop(coords2);
+    gfx.transform(-90,0).lineWidth(8);
     gfx.color(0,127,0).drawLineStrip(coords);
-    gfx.origin(0,0).lineWidth(1);
+    gfx.fillTriangles(coords2);
+    gfx.reset().lineWidth(1);
     
     gfx.color(255,85,85).fillRect(220,10,50,50);
     gfx.drawRect(340,70,50,50);
@@ -36,8 +38,8 @@ app.on('draw', function(gfx) {
 
     //for(var i=1; i<16; ++i)
     //    gfx.color(i*16, i*16, i*16).drawArc(460,130,i*4, -Math.PI/2, Math.PI);
-    gfx.color(255,170,85).drawImage(circleFilled, 10,130);
-    gfx.drawImage(circleOutline, 7,127);
+    gfx.color(255,170,85).drawImage(circleFilled, 60,180);
+    gfx.drawImage(circleOutline, 60,180);
 
     gfx.color(0x55aaffff);
     for(var i=1; i<12; ++i)
@@ -56,8 +58,8 @@ app.on('draw', function(gfx) {
     }
 
     for(var i=0; i<5; ++i)
-        gfx.color(app.hsl(50,1.0,0.5-0.1*i)).fillText(0, 440,240+20*i, "hello, world.");
+        gfx.color(app.hsl(50,1.0,0.5-0.1*i)).fillText(440,240+20*i, "hello, world.");
 
     gfx.color(255,255,255,127).fillRect(0,app.height-20, app.width,20);
-    gfx.color(0,0,0).fillText(0, 0,app.height-18, "arcajs graphics test. (äöü ÄÖÜ)");
+    gfx.color(0,0,0).fillText(0,app.height-18, "arcajs graphics test. (äöü ÄÖÜ)");
 });

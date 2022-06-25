@@ -19,5 +19,5 @@ app.on('update', function(deltaT, now) {
 });
 
 app.on('draw', function(gfx) {
-	gfx.colorf(1,1,1).fillText(0,0,0, timeStamp);
+	gfx.fillText(0,0, timeStamp);
 });

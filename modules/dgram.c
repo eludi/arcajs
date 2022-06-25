@@ -1,5 +1,5 @@
 /**
-	udp datagram server module
+	UDP datagram client/server module
 */
 #include <stdio.h>	//printf
 #include <string.h> //memset
@@ -17,16 +17,13 @@
 #  include <arpa/inet.h>
 #  include <sys/socket.h>
 #  include <sys/select.h>
+#  include <netdb.h>
 #  define _EXPORT
 #endif
 
 #include <SDL_thread.h>
 #include "../external/duk_config.h"
 #include "../external/duktape.h"
-
-
-#define BUFLEN 255	//Max length of buffer
-#define PORT 8888	//The port on which to listen for incoming data
 
 void printError(const char* s) {
 #if defined __WIN32__ || defined WIN32
@@ -55,7 +52,6 @@ int socketCreateServer(uint16_t port) {
 		return sd;
 	}
 
-	// zero out the structure
 	struct sockaddr_in si_me;
 	memset((char *) &si_me, 0, sizeof(si_me));
 	si_me.sin_family = AF_INET;
@@ -69,6 +65,34 @@ int socketCreateServer(uint16_t port) {
 		return -2;
 	}
 	return sd;
+}
+
+int socketCreateClient(const char* host, uint16_t port) {
+	//create a UDP socket
+	int sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (sd == -1) {
+		printError("init");
+		return sd;
+	}
+    // convert address to long:
+    uint32_t hostAddr;
+    struct hostent* pHostInfo = gethostbyname(host);
+    memcpy(&hostAddr, pHostInfo->h_addr, pHostInfo->h_length);
+
+    // fill address struct:
+	struct sockaddr_in si_me;
+	memset((char *) &si_me, 0, sizeof(si_me));
+	si_me.sin_family = AF_INET;
+	si_me.sin_port = htons(port);
+	si_me.sin_addr.s_addr = hostAddr;
+
+    // connect to host:
+    if(connect(sd, (struct sockaddr*)&si_me, sizeof(si_me)) == -1) {
+		printError("connect");
+		close(sd);
+		return -2;
+    }
+    return sd;
 }
 
 int socketRecv(int sd, char*buf, uint16_t bufSz) {
@@ -87,8 +111,15 @@ int socketRecv(int sd, char*buf, uint16_t bufSz) {
 }
 
 
-int socketRead(int sd, char*buf, uint16_t bufSz, uint16_t msTimeout) {
+int socketRead(int sd, char* buf, uint16_t bufSz, uint16_t msTimeout) {
 	return (sd<0 || !socketHasData(sd, msTimeout)) ? 0 : socketRecv(sd, buf, bufSz);
+}
+
+int socketWrite(int sd, const char * buffer, uint16_t bufSz) {
+	if(sd<0)
+		return sd;
+    ssize_t nChars = send(sd, buffer, bufSz, 0);
+    return nChars;
 }
 
 void socketClose(int sd) {
@@ -113,6 +144,30 @@ static duk_ret_t dk_socketRead(duk_context *ctx) {
 	return 1;
 }
 
+static duk_ret_t dk_socketWrite(duk_context *ctx) {
+	duk_push_this(ctx);
+	duk_get_prop_literal(ctx, -1, DUK_HIDDEN_SYMBOL("sd"));
+	int sd = duk_get_int(ctx, -1);
+	if(sd<0)
+		return duk_error(ctx, DUK_ERR_ERROR, "socket not open");
+
+	duk_size_t len;
+	const char* msg;
+	if(duk_is_buffer_data(ctx,0))
+		msg = duk_get_buffer_data(ctx, 0, &len);
+	else {
+		msg = duk_to_string(ctx, 0);
+		len = duk_get_length(ctx, 0);
+	}
+	if(len>UINT16_MAX)
+		return duk_error(ctx, DUK_ERR_ERROR, "message too long");
+
+	int numBytesWritten = socketWrite(sd, msg, len);
+	if(numBytesWritten!=len)
+		return duk_error(ctx, DUK_ERR_ERROR, "write failed");
+	return 0;
+}
+
 static duk_ret_t dk_socketClose(duk_context *ctx) {
 	duk_push_this(ctx);
 	duk_get_prop_literal(ctx, -1, DUK_HIDDEN_SYMBOL("sd"));
@@ -128,9 +183,11 @@ static duk_ret_t dk_socketClose(duk_context *ctx) {
 
 duk_ret_t dk_socketCreate(duk_context *ctx) {
 	uint16_t port = duk_to_uint16(ctx, 0);
-	int sd = socketCreateServer(port);
+	const char* host = duk_is_string(ctx, 1) ? duk_get_string(ctx, 1) : NULL;
+	int sd = host ? socketCreateClient(host, port) : socketCreateServer(port);
 	if(sd<=0)
-		return duk_error(ctx, DUK_ERR_ERROR, "failed to open socket at port %u", port);
+		return host ? duk_error(ctx, DUK_ERR_ERROR, "failed to connect to host %s:%u", host, port)
+			: duk_error(ctx, DUK_ERR_ERROR, "failed to open socket at port %u", port);
 
 	duk_push_object(ctx);
 	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("Socket_prototype"));
@@ -155,10 +212,12 @@ void _EXPORT dgram_exports(duk_context *ctx) {
 	duk_put_prop_literal(ctx, -2, "close");
 	duk_push_c_function(ctx, dk_socketRead, 1);
 	duk_put_prop_string(ctx, -2, "read");
+	duk_push_c_function(ctx, dk_socketWrite, 1);
+	duk_put_prop_string(ctx, -2, "write");
 	duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("Socket_prototype"));
 
 	duk_push_object(ctx);
-	duk_push_c_function(ctx, dk_socketCreate, 1);
+	duk_push_c_function(ctx, dk_socketCreate, 2);
 	duk_put_prop_string(ctx, -2, "createSocket");
 }
 

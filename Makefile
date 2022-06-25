@@ -1,5 +1,5 @@
 CC     = gcc
-CFLAGS = -Wall -Wpedantic -Os
+CFLAGS = -Wall -Wpedantic -Wno-overlength-strings -Os
 
 SDL = ../SDL2
 
@@ -14,14 +14,15 @@ endif
 ifeq ($(OS),Linux)
   INCDIR        = -I$(SDL)/include -D_REENTRANT -Iexternal
   ifeq ($(ARCH),Linux_x86_64)
-    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -lpthread -lrt -ldl -lcurl -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -ldl -lpthread -lrt -ldl -lcurl -lm
   else
-    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,../SDL2/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lm -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -ldl -lcurl -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -ldl -lcurl -lm
   endif
-  DLLFLAGS      = -fPIC -shared
+  CFLAGS       += -fPIC -no-pie
+  DLLFLAGS      = -shared
   DLLSUFFIX     = .so
   EXESUFFIX     =
-  RM = rm -rf
+  RM = rm -f
   SEP = /
 else
   ifeq ($(OS),Darwin) # MacOS
@@ -43,13 +44,13 @@ else
   endif
 endif
 
-SRC = arcajs.c window.c graphics.c graphicsUtils.c sprites.c spritesBindings.c \
-  audio.c console.c resources.c archive.c jsBindings.c value.c httpRequest.c \
+SRC = arcajs.c window.c graphics.c graphicsUtils.c console.c \
+  audio.c resources.c archive.c graphicsBindings.c jsBindings.c value.c httpRequest.c \
   modules/intersects.c modules/intersectsBindings.c external/miniz.c external/duktape.c
 OBJ = $(SRC:.c=.o)
 EXE = arcajs$(EXESUFFIX)
 
-all: $(EXE) zzipsetstub$(EXESUFFIX) modules/dgram$(DLLSUFFIX) modules/fs$(DLLSUFFIX)
+all: $(EXE)
 
 # executable link rules:
 $(EXE) : $(OBJ)
@@ -77,15 +78,13 @@ resources.o: resources.c resources.h archive.h graphics.h graphicsUtils.h \
   external/stb_image.h external/nanosvg.h external/nanosvgrast.h
 archive.o: archive.c archive.h external/miniz.h
 window.o: window.c window.h
-graphics.o: graphics.c graphics.h external/stb_truetype.h external/stb_image.h
+graphics.o: graphics.c graphics.h
 graphicsUtils.o: graphicsUtils.c graphicsUtils.h font12x16.h \
   external/stb_truetype.h external/stb_image.h external/nanosvg.h external/nanosvgrast.h
-sprites.o: sprites.c sprites.h graphics.h modules/intersects.h
-spritesBindings.o: spritesBindings.c sprites.h external/duktape.h external/duk_config.h
 audio.o: audio.c audio.h external/dr_mp3.h
 console.o: console.c console.h graphics.h
 jsBindings.o: jsBindings.c jsBindings.h jsCode.h window.h graphics.h audio.h \
-  console.h value.h httpRequest.h external/duktape.h external/duk_config.h
+  value.h httpRequest.h external/duktape.h external/duk_config.h
 external/duktape.o: external/duktape.c external/duktape.h 
 value.o: value.c value.h
 httpRequest.o: httpRequest.c httpRequest.h
@@ -102,4 +101,6 @@ modules/fs.o: modules/fs.c
 
 clean:
 	$(RM) *.o
+	$(RM) external$(SEP)*.o
+	$(RM) modules$(SEP)*.o
 	$(RM) modules$(SEP)*$(DLLSUFFIX)

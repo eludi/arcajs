@@ -118,15 +118,20 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			return app.emit('gamepad', {index:index, type:'axis', axis:axis, value:state.axes[axis]});
 		}
 
-		if(buttons) for(var i=0; i<buttons.length; ++i)
-			if(evt.key === buttons[i] && state.buttons[i]!=keydown) {
+		if(buttons) for(var i=0; i<buttons.length; ++i) {
+			const btn = buttons[i];
+			if((evt.key === btn 
+					|| ((typeof btn === 'object') && evt.key === btn.key && evt.location == btn.location))
+				&& state.buttons[i]!=keydown)
+			{
 				state.buttons[i]=keydown;
 				return app.emit('gamepad', {index:index, type:'button', button:i, value:keydown?1:0});
 			}
+		}
 	}
 
 	const app = {
-		version: 'v0.20210415a',
+		version: 'v0.20220625a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -215,6 +220,10 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			return gfx.createCircleTexture(r, fill, lineW, stroke); },
 		createPathResource: function(...args) { return createPathResource(...args); },
 		createSVGResource: function(svg, params) { return createSVGResource(svg, params); },
+		createTileResources: function(parent, tilesX, tilesY, border=0, params) {
+			return gfx.createTileTextures(parent, tilesX, tilesY, border, params); },
+		createTileResource: function(parent, x,y,w,h, params) { return gfx.createTileTexture(parent,x,y,w,h, params); },
+		setImageCenter: function(img, cx, cy) { gfx.setTextureCenter(img, cx, cy); },
 		queryImage: function(texId) { return gfx.queryTexture(texId); },
 		queryFont: function(fontId, text) { return gfx.measureText(fontId, text); },
 		setPointer: function(onOrOff) {
@@ -224,6 +233,8 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		createSpriteSet: function(...args) { return arcajs.createSpriteSet(...args); },
 		require: function(name) { return modules[name]; },
 		exports: function(name, module) { modules[name] = module; },
+		resizable: function(isResizable) { /* browser windows always resizable */ },
+		fullscreen: function(fullscreen) { console.warn('fullscreen not yet implemented'); },
 		vibrate: function(duration) {
 			if('vibrate' in navigator)
 				navigator.vibrate(duration*1000);
@@ -275,6 +286,13 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				Math.floor(hue2rgb( v1, v2, h/360 - ( 1 / 3 ) )*255),
 				a
 			];
+		},
+		transformArray: function(arr, stride/*[, cbArgs], callback*/) {
+			const cbArgs = [], callback = arguments[arguments.length-1];
+			for(let i=2, end= arguments.length-1; i<end; ++i)
+				cbArgs.push(arguments[i]);
+			for(let i=0, end=arr.length; i<end; i+=stride)
+				callback(arr.slice(i, i+stride), arr.subarray(i, i+stride), ...cbArgs)
 		}
 	}
 

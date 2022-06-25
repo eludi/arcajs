@@ -2,5 +2,6 @@
 	"name":"RETURN!",
 	"display":"fullscreen",
 	"background_color" : "#000",
+	"defaultFont_scale": 2.0,
 	"scripts":[ "main.js" ]
 }

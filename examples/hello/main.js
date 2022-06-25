@@ -1,27 +1,25 @@
 var audio = app.require('audio');
 
-var img = app.getResource('hello_arcajs.svg');
-var sprites = app.createSpriteSet(img), hello;
-
-app.on('load', function() {
-    hello = sprites.createSprite();
-    hello.setPos(app.width/2, app.height/2);
-    hello.setVelRot(Math.PI/2);
-});
+var hello = {
+    x: app.width/2,
+    y: app.height/2,
+    rot:0,
+    sc:0,
+    image: app.getResource('hello_arcajs.svg', {centerX:0.5, centerY:0.5})
+};
 
 app.on('resize', function(winSzX, winSzY) {
-    if(hello)
-        hello.setPos(winSzX/2, winSzY/2);
+    hello.x = winSzX/2;
+    hello.y = winSzY/2;
 });
 
 app.on('update', function(deltaT, now) {
-    sprites.update(deltaT);
-    if(hello)
-        hello.setScale(Math.sin(now*3));
+    hello.rot = now*Math.PI/2
+    hello.sc = Math.sin(now*3);
 });
 
 app.on('draw', function(gfx) {
-    gfx.drawSprites(sprites);
+    gfx.drawSprite(hello);
 });
 
 app.on('pointer', function(evt) {

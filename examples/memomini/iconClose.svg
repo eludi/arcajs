@@ -9,11 +9,11 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    id="svg8"
    version="1.1"
-   viewBox="0 0 67.733333 67.733336"
-   height="256"
-   width="256"
-   sodipodi:docname="icons.svg"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)">
+   viewBox="0 0 33.866667 33.866668"
+   height="128"
+   width="128"
+   sodipodi:docname="iconClose.svg"
+   inkscape:version="0.92.5 (2060ec1f9f, 2020-04-08)">
   <sodipodi:namedview
      pagecolor="#7f7f7f"
      bordercolor="#666666"
@@ -28,10 +28,10 @@
      id="namedview17"
      showgrid="true"
      inkscape:zoom="0.70710678"
-     inkscape:cx="549.49992"
+     inkscape:cx="186.04703"
      inkscape:cy="102.34733"
      inkscape:window-x="0"
-     inkscape:window-y="0"
+     inkscape:window-y="25"
      inkscape:window-maximized="0"
      inkscape:current-layer="svg8">
     <inkscape:grid
@@ -55,7 +55,7 @@
   </metadata>
   <path
      style="opacity:1;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:4.23333359;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="M 0,33.866668 V 67.733335 H 33.86666 V 33.866668 Z m 8.46666,4.233333 8.46667,8.466667 8.46667,-8.466667 4.23333,4.233333 -8.46667,8.466668 8.46667,8.466666 L 25.4,63.500002 16.93333,55.033335 8.46666,63.500002 4.23333,59.266668 12.7,50.800002 4.23333,42.333334 Z"
+     d="M 0,5.0000001e-7 V 33.866668 H 33.86666 V 5.0000001e-7 Z M 8.46666,4.2333335 16.93333,12.700001 25.4,4.2333335 29.63333,8.4666665 21.16666,16.933335 29.63333,25.400001 25.4,29.633335 16.93333,21.166668 8.46666,29.633335 4.23333,25.400001 12.7,16.933335 4.23333,8.4666665 Z"
      id="rect4527"
      inkscape:connector-curvature="0"
      sodipodi:nodetypes="cccccccccccccccccc" />

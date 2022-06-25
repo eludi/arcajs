@@ -1,42 +1,59 @@
-CC = gcc
-CFLAGS = -Os -Wall -D_NO_GL #-g
+CC     = gcc
+CFLAGS = -Wall -Wpedantic -Wno-overlength-strings -Os
+LFLAGS = -s -no-pie
 
-SHARED = ../../shared
-INCDIR = -I$(SHARED)/SDL2/include
+SDL = ../../SDL2
 
 ifeq ($(OS),Windows_NT)
-  LIBS          = -lwininet -mconsole -s
-  GFXLIBS       = -L$(SHARED)/SDL2/lib/win32-x64 -static -lmingw32 -lSDL2main -lSDL2 -Wl,--no-undefined -lm \
-                  -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 \
-                  -lshell32 -lsetupapi -lversion -luuid -lwininet -static-libgcc -mwindows
-  DLLFLAGS      = -shared
-  DLLSUFFIX     = .dll
-  EXESUFFIX     = .exe
-  RM            = del
-else  # Linux
+  OS            = win32
+  ARCH          = $(OS)-x64
+else
   OS            = $(shell uname -s)
   ARCH          = $(OS)_$(shell uname -m)
-  LIBS          = -lcurl -s
-  ifeq ($(ARCH),Linux_armv6l)
-    GFXLIBS     = `sdl2-config --libs` -lm
+endif
+
+ifeq ($(OS),Linux)
+  INCDIR        = -I$(SDL)/include -D_REENTRANT -Iexternal
+  ifeq ($(ARCH),Linux_x86_64)
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -ldl -lpthread -lrt -ldl -lcurl -lm
   else
-    GFXLIBS     = -L$(SHARED)/SDL2/lib/$(ARCH) -lSDL2 -lm
+    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -ldl -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -ldl -lcurl -lm
   endif
-  DLLFLAGS      = -fPIC -shared
+  CFLAGS       += -fPIC
+  DLLFLAGS      = -shared
   DLLSUFFIX     = .so
   EXESUFFIX     =
-  RM            = rm -f
+  RM = rm -f
+  SEP = /
+else
+  ifeq ($(OS),Darwin) # MacOS
+    DLLFLAGS = -bundle
+    DLLSUFFIX = .so
+    EXESUFFIX = .app
+  else # windows, MinGW
+    INCDIR        = -I$(SDL)/include -Iexternal
+    LIBS          = -L$(SDL)/lib/$(ARCH) -lmingw32 -lSDL2main -lSDL2 -lwinmm -luser32 \
+                    -lgdi32 -lkernel32 -lwininet -lwsock32 -lm -mconsole
+    STATIC_LIBS   = -L$(SDL)/lib/$(ARCH) -static -lmingw32 -lSDL2main -lSDL2 -Wl,--no-undefined -lm \
+                    -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 \
+                    -lshell32 -lsetupapi -lversion -luuid -lwininet -static-libgcc -mwindows
+    DLLFLAGS      = -shared -s
+    DLLSUFFIX     = .dll
+    EXESUFFIX     = .exe
+    RM = del /s
+    SEP = \\#
+  endif
 endif
 
 all: httpTest$(EXESUFFIX) archiveTest$(EXESUFFIX) dllTest$(DLLSUFFIX)
 
 # link rules:
 httpTest$(EXESUFFIX): httpTest.o ../httpRequest.o
-	$(CC) $^ $(LIBS) $(GFXLIBS) -o $@
+	$(CC) $^ $(LIBS) $(GFXLIBS) -o $@ $(LFLAGS)
 archiveTest$(EXESUFFIX): archiveTest.o ../archive.o ../external/miniz.o
-	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
+	$(CC) $(CFLAGS) $^ $(LIBS) -o $@ $(LFLAGS)
 dllTest$(DLLSUFFIX): dllTest.o ../external/duktape.o
-	$(CC) $(DLLFLAGS) $^ $(LIBS) -o $@
+	$(CC) $(DLLFLAGS) $^ $(LIBS) -o $@ $(LFLAGS)
 
 # compile dependencies:
 httpTest.o: httpTest.c ../httpRequest.h

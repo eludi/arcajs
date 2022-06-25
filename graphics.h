@@ -1,75 +1,137 @@
 #pragma once
 
-#include "graphicsUtils.h"
 #include <stdint.h>
 #include <stddef.h>
 
-extern void gfxInit(void* renderer);
-extern void* gfxRenderer();
+#define GFX_IMG_CIRCLE 1
+#define GFX_IMG_SQUARE 2
+
+///@{ setup and resource management:
+extern void gfxInit(void* renderer, float pixelRatio);
 extern void gfxClose();
 extern void gfxTextureFiltering(int level);
 
-/// sets origin in model coordinates
-extern void gfxOrigin(float ox, float oy);
-/// sets origin in screen coordinates
-extern void gfxOriginScreen(float ox, float oy);
-/// sets global scale
-extern void gfxScale(float sc);
+/// uploads an image from a memory buffer and returns a handle (0 in case of an error)
+/** rMask parameter allows to specify data layout as RGB(A) =0xff000000 or (A)BGR = 0xff */
+extern uint32_t gfxImageUpload(const unsigned char* data, int w, int h, int d, uint32_t rMask);
+/// loads an SVG image from string to graphics memory and returns a handle
+extern uint32_t gfxSVGUpload(const char* svg, size_t svgSz, float scale);
+/// defines an image tile based on an already existing parent image
+extern uint32_t gfxImageTile(uint32_t parent, int x, int y, int w, int h);
+/// defines image tiles based on an already existing parent image by specifing the number of tiles in x and y dimension and a border width
+/** \return image handle of the first (left upper) tile */
+extern uint32_t gfxImageTileGrid(uint32_t parent, uint16_t tilesX, uint16_t tilesY, uint16_t border);
+/// sets rotation center relative to width/height, 0.0|0.0 means upper left corner 1.0|1.0 lower right corner
+extern void gfxImageSetCenter(uint32_t img, float cx, float cy);
+/// sets shape as an array of floats for intersection/collision tests
+/** memory is not owned/copied, so memory referenced by the passed pointer needs to stay valid as long as the image exists */
+extern void gfxImageSetShape(uint32_t img, const float* shape);
+/// returns shape as an array of floats for intersection/collision tests
+extern const float* gfxImageGetShape(uint32_t img);
+/// returns width and height of image in pixels
+extern void gfxImageDimensions(uint32_t img, int* w, int* h);
+/// releases an image from graphics memory
+extern void gfxImageRelease(uint32_t img);
+/// uploads a TTF font resource and returns handle
+extern uint32_t gfxFontUpload(void* data, size_t dataSize, float fontSize);
+/// releases a font from graphics memory
+extern void gfxFontRelease(uint32_t font);
+///@}
+
+///@{ render state/context:
+/// resets state to its initial values
+extern void gfxStateReset();
+/// pushes current state onto a stack
+/** 7 stacked states supported */
+extern void gfxStateSave();
+/// restores previous state from stack
+extern void gfxStateRestore();
+
+/// sets the current transformation
+extern void gfxSetTransform(float x, float y, float rot, float sc);
+/// multiplies current transformation with this additional transformation
+extern void gfxTransform(float x, float y, float rot, float sc);
 
 /// sets current color
 extern void gfxColor(uint32_t color);
-/// sets current color to an opaque RGB color value
-extern void gfxColorRGB(unsigned char r, unsigned char g, unsigned char b);
-/// sets current color to an RGBA color value with alpha transparency
-extern void gfxColorRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a);
 /// sets current line width
 extern void gfxLineWidth(float w);
-/// returns current line width
-extern float gfxGetLineWidth();
+/// sets viewport / clipping rectangle (in screen coordinates), use negative width/height to disable clipping
+extern void gfxClipRect(int x, int y, int w, int h);
 /// sets current blend mode
 extern void gfxBlend(int mode);
 /// returns current blend mode
 extern int gfxGetBlend();
-/// disables clipping
-extern void gfxClipDisable();
-/// sets viewport / clipping rectangle (in screen coordinates)
-extern void gfxClipRect(int x, int y, int w, int h);
-/// draws a rectangle outline
-extern void gfxDrawRect(float x,float y, float w, float h);
-/// draws a filled rectangle
-extern void gfxFillRect(float x,float y, float w, float h);
-/// draws a line
-extern void gfxDrawLine(float x0, float y0, float x1, float y1);
-/// draws points
-extern void gfxDrawPoints(unsigned numCoords, const float* coords);
-/// draws a line strip
-extern void gfxDrawLineStrip(unsigned numCoords, const float* coords);
-
-///@{ image management and rendering:
-/// draws an image
-extern void gfxDrawImage(size_t img, float x, float y);
-/// draws an image scaled
-extern void gfxDrawImageScaled(size_t img, float x, float y, float w, float h);
-/// draws an image, optionally clipped, scaled, rotated, and mirrored
-extern void gfxDrawImageEx(size_t img,
-	int srcX, int srcY, int srcW, int srcH,
-	float destX, float destY, float destW, float destH,
-	float cx, float cy, float angle, int flip);
-/// uploads an image from a file to graphics memory and returns a handle (0 in case of an error)
-extern size_t gfxImageLoad(const char* fname);
-/// uploads an image from a memory buffer and returns a handle (0 in case of an error)
-extern size_t gfxImageUpload(const unsigned char* data, int w, int h, int d);
-/// releases an image form graphics memory
-extern void gfxImageRelease(size_t img);
-/// returns width and height of image in pixels
-extern void gfxImageDimensions(size_t img, int* w, int* h);
 ///@}
 
-///@{ text rendering:
-extern size_t gfxFontLoad(const char* fname, float fontSize);
-extern size_t gfxFontUpload(void* data, unsigned dataSize, float fontSize);
-extern void gfxFontRelease(size_t font);
-extern void gfxFillText(size_t font, float x, float y, const char* text);
-extern void gfxFillTextAlign(size_t font, float x, float y, const char* text, GfxAlign align);
-extern void gfxMeasureText(size_t font, const char* text, float* width, float* height, float* ascent, float* descent);
+///@{ basic drawing operations:
+/// draws a rectangle outline
+extern void gfxDrawRect(float x, float y, float w, float h);
+/// draws a filled rectangle
+extern void gfxFillRect(float x, float y, float w, float h);
+/// draws a line
+extern void gfxDrawLine(float x0, float y0, float x1, float y1);
+/// draws a line strip
+extern void gfxDrawLineStrip(uint32_t numCoords, const float* coords);
+/// draws a closed line loop
+extern void gfxDrawLineLoop(uint32_t numCoords, const float* coords);
+// draws an array of points using a point sprite (for example GFX_IMG_CIRCLE) and current line width as size
+extern void gfxDrawPoints(uint32_t numCoords, const float* coords, uint32_t img);
+/// draws a filled triangle
+extern void gfxFillTriangle(float x0, float y0, float x1, float y1, float x2, float y2);
+/// draws an image
+extern void gfxDrawImage(uint32_t img, float x, float y, float rot, float sc, int flip);
+/// draws a stretched image
+extern void gfxStretchImage(uint32_t img, float x, float y, float w, float h);
+/// renders text
+extern void gfxFillText(uint32_t font, float x, float y, const char* text);
+/// renders aligned text
+extern void gfxFillTextAlign(uint32_t font, float x, float y, const char* str, int align);
+/// determines text dimensions
+extern void gfxMeasureText(uint32_t font, const char* text, float* width, float* height, float* ascent, float* descent);
+///@}
+
+///@{ experimental extensions:
+/// draws a tile array
+/** all tile images need to be based on the same parent image.
+ * \param imgBase is the image handle of the first tile
+ * \param colors optional color array, one color per tile. Set NULL to uniformly use the current drawing color.*/
+extern void gfxDrawTiles(uint16_t tilesX, uint16_t tilesY, uint32_t stride,
+	uint32_t imgBase, const uint32_t* imgOffsets, const uint32_t* colors);
+
+/// symbolic names of array components
+typedef enum {
+	GFX_COMP_IMG_OFFSET = 1<<0,
+	GFX_COMP_ROT = 1<<3,
+	GFX_COMP_SCALE = 1<<4,
+	GFX_COMP_COLOR_R = 1<<5,
+	GFX_COMP_COLOR_G = 1<<6,
+	GFX_COMP_COLOR_B = 1<<7,
+	GFX_COMP_COLOR_A = 1<<8,
+	GFX_COMP_COLOR_RGBA = 15<<5,
+} gfxArrayComponents;	
+/// draws multiple images based on a data array
+/**
+ * Useful for rendering many sprites instances or particles.
+ * 
+ * data array components and corresponding flags:
+ * - imgOffset COMP_IMG_OFFSET
+ * - x
+ * - y
+ * - rot COMP_ROT
+ * - scale COMP_SCALE
+ * - colorR COMP_COLOR_R
+ * - colorG COMP_COLOR_G
+ * - colorB COMP_COLOR_B
+ * - colorA COMP_COLOR_A
+ * 
+ * Use colorA = 0 to disable an instance. Use app.transformArray() for efficient array updates.
+ */
+extern void gfxDrawImages(uint32_t imgBase, uint32_t numInstances, uint32_t stride, const gfxArrayComponents comps, const float* arr);
+/// draws filled triangles with optional vertex colors and indices
+extern void gfxFillTriangles(uint32_t numVertices, const float* coords,
+	const uint32_t* colors, uint32_t numIndices, const uint32_t* indices);
+/// draws textured triangles with optional vertex colors and indices
+extern void gfxTexTriangles(uint32_t img, uint32_t numVertices, const float* coords, const float* uvCoords,
+	const uint32_t* colors, uint32_t numIndices, const uint32_t* indices);
 ///@}

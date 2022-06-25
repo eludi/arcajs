@@ -28,7 +28,7 @@ app.on('draw', function(gfx) {
             const gp = gamepads[i];
             var ox = app.width - (Math.ceil(gp.buttons.length/2)*30+80+(gp.axes.length-2)*30);
             gfx.color(255,255,255);
-            gfx.fillText(0, ox,oy-18, gp.name);
+            gfx.fillText(ox,oy-18, gp.name);
             gfx.drawRect(ox,oy,50,50);
             gfx.fillRect(ox+20+25*gp.axes[0], oy+20+25*gp.axes[1], 10,10);
             ox+=60;
@@ -47,6 +47,6 @@ app.on('draw', function(gfx) {
         }
         else
             gfx.color(255,85,85);
-        gfx.fillText(0, app.width-20,oy,i);
+        gfx.fillText(app.width-20,oy,i);
     }
 });

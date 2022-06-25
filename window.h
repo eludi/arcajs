@@ -6,7 +6,8 @@
 typedef enum {
     WINDOW_FULLSCREEN = (1<<0),
     WINDOW_GL = (1<<1),
-    WINDOW_VSYNC = (1<<2)
+    WINDOW_VSYNC = (1<<2),
+    WINDOW_RESIZABLE = (1<<3),
 } WindowFlags;
 
 /// opens an SDL window
@@ -23,6 +24,8 @@ void WindowRestore();
 void WindowResizable(int isResizable);
 /// toggles fullscreen
 void WindowToggleFullScreen();
+/// returns true in case the window is fullscreen
+int WindowIsFullscreen();
 /// turns mouse pointer display on/off
 void WindowShowPointer(int visible);
 
@@ -34,6 +37,8 @@ void WindowTitle(const char *str);
 int WindowWidth();
 /// returns window height
 int WindowHeight();
+/// updates internal window dimensions, only necessary if using a custom event handler
+void WindowDimensions(int width, int height);
 /// returns pixel ratio, for supporting high DPI displays
 float WindowPixelRatio();
 

@@ -13,8 +13,6 @@
 #define NANOSVGRAST_IMPLEMENTATION
 #include "external/nanosvgrast.h"
 
-#include "font12x16.h"
-
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -61,7 +59,7 @@ uint32_t hsla2rgba(float h, float s, float l, float a) {
 		g = clampf(hue2rgb(m1, m2, h), 0.0f,1.0f) * 255.0f;
 		b = clampf(hue2rgb(m1, m2, h - 1.0f / 3.0f), 0.0f,1.0f) * 255.0f;
 	}
-	return (r << 24) + (g << 16) + (b << 8) + (uint32_t)(a*255.0f);
+	return (r << 24) + (g << 16) + (b << 8) + (uint32_t)(clampf(a,0,1.0f)*255.0f);
 }
 
 unsigned char* svgRasterize(char* svg, float scale, int* w, int* h, int* d) {

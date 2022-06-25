@@ -21,7 +21,7 @@ const UI = {
             var offset = currLine<lines.length ? 0 : currLine%lines.length;
             gfx.color(style.fg);
             for(var ly=y, index=0; index<lines.length; ly+=style.hLine, ++index)
-                gfx.fillText(style.font,x,ly,lines[(index+offset)%lines.length]);
+                gfx.fillText(x,ly,lines[(index+offset)%lines.length],style.font);
         }
 
         this.push = function(text) {
@@ -81,7 +81,7 @@ const UI = {
             if(style.bg[3])
                 gfx.color(style.bg).fillRect(x,y,w,h);
             gfx.color(hasFocus ? style.fgFocus : style.fg);
-            gfx.fillText(style.font, x,y, this.value.substr(originX));
+            gfx.fillText(x,y, this.value.substring(originX), style.font);
             if(cursorVisible && hasFocus)
                 gfx.fillRect(x+cursorX,y+1,cursorW,cursorH);
         }
@@ -102,7 +102,7 @@ app.on('update', function(deltaT, now) {
 });
 
 app.on('draw', function(gfx) {
-    gfx.color(170,170,170).fillText(style.font,0,app.height-2*style.hLine,'Please enter your name:');
+    gfx.color(170,170,170).fillText(0,app.height-2*style.hLine,'Please enter your name:', style.font);
     textArea.draw(gfx);
     gfx.drawLine(0,app.height-2*style.hLine-2,app.width,app.height-2*style.hLine-2);
     textInput.draw(gfx);

@@ -1,12 +1,12 @@
 arcajs.intersects = {
-	transform: function(arr, x,y,rot) {
+	transform: function(arr, x,y,rot=0) {
 		var cos = Math.cos(rot), sin = Math.sin(rot);
 		for(var i=0, end=arr.length; i<end; i+=2) {
 			var ax=arr[i], ay=arr[i+1];
 			arr[i] = ax*cos - ay*sin + x, arr[i+1] = ax*sin + ay*cos + y;
 		}
 	},
-	transformInv: function(arr, x,y,rot) {
+	transformInv: function(arr, x,y,rot=0) {
 		var cos = Math.cos(-rot), sin = Math.sin(-rot);
 		for(var i=0, end=arr.length; i<end; i+=2) {
 			var ax=arr[i]-x, ay=arr[i+1]-y;
@@ -180,6 +180,15 @@ arcajs.intersects = {
 		}
 		return false;
 	},
+	circleTriangles: function(cx, cy, radius, arr, tx=0,ty=0,trot=0) {
+		var c = [cx,cy];
+		this.transformInv(c, tx, ty, trot);
+		for(var i=0, numTriangles=Math.floor(arr.length/6); i<numTriangles; ++i)
+			if(this.circleTriangle(c[0], c[1], radius, arr[6*i], arr[6*i+1], arr[6*i+2], arr[6*i+3], arr[6*i+4], arr[6*i+5]))
+				return true;
+		return false;
+	},
+
 	alignedRectAlignedRect: function(x1min, y1min, x1max, y1max, x2min, y2min, x2max, y2max) {
 		if(x2min > x1max || x1min > x2max)
 			return false;
@@ -266,5 +275,221 @@ arcajs.intersects = {
 			}
 		}
 		return true;
+	},
+	/** @function intersects.polygonTriangles
+	 * Test if a convex polygon and a triangle list intersect, both optionally transformed
+	 * @param {array|ArrayBuffer} polygon - polygon ordinates
+	 * @param {number} x1 - polygon x translation
+	 * @param {number} y1 - polygon y translation
+	 * @param {number} rot1 - polygon rotation
+	 * @param {array|ArrayBuffer} triangles - triangle ordinates
+	 * @param {number} [x2=0] - triangles x translation
+	 * @param {number} [y2=0] - triangles y translation
+	 * @param {number} [rot2=0] - triangles rotation
+	 * @returns {boolean} true if the two objects intersect
+	 */
+	polygonTriangles: function(poly, x1,y1,rot1, triangles,x2=0,y2=0,rot2=0) {
+		let p1 = poly;
+		if(x1 || y1 || rot1) {
+			p1 = poly.slice(0); // copy
+			this.transform(p1, x1,y1,rot1);
+		}
+		for(var i=0, numTriangles=Math.floor(triangles.length/6); i<numTriangles; ++i) {
+			let tr = triangles.slice(6*i,6*i+6);
+			if(x2 || y2 || rot2)
+				this.transform(tr, x2,y2,rot2);
+			if(this.polygonPolygon(p1, tr))
+				return true;
+		}
+		return false;
+	},
+
+	/** @function intersects.trianglesTriangles
+	 * Test if two triangle lists intersect, both optionally transformed
+	 * @param {array|ArrayBuffer} tr1 - first triangle ordinates
+	 * @param {number} x1 - first triangles x translation
+	 * @param {number} y1 - first triangles y translation
+	 * @param {number} rot1 - first triangles rotation
+	 * @param {array|ArrayBuffer} second tr2 - second triangle ordinates
+	 * @param {number} [x2=0] - second triangles x translation
+	 * @param {number} [y2=0] - second triangles y translation
+	 * @param {number} [rot2=0] - triangles rotation
+	 * @returns {boolean} true if the two objects intersect
+	 */
+	trianglesTriangles: function(tr1,x1,y1,rot1, tr2,x2=0,y2=0,rot2=0) {
+		for(var j=0, numTriangles1=Math.floor(tr1.length/6); j<numTriangles1; ++j) {
+			let t1 = tr1.slice(6*j,6*j+6);
+			if(x1 || y1 || rot1)
+				this.transform(t1, x1,y1,rot1);
+
+			for(var i=0, numTriangles2=Math.floor(tr2.length/6); i<numTriangles2; ++i) {
+				let t2 = tr2.slice(6*i,6*i+6);
+				if(x2 || y2 || rot2)
+					this.transform(t2, x2,y2,rot2);
+				if(this.triangleTriangle(...t1, ...t2))
+					return true;
+			}
+		}
+		return false;
+	},
+
+	/** @function intersects.spritesCoarse
+	 * Test if two sprite objects intersect based on their position (x,y,rot) and bounding radius or rectangle (w,h)
+	 * @param {object} s1 - first sprite
+	 * @param {object} s2 - second sprite
+	 * @returns {boolean} true if the two objects intersect
+	 */
+	spritesCoarse: function(s1,s2) {
+		const isx = this;
+		if(s1.radius>=0.0 && s2.radius>=0.0)
+			return isx.circleCircle(s1.x, s1.y, s1.radius, s2.x, s2.y, s2.radius);
+		if(s1.radius>=0.0) {
+			if(!s2.rot) {
+				const x1 = s2.x - s2.cx*s2.w || 0, y1=s2.y - s2.cy*s2.h || 0;
+				return isx.circleAlignedRect(s1.x, s1.y, s1.radius, x1,y1, x1+s2.w,y1+s2.h);
+			}
+			let c = [ s1.x, s1.y ];
+			const ox = -s2.cx * s2.w || 0, oy = -s2.cy * s2.h || 0;
+			const arr = [
+				ox, oy,
+				ox, oy + s2.h,
+				ox + s2.w, oy + s2.h,
+				ox + s2.w, oy
+			];
+			isx.transformInv(c, s2.x, s2.y, s2.rot);
+			return isx.circlePolygon(c[0], c[1], s1.radius, arr);
+		}
+		if(s2.radius>=0.0) {
+			if(!s1.rot) {
+				const x1 = s1.x - s1.cx * s1.w || 0, y1=s1.y - s1.cy * s1.h || 0;
+				return isx.circleAlignedRect(s2.x, s2.y, s2.radius, x1,y1, x1+s1.w,y1+s1.h);
+			}
+			let c = [ s2.x, s2.y ];
+			const ox = -s1.cx * s1.w || 0, oy = -s1.cy * s1.h || 0;
+			const arr = [
+				ox, oy,
+				ox, oy + s1.h,
+				ox + s1.w, oy + s1.h,
+				ox + s1.w, oy
+			];
+			isx.transformInv(c, s1.x, s1.y, s1.rot);
+			return isx.circlePolygon(c[0], c[1], s2.radius, arr);
+		}
+		if(!s1.rot && !s2.rot) {
+			const x1min = s1.x - s1.cx * s1.w || 0, y1min = s1.y - s1.cy * s1.h || 0;
+			const x1max = x1min + s1.w, y1max = y1min + s1.h;
+			const x2min = s2.x - s2.cx * s2.w || 0, y2min = s2.y - s2.cy * s2.h || 0;
+			const x2max = x2min + s2.w, y2max = y2min + s2.h;
+			return isx.alignedRectAlignedRect(
+				x1min,y1min, x1max,y1max, x2min,y2min, x2max,y2max);
+		}
+
+		let ox = -s1.cx * s1.w || 0, oy = -s1.cy * s1.h || 0;
+		let arr1 = [
+			ox, oy,
+			ox, oy + s1.h,
+			ox + s1.w, oy + s1.h,
+			ox + s1.w, oy
+		];
+		isx.transform(arr1, s1.x, s1.y, s1.rot);
+		ox = -s2.cx * s2.w || 0;
+		oy = -s2.cy * s2.h || 0;
+		let arr2 = [
+			ox, oy,
+			ox, oy + s2.h,
+			ox + s2.w, oy + s2.h,
+			ox + s2.w, oy
+		];
+		isx.transform(arr2, s2.x, s2.y, s2.rot);
+		return isx.polygonPolygon(arr1, arr2);
+	},
+	/** @function intersects.sprites
+	 * Test if two sprite objects intersect
+	 * 
+	 * The test is based on the following object attributes:
+	 * - position (x,y,rot) currently NO scale
+	 * - bounding radius (radius) or rectangle (w,h) with optional center (cx,cy)
+	 * - optionally convex hull (shape) or triangle list (triangles)
+	 * 
+	 * @param {object} s1 - first sprite
+	 * @param {object} s2 - second sprite
+	 * @returns {boolean} true if the two objects intersect
+	 */
+	sprites: function(s1,s2) {
+		const isx = this;
+		const intersectsCoarse = isx.spritesCoarse(s1,s2);
+		if(!intersectsCoarse || (!s1.shape && !s2.shape && !s1.triangles && !s2.triangles))
+			return intersectsCoarse;
+
+		if(s1.shape && s2.shape) {
+			var shape1 = s1.shape, shape2 = s2.shape;
+			if(s1.x || s1.y || s1.rot) {
+				shape1 = new Float32Array(shape1);
+				isx.transform(shape1, s1.x, s1.y, s1.rot);
+			}
+			if(s2.x || s2.y || s2.rot) {
+				shape2 = new Float32Array(shape2);
+				isx.transform(shape2, s2.x, s2.y, s2.rot);
+			}
+			return isx.polygonPolygon(shape1, shape2);
+		}
+	
+		if(s1.triangles && s2.triangles)
+			return isx.trianglesTriangles(s1.triangles, s1.x,s1.y,s1.rot, s2.triangles,s2.x,s2.y,s2.rot);
+	
+		var sShape, sNoShape, shape;
+		if(s1.shape) {
+			shape = s1.shape;
+			sShape = s1;
+			sNoShape = s2;
+		}
+		else {
+			shape = s2.shape;
+			sShape = s2;
+			sNoShape = s1;
+		}
+
+		function rect2poly(rect) {
+			const ox = -rect.cx * rect.w || 0, oy = -rect.cy * rect.h || 0;
+			const poly = [ ox, oy, ox, oy + rect.h, ox + rect.w, oy + rect.h, ox + rect.w, oy ];
+			if(rect.x || rect.y || rect.rot)
+				isx.transform(poly, rect.x, rect.y, rect.rot);
+			return poly;
+		}
+
+		if(shape) { // bounding shape against triangles/circle/rect:
+			if(sNoShape.triangles)
+				return isx.polygonTriangles(sShape.shape, sShape.x, sShape.y, sShape.rot,
+					sNoShape.triangles, sNoShape.x, sNoShape.y, sNoShape.rot);
+		
+			if(sNoShape.radius>=0.0) {
+				let c = [sNoShape.x, sNoShape.y];
+				isx.transformInv(c, sShape.x, sShape.y, sShape.rot);
+				return isx.circlePolygon(c[0], c[1], sNoShape.radius, shape);
+			}
+
+			const poly = rect2poly(sNoShape);
+			if(sShape.x || sShape.y || sShape.rot) {
+				shape = new Float32Array(shape);
+				isx.transform(shape, sShape.x, sShape.y, sShape.rot);
+			}
+			return isx.polygonPolygon(poly, shape);
+		}
+		
+		// triangle list against circle/rect:
+		var sTr, sNoTr;
+		if(s1.triangles) {
+			sTr = s1;
+			sNoTr = s2;
+		}
+		else {
+			sTr = s2;
+			sNoTr = s1;
+		}
+		if(sNoTr.radius>=0.0)
+			return isx.circleTriangles(sNoTr.x, sNoTr.y, sNoTr.radius,
+				sTr.triangles, sTr.x, sTr.y, sTr.rot);
+		const poly = rect2poly(sNoTr);
+		return isx.polygonTriangles(poly, 0,0,0, sTr.triangles,sTr.x,sTr.y,sTr.rot);
 	}
 };

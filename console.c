@@ -1,5 +1,6 @@
 #include "console.h"
 #include "graphics.h"
+#include "graphicsUtils.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -111,13 +112,12 @@ void ConsoleDraw() {
 		size_t offset = 0;
 		if(console->lines > console->bufH)
 			offset = (console->lines % console->bufH) * console->bufW;
-		gfxFillText(console->font, console->x, y, &console->buf[(i+offset)%bufsz]);
+		gfxFillText(0, console->x, y, &console->buf[(i+offset)%bufsz]);
 		y += console->charH;
 	}
 }
 
 //------------------------------------------------------------------
-
 #include "window.h"
 #include "value.h"
 #include "resources.h"
@@ -158,9 +158,9 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 
 	if(options) {
 		//Value_print(options, stdout);
-		Value* v = Value_get(options, "font");
+		const Value* v = Value_get(options, "font");
 		if(v && v->type==VALUE_INT)
-			font = ResourceValidateHandle(v->i, RESOURCE_FONT);
+			font = v->i;
 
 		v = Value_get(options, "title");
 		if(v && v->type==VALUE_STRING)
@@ -168,7 +168,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		if(title) {
 			v = Value_get(options, "titleFont");
 			if(v && v->type==VALUE_INT)
-				fontTitle = ResourceValidateHandle(v->i, RESOURCE_FONT);
+				fontTitle = v->i;
 		}
 
 		v = Value_get(options, "color");
@@ -185,7 +185,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 
 		v = Value_get(options, "icon");
 		if(v && v->type==VALUE_INT)
-			icon = ResourceValidateHandle(v->i, RESOURCE_IMAGE);
+			icon = v->i;
 
 		v = Value_get(options, "button0");
 		if(v && v->type==VALUE_STRING)
@@ -197,9 +197,9 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 
 	int winSzX = WindowWidth(), winSzY = WindowHeight();
 	float sz, fontTitleH;
+	int iconSzX=0, iconSzY=0;
 	gfxMeasureText(font, NULL, NULL, &sz, NULL, NULL);
 	gfxMeasureText(fontTitle, NULL, NULL, &fontTitleH, NULL, NULL);
-	int iconSzX=0, iconSzY=0;
 	if(icon)
 		gfxImageDimensions(icon, &iconSzX, &iconSzY);
 
@@ -211,6 +211,8 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 	float button0Pos[] = { 0.75*winSzX, winSzY-2.5*sz, 0.25*winSzX-sz, 1.5*sz };
 	float button1Pos[] = { 0.50*winSzX, winSzY-2.5*sz, 0.25*winSzX-sz, 1.5*sz };
 
+	gfxStateReset();
+
 	int done = 0;
 	while(WindowIsOpen() && !done) {
 		double now = WindowTimestamp();
@@ -219,7 +221,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		gfxFillRect(0,0, WindowWidth(), winSzY);
 		if(icon) {
 			gfxColor(0xffffffff);
-			gfxDrawImage(icon, winSzX-iconSzX-2*sz, 2*sz);
+			gfxDrawImage(icon, winSzX-iconSzX-2*sz, 2*sz, 0,1,0);
 		}
 		gfxColor(fgColor);
 		float y = 2*sz;
@@ -270,7 +272,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		for(Value* evt = events->child; evt!=NULL; evt = evt->next) {
 			if(prompt && strcmp(Value_get(evt, "evt")->str, "textinput")==0) {
 				//Value_print(evt, stdout);
-				Value* v = Value_get(evt, "key");
+				const Value* v = Value_get(evt, "key");
 				if(v && v->type==VALUE_STRING) {
 					if(strcmp(v->str, "Enter")==0)
 						done = 1;
@@ -294,7 +296,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 				&& strcmp(Value_get(evt, "type")->str, "keydown")==0)
 			{
 				//Value_print(evt, stdout);
-				Value* v = Value_get(evt, "key");
+				const Value* v = Value_get(evt, "key");
 				if(v && v->type==VALUE_STRING) {
 					if(strcmp(v->str, "Enter")==0) {
 						done = 1;

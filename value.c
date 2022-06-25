@@ -119,12 +119,12 @@ void Value_set(Value* parent, const char* key, Value* value) {
 	sibling->next->next = value;
 }
 
-Value* Value_get(Value* parent, const char* key) {
+const Value* Value_get(const Value* parent, const char* key) {
 	if(!parent || parent->type != VALUE_MAP)
 		return 0;
-	Value *pKey = parent->child;
+	const Value *pKey = parent->child;
 	while(pKey) {
-		Value* pValue = pKey->next;
+		const Value* pValue = pKey->next;
 		if(strcmp(key, pKey->str)==0)
 			return pValue;
 		pKey = pValue->next;
@@ -442,7 +442,11 @@ static void Value_print2(FILE* stream, Value* v, int indent, const char* tail) {
 			fprintf(stream, "\"%s\"%s", v->str, tail);
 			break;
 		case VALUE_INT:
-			fprintf(stream, "%" PRId64 "%s", v->i, tail);
+#ifdef __MINGW32__
+			fprintf(stream, "%I64d%s", v->i, tail);
+#else
+			fprintf(stream, "%lld%s", v->i, tail);
+#endif
 			break;
 		case VALUE_BOOL:
 			fprintf(stream, v->i ? "true%s" : "false$s", tail);

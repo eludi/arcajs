@@ -220,7 +220,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			return gfx.createCircleTexture(r, fill, lineW, stroke); },
 		createPathResource: function(...args) { return createPathResource(...args); },
 		createSVGResource: function(svg, params) { return createSVGResource(svg, params); },
-		createTileResources: function(parent, tilesX, tilesY, border=0, params) {
+		createTileResources: function(parent, tilesX, tilesY=1, border=0, params) {
 			return gfx.createTileTextures(parent, tilesX, tilesY, border, params); },
 		createTileResource: function(parent, x,y,w,h, params) { return gfx.createTileTexture(parent,x,y,w,h, params); },
 		setImageCenter: function(img, cx, cy) { gfx.setTextureCenter(img, cx, cy); },

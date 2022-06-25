@@ -1,10 +1,7 @@
 const sc = app.width/80;
 const title = app.getResource('return.svg', {centerX:0.5, centerY:1.0});
 const iconClose = app.createTileResources('icons.svg', 4);
-app.setImageCenter(iconClose,1,0);
 const iconOne = iconClose+1, iconTwo = iconClose+2;
-app.setImageCenter(iconOne,0.5,0.5);
-app.setImageCenter(iconTwo,0.5,0.5);
 
 const audio = app.require('audio');
 const sndReturn = app.getResource("sd0000.wav");
@@ -299,5 +296,11 @@ function GameMenu() {
 			app.on(new Game(evt.value<0 ? 1 : 2));
 	}
 }
+
+app.on('load', function() {
+	app.setImageCenter(iconClose,1,0);
+	app.setImageCenter(iconOne,0.5,0.5);
+	app.setImageCenter(iconTwo,0.5,0.5);	
+});
 
 app.on(new GameMenu());

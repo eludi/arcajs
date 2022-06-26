@@ -396,7 +396,7 @@ return function (canvas, capacity=500) {
 
 		const baseTexId = textures.length;
 		for(let i=0, end=tilesX*tilesY; i<end; ++i)
-			textures.push({});
+			textures.push({ parent:par.parent ? par.parent : parent, ready:par.ready });
 
 		const createTileInfos = ()=>{
 			const gridW = par.width/tilesX, tileW = gridW - 2*border;
@@ -425,9 +425,18 @@ return function (canvas, capacity=500) {
 	this.setTextureCenter = function(texId, cx, cy) {
 		if(texId>0 && texId<textures.length) {
 			const tex = textures[texId];
-			const w = tex.width ? tex.width : 1, h = tex.height ? tex.height : 1;
-			textures[texId].cx = cx * w;
-			textures[texId].cy = cy * h;
+			const setTextureCenter = ()=>{
+				const w = tex.width ? tex.width : 1, h = tex.height ? tex.height : 1;
+				tex.cx = cx * w;
+				tex.cy = cy * h;	
+			}
+			if(tex.ready)
+				setTextureCenter();
+			else {
+				const img = tex.img ? tex.img : tex.parent ? textures[tex.parent].img : null;
+				if(img)
+					img.addEventListener('load', setTextureCenter);
+			}
 		}
 	}
 

@@ -912,6 +912,6 @@ function Highscore(id) {
 
 app.on('load', function(){
 	digitDims = app.queryImage(digit0);
+	app.on(new Menu());
 });
 
-app.on(new Menu());

@@ -81,7 +81,8 @@ function wrap(obj, w, h) {
 const ARENA_H = 60, ARENA_W=Math.max(ARENA_H, Math.floor(ARENA_H*app.width/app.height));
 const COMET_VEL_MIN = 12, COMET_VEL_MAX = 16;
 
-const images = app.getResource('graphics.svg', {scale:2, centerX:0.5, centerY:0.5});
+const sc = Math.max(1,Math.floor(app.width/600));
+const images = app.getResource('graphics.svg', {scale:sc, centerX:0.5, centerY:0.5});
 const digit0 = app.createTileResource(images, 0,0.75, 1/16,0.25, {centerX:0, centerY:0});
 for(var i=1; i<10; ++i)
 	app.createTileResource(images, i/16,0.75, 1/16,0.25, {centerX:0, centerY:0});
@@ -530,7 +531,7 @@ function Game(nPlayers) {
 			return;
 		var s = ships[evt.index];
 		if(evt.type==='axis') {
-			if(evt.axis===0 || evt.axis===6) {
+			if(evt.axis===0 || evt.axis===4 || evt.axis===6) {
 				s.right = s.left = 0;
 				if(evt.value>0.1)
 					s.right = evt.value;
@@ -544,7 +545,7 @@ function Game(nPlayers) {
 				else if(evt.value<-0.1)
 					s.thrust = true;
 			}
-			else if(evt.axis===7) {
+			else if(evt.axis===5 || evt.axis===7) {
 				s.thrust = s.shield = false;
 				if(evt.value<-0.1)
 					s.shield = true;
@@ -821,8 +822,8 @@ function Menu() {
 		gfx.color(255,255,255).drawImage(title, app.width/2, app.height/3);
 		gfx.drawImage(iconPlayers1, app.width*0.3, app.height*0.6,0,0.5);
 		gfx.drawImage(iconPlayers2, app.width*0.7, app.height*0.6,0,0.5);
-		gfx.fillText(app.width*0.3-12*6.5, app.height*0.6+64, 'SINGLE PLAYER');
-		gfx.fillText(app.width*0.7-12*5.5, app.height*0.6+64, 'TWO PLAYERS');
+		gfx.fillText(app.width*0.3-12*6.5, app.height*0.6+32*sc, 'SINGLE PLAYER');
+		gfx.fillText(app.width*0.7-12*5.5, app.height*0.6+32*sc, 'TWO PLAYERS');
 		gfx.clipRect(20, app.height-30, app.width-40,20);
 		gfx.fillText(marqueeX, app.height-30, marquee);
 		gfx.clipRect(false);
@@ -849,8 +850,10 @@ function Menu() {
 		}
 	}
 	this.gamepad = function(evt) {
-		if(evt.type==='axis' && (evt.axis===0 || evt.axis===6) && Math.abs(evt.value)>0.1)
+		if(evt.type==='axis' && (evt.axis===0 || evt.axis===4 || evt.axis===6) && Math.abs(evt.value)>0.1)
 			app.on(new Game(evt.value<0 ? 1 : 2));
+		else if(evt.type==='button' && evt.button>=7)
+			return app.close();
 	}
 	this.leave = function() {
 		audio.fadeOut(music, 1.5);

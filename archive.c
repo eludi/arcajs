@@ -91,6 +91,10 @@ int ArchiveClose(Archive *ar) {
 	return 0;
 }
 
+const char* ArchivePath(const Archive* ar) {
+	return ar ? ar->path : "";
+}
+
 int ArchiveFileExists(Archive *ar, const char* filename) {
 	if(ar) for(unsigned int i=0; i<ar->numFiles; i++)
 		if(strcmp(ar->pDir[i].filename,filename)==0)

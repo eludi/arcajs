@@ -1,7 +1,5 @@
 const audio = app.require('audio');
 
-plot = [];
-
 (function(audio) {
 	function transposeFreq(base, n) {
 		const step = 1.0594630943592952646; // pow(2.0, 1.0/12.0);
@@ -196,4 +194,3 @@ const song = [
 		license: 'CC BY 4.0'
 	}
 ];
-

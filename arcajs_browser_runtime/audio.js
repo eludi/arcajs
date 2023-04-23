@@ -154,14 +154,10 @@ function note2freq(note, accidental, octave) {
 	if(note[0]>= '0' && note[0] <= '9')
 		return parseFloat(note);
 
-	function transposeFreq(base, n) {
-		const step = 1.0594630943592952646; // pow(2.0, 1.0/12.0);
-		return base * Math.pow(step, n);
-	}
-
 	let steps;
 	switch(note) {
 	case 'B':
+	case 'H':
 		steps = 2; break;
 	case 'C':
 		steps = 3; break;
@@ -186,8 +182,8 @@ function note2freq(note, accidental, octave) {
 
 	if(steps>2)
 		--octave;
-	const base = 27.5 * Math.pow(2.0, octave);
-	return transposeFreq(base, steps);
+	const base = 27.5 * Math.pow(2.0, octave), step = Math.pow(2.0, 1.0/12.0);
+	return base * Math.pow(step, steps);
 }
 
 function Melody(melody) {
@@ -418,6 +414,13 @@ function Melody(melody) {
 
 
 return {
+	resume: function() {
+		if(audioCtx.state !== 'running')
+			audioCtx.resume();
+	},
+	suspend: function() {
+		audioCtx.suspend();
+	},
 	load: function(url, params, callback) {
 		if(Array.isArray(url)) {
 			let samples = [];
@@ -493,6 +496,8 @@ return {
 		}
 	},
 	playing: function(track) {
+		if(audioCtx.state !== 'running')
+			return false;
 		if(track===undefined) {
 			for(let i=0; i<numTracksMax; ++i)
 				if(tracks[i]!==null)
@@ -503,7 +508,7 @@ return {
 		return tr ? true : false;
 	},
 	sound: function(wave, freq, duration, vol=1.0, balance=0.0) {
-		let source = createSource(wave.substr(0,3).toLowerCase(), freq);
+		let source = createSource(wave.substr(0,3).toLowerCase(), this.note2freq(freq));
 
 		let trackId = findAvailableTrack();
 		if(trackId === numTracksMax)
@@ -522,15 +527,27 @@ return {
 		let duration = m.replay(vol, balance);
 		setTimeout(()=>{ tracks[trackId].stop(); tracks[trackId]=null; }, duration*1000);
 	},
-	uploadPCM: function(data, numChannels=1) {
+	uploadPCM: function(data, numChannels=1, offset = 0) {
+		if(typeof data == 'object' && data.samples) {
+			numChannels = data.channels || 1;
+			offset = data.offset || 0;
+			data = data.samples;
+		}
 		var buffer = audioCtx.createBuffer(numChannels, data.length/numChannels, audioCtx.sampleRate);
 		for(let j=0; j<numChannels; ++j) {
 			var channel = buffer.getChannelData(j);
 			for (let i = 0, end=data.length/numChannels; i < end; ++i)
 				channel[i] = data[i*numChannels+j];
 		}
-		samples.push({ id:samples.length+1, ready:true, url:'', buffer:buffer, offset:0 });
+		samples.push({ id:samples.length+1, ready:true, url:'', buffer:buffer, offset:offset });
 		return samples.length;
+	},
+	release: function(id) {
+		if(id===0 || id>samples.length)
+			return;
+		const sample = samples[id-1];
+		sample.ready = false;
+		sample.buffer = null;
 	},
 	sampleRate: audioCtx.sampleRate,
 
@@ -603,7 +620,8 @@ return {
 			case 'sq': osc = oscSqu; break;
 			case 'bi': osc = oscBin; break;
 			case 'no': osc = oscNoi; break;
-			default: throw 'invalid wave form name '+JSON.stringify(arg);
+			case 'tr': osc = oscSaw; break;
+			default: throw 'invalid wave form name '+JSON.stringify(arguments[0]);
 		}
 
 		var totalDuration = 0;
@@ -650,6 +668,26 @@ return {
 	sampleBuffer: function(id) {
 		if(id>0 && id<=samples.length)
 			return samples[id-1].buffer;
+	},
+	note2freq: function(note) {
+		if(typeof note === 'number')
+			return note;
+
+		const noteCh = note.charAt(0);
+		if(noteCh >= '0' && noteCh <= '9')
+			return parseFloat(note);
+		if(!(noteCh in {'-':true, 'A':true, 'B':true, 'C':true, 'D':true, 'E':true, 'F':true, 'G':true, 'H':true}))
+			return console.error("invalid note", noteCh);
+
+		const ch = note.charAt(1);
+		const accidental = (ch == '#' || ch=='b') ? ch : ' ';
+
+		const octaveCh = note.charAt((accidental!=' ') ? 2 : 1);
+		if(noteCh!='-' && !/\d/.test(octaveCh))
+			return console.error("invalid octave", octaveCh);
+		const octave = octaveCh.charCodeAt(0) - '0'.charCodeAt(0);
+
+		return note2freq(noteCh, accidental, octave);
 	},
 	createSound: function(...args) {
 		return this.uploadPCM(this.createSoundBuffer(args));

@@ -101,6 +101,7 @@ float note2freq(char note, char accidental, int octave) {
 	int steps;
 	switch(note) {
 	case 'B':
+	case 'H':
 		steps = 2; break;
 	case 'C':
 		steps = 3; break;
@@ -327,7 +328,7 @@ typedef struct {
 	OscillatorCtx octx;
 	const float* waveData;
 	Melody* melody;
-	int freq;
+	float freq;
 	uint32_t numSamples;
 	uint8_t numChannels;
 	double sample;
@@ -436,7 +437,7 @@ uint32_t AudioOpen(uint32_t freq, uint32_t nTracks) {
 	want.freq = freq; // number of samples per second
 	want.format = AUDIO_S16; // sample type (here: signed short i.e. 16 bit)
 	want.channels = 2;
-	want.samples = 1024;
+	want.samples = freq/60;
 	want.callback = audioCallback; // function SDL calls periodically to refill the buffer
 	want.userdata = tracks;
 	masterVolume = 1.0;
@@ -454,6 +455,11 @@ uint32_t AudioOpen(uint32_t freq, uint32_t nTracks) {
 	else
 		SDL_PauseAudioDevice(devId, 0); // start playing tracks
 	SDL_ClearError();
+
+	// hack, playing any sample seems necessary for correct sound/melody volume: 
+	float controlPoints[] = {0.0f,0.0f,0.001f,0.0f};
+	uint32_t silence = AudioCreateSound(WAVE_NONE,1,controlPoints);
+	AudioReplay(silence,1,0,0);
 	return devId;
 }
 
@@ -480,6 +486,18 @@ void AudioClose() {
 	}
 }
 
+void AudioSuspend() {
+	SDL_PauseAudioDevice(devId, 1);
+}
+
+void AudioResume() {
+	SDL_PauseAudioDevice(devId, 0);
+}
+
+int AudioIsRunning() {
+	return devId!=0 && SDL_GetAudioDeviceStatus(devId)==SDL_AUDIO_PLAYING;
+}
+
 void AudioSetVolume(float volume) {
 	masterVolume = volume;
 }
@@ -496,7 +514,7 @@ uint32_t AudioSampleRate() {
 	return (uint32_t)audioSpec.freq;
 }
 
-uint32_t AudioSound(SoundWave waveForm, int freq, float duration, float volume, float balance) {
+uint32_t AudioSound(SoundWave waveForm, float freq, float duration, float volume, float balance) {
 	uint32_t ret = UINT_MAX;
 	if(!devId)
 		return ret;
@@ -525,7 +543,7 @@ uint32_t AudioSound(SoundWave waveForm, int freq, float duration, float volume, 
 
 uint32_t AudioPlay(const float* data, uint32_t waveLen, uint8_t numChannels, float volume, float balance, float detune) {
 	uint32_t ret = UINT_MAX;
-	if(!devId || (numChannels!=1 && detune))
+	if(!devId || numChannels<1 || (detune && numChannels!=1))
 		return ret;
 	SDL_LockAudioDevice(devId);
 	for(uint32_t i=0; i<numTracks; ++i)
@@ -534,7 +552,7 @@ uint32_t AudioPlay(const float* data, uint32_t waveLen, uint8_t numChannels, flo
 			track->waveForm = WAVE_NONE;
 			track->waveData = data;
 			track->melody = NULL;
-			track->freq = 0;
+			track->freq = 0.0f;
 			track->sample = 0.0;
 			track->numSamples = waveLen;
 			track->numChannels = numChannels;
@@ -561,7 +579,7 @@ uint32_t AudioMelody(const char* melody, float volume, float balance) {
 			track->waveForm = WAVE_NONE;
 			track->waveData = malloc(sizeof(float)*audioSpec.samples);
 			track->melody = melo;
-			track->freq = 0;
+			track->freq = 0.0f;
 			track->sample = 0.0;
 			track->numSamples = audioSpec.samples;
 			track->playbackRate = 1.0f;
@@ -618,45 +636,70 @@ void AudioAdjustVolume(uint32_t track, float volume) {
 	SDL_UnlockAudioDevice(devId);
 }
 
-uint32_t AudioUploadMP3(void* mp3data, uint32_t numBytes) {
+static float* AudioReadMP3(void* mp3data, uint32_t numBytes, uint32_t* samples, uint8_t* channels, uint32_t* offset) {
+	if(!samples || !channels || !offset || !numBytes)
+		return 0;
+	*samples = *offset = *channels = 0;
+
 	drmp3_config cfg = { 0/*numChannels unknown*/, audioSpec.freq };
 	uint64_t pcmSamples;
 
 	float* pcmData = drmp3_open_memory_and_read_f32(mp3data, numBytes, &cfg, &pcmSamples);
-	if(!pcmSamples || !cfg.outputChannels || cfg.outputChannels>2 || cfg.outputSampleRate!=audioSpec.freq) {
+	if(!pcmSamples || !cfg.outputChannels || cfg.outputChannels>2 || cfg.outputSampleRate!=audioSpec.freq || pcmSamples>SDL_MAX_UINT32) {
 		drmp3_free(pcmData);
 		return 0;
 	}
+	*samples = pcmSamples;
+	*channels = cfg.outputChannels;
 	// skip initial silence of MP3:
-	uint32_t offset=0;
-	for(; offset<pcmSamples; ++offset)
-		if(pcmData[offset]>0.002 || pcmData[offset]<-0.002)
+	for(; *offset<pcmSamples; ++(*offset))
+		if(pcmData[*offset]>0.002 || pcmData[*offset]<-0.002)
 			break;
-	//printf("offset:%u %f secs\n", offset, (float)offset/audioSpec.freq);
-	return AudioUploadPCM(pcmData, pcmSamples, cfg.outputChannels, offset);
+	return pcmData;
 }
 
-uint32_t AudioUploadWAV(void* wavdata, uint32_t numBytes) {
+static float* AudioReadWAV(void* wavdata, uint32_t numBytes, uint32_t* samples, uint8_t* channels, uint32_t* offset) {
+	if(!samples || !channels || !offset || !numBytes)
+		return 0;
+	*samples = *offset = *channels = 0;
 	SDL_RWops* rwo = SDL_RWFromConstMem(wavdata, (int)numBytes);
 	SDL_AudioSpec wavSpec;
 	uint8_t* buf;
 	uint32_t buflen;
 	if(!SDL_LoadWAV_RW(rwo, 1, &wavSpec, &buf, &buflen))
 		return 0;
-	uint8_t numChannels = wavSpec.channels>2 ? 2 : wavSpec.channels;
+	*channels = wavSpec.channels>2 ? 2 : wavSpec.channels;
 
 	SDL_AudioCVT cvt;
-	SDL_BuildAudioCVT(&cvt, wavSpec.format, wavSpec.channels, wavSpec.freq, AUDIO_F32, numChannels, audioSpec.freq);
+	SDL_BuildAudioCVT(&cvt, wavSpec.format, wavSpec.channels, wavSpec.freq, AUDIO_F32, *channels, audioSpec.freq);
 	cvt.len = buflen;
 	cvt.buf = malloc(cvt.len * cvt.len_mult);
 	memcpy(cvt.buf, buf, buflen);
 	SDL_FreeWAV(buf);
 	SDL_ConvertAudio(&cvt);
-	return AudioUploadPCM((float*)cvt.buf, cvt.len_cvt/sizeof(float)/numChannels, numChannels, 0);
+	*samples = cvt.len_cvt/sizeof(float)/(*channels);
+	return (float*)cvt.buf;
+}
+
+float* AudioRead(void* data, uint32_t numBytes, uint32_t* samples, uint8_t* channels, uint32_t* offset) {
+	if(!samples || !channels || !offset || numBytes<4)
+		return 0;
+	*samples = *offset = *channels = 0;
+	const char* cdata = data;
+	if(cdata[0]=='R' && cdata[1]=='I' && cdata[2]=='F' && cdata[3]=='F')
+		return AudioReadWAV(data, numBytes, samples, channels, offset);
+	return AudioReadMP3(data, numBytes, samples, channels, offset);
+}
+
+uint32_t AudioUpload(void* data, uint32_t numBytes) {
+	uint32_t samples, offset;
+	uint8_t channels;
+	float* pcmdata = AudioRead(data, numBytes, &samples, &channels, &offset);
+	return AudioUploadPCM(pcmdata, samples, channels, offset);
 }
 
 uint32_t AudioUploadPCM(float* waveData, uint32_t waveLen, uint8_t numChannels, uint32_t offset) {
-	if(!waveLen || offset>waveLen || numChannels<1 || numChannels>2)
+	if(!waveData || !waveLen || offset>waveLen || numChannels<1 || numChannels>2)
 		return 0;
 	if(numSamplesMax==0) {
 		numSamplesMax=4;
@@ -683,6 +726,28 @@ uint32_t AudioReplay(uint32_t sample, float volume, float balance, float detune)
 	uint32_t offset = samples[sample].offset;
 	return AudioPlay(samples[sample].waveData+offset*numChannels,
 		samples[sample].waveLen-offset, numChannels, volume, balance, detune);
+}
+
+void AudioRelease(uint32_t sample) {
+	if(!sample || sample>numSamples)
+		return;
+	SampleSpec* s = &samples[sample-1];
+	if(!s->waveData)
+		return;
+
+	SDL_LockAudioDevice(devId);
+	for(uint32_t i=0; i<numTracks; ++i) {
+		SoundSpec* t = &tracks[i];
+		if(t->melody || (t->sample >= t->numSamples))
+			continue;
+		if(t->waveData >= s->waveData && t->waveData < s->waveData+s->waveLen*s->numChannels*sizeof(float))
+			t->sample = t->numSamples;
+	}
+	SDL_UnlockAudioDevice(devId);
+
+	free(s->waveData);
+	s->waveData = NULL;
+	s->waveLen = s->offset = s->numChannels = 0;
 }
 
 //--- experimental extensions custom sound generators --------------

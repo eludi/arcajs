@@ -14,6 +14,9 @@ app.on('update', function(deltaT, tNow) {
 });
 
 app.on('draw', function(gfx) {
+	gfx.color(127,127,127);
+	for(var y=0; y<16; ++y) for(var x=0; x<16; ++x)
+		gfx.fillText(app.width-192+x*12, y*16+40, String.fromCharCode(y*16+x));
 	gfx.color(0,0,0,127).fillRect(0,app.height-20, app.width,20);
 	gfx.color(255,255,85).fillText(0,app.height-40,'>'+lineBuf+(now%1>0.5?'':'_'));
 	gfx.color(0xffFFffFF).fillText(0,app.height-18, info);

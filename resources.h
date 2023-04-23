@@ -3,14 +3,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/// symbolic names for resource types, useful for protecting/validating handles
+/// symbolic names for resource types
 typedef enum {
 	RESOURCE_NONE = 0,
 	RESOURCE_IMAGE,
 	RESOURCE_AUDIO,
 	RESOURCE_FONT,
 	RESOURCE_TEXT,
-} ResourceType;
+} ResourceTypeId;
 
 /// opens a resource archive for further processing
 /** @return handle of corresponding archive or 0 in case of error */
@@ -19,8 +19,12 @@ extern size_t ResourceArchiveOpen(const char* url);
 extern void ResourceArchiveClose();
 /// returns pointer to suffix of filename
 extern const char* ResourceSuffix(const char* fname);
+/// infers resource type from url
+extern ResourceTypeId ResourceType(const char* url);
 /// returns a duplicate of a resource's or file's basename (without suffix and path)
 extern char* ResourceBaseName(const char* fname);
+/// returns name/url of resource archive itself
+extern const char* ResourceArchiveName();
 
 /// returns handle to an image resource
 /** @param scale only relevant for SVG images */

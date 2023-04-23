@@ -1,13 +1,12 @@
 
-var gamepads = [];
+var gamepads=[], log=[];
 console.visible(true);
 
 app.on('gamepad', function(evt) {
     delete evt.evt;
-    console.log(evt);
+    log.push(JSON.stringify(evt));
     if(evt.type=='connected') {
         gamepads[evt.index]={ axes:new Array(evt.axes), buttons:new Array(evt.buttons), name:evt.name };
-        //app.message(JSON.stringify(gamepads[evt.index]));
         for(var i=0; i<evt.axes; ++i)
             gamepads[evt.index].axes[i]=0;
         for(var i=0; i<evt.buttons; ++i)
@@ -22,11 +21,16 @@ app.on('gamepad', function(evt) {
 });
 
 app.on('draw', function(gfx) {
+    gfx.color(85,85,255);
+    for(var i=0, nLines = Math.floor(app.height/20), j= Math.max(0, log.length-nLines); i<nLines && j<log.length; ++i, ++j)
+        gfx.fillText(0,i*20, log[j]);
+
     for(var i=0; i<gamepads.length; ++i) {
         const oy=i*80+20;
         if(gamepads[i]) {
             const gp = gamepads[i];
             var ox = app.width - (Math.ceil(gp.buttons.length/2)*30+80+(gp.axes.length-2)*30);
+            gfx.color(0,0,0,170).fillRect(ox,oy-20,app.width-ox,80);
             gfx.color(255,255,255);
             gfx.fillText(ox,oy-18, gp.name);
             gfx.drawRect(ox,oy,50,50);

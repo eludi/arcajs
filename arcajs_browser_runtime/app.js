@@ -8,6 +8,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	let modules = { audio:arcajs.audio, intersects:arcajs.intersects };
 	let gamepads = [], gamepadResolution = 0.1;
 	let tLastFrame=0;
+	let loadEmitted = false, startedByUser = false;
 
 	if(!('visible' in window.console))
 		window.console.visible = function() {}; // dummy
@@ -131,7 +132,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	}
 
 	const app = {
-		version: 'v0.20220625a',
+		version: 'v0.20230422a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -144,10 +145,9 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				clearColor[2] = r[2]/255;
 			}
 			else if(g===undefined) {
-				const v = r;
-				r = (v & 0xff000000) >>> 24;
-				g = (v & 0x00ff0000) >>> 16;
-				b = (v & 0x0000ff00) >>> 8;
+				clearColor[0] = ((r & 0xff000000) >>> 24)/255;
+				clearColor[1] = ((r & 0x00ff0000) >>> 16)/255;
+				clearColor[2] = ((r & 0x0000ff00) >>> 8)/255;
 			}
 			else {
 				clearColor[0] = r/255;
@@ -156,7 +156,12 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			}
 		},
 		close: function() {
-			history.back();
+			if(history.length>1)
+				history.back();
+			else if(this.platform === 'tv')
+				window.open("", "_self").close();
+			else
+				window.close();
 		},
 		on: function(event, callback) {
 			if(typeof event === 'object') {
@@ -192,15 +197,17 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 					ret.push(this.getResource(name[i], params));
 				return ret;
 			}
-			if(name in resources)
-				return resources[name];
-
 			const suffix = name.substr(name.lastIndexOf('.')+1).toLowerCase();
+			const scale = params.scale || 1.0;
+			const key = (suffix==='svg') ? (name+'/'+scale) : name;
+			if(key in resources)
+				return resources[key];
+
 			const readyCb = ()=>{
 				if(resourcesLoading<=0)
 					return;
 				if(--resourcesLoading===0)
-					setTimeout(()=>{ this.emit('load'); }, 0);
+					setTimeout(()=>{ this._run() }, 5);
 			}
 			let res = 0;
 			if(params.type=='font' || suffix=='ttf')
@@ -211,7 +218,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				res = arcajs.audio.load(name, params, readyCb);
 			if(res) {
 				++resourcesLoading;
-				resources[name] = res;
+				resources[key] = res;
 			}
 			return res;
 		},
@@ -223,6 +230,13 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		createTileResources: function(parent, tilesX, tilesY=1, border=0, params) {
 			return gfx.createTileTextures(parent, tilesX, tilesY, border, params); },
 		createTileResource: function(parent, x,y,w,h, params) { return gfx.createTileTexture(parent,x,y,w,h, params); },
+		createImageFontResource: function(img, params) { return gfx.createImageFontResource(img, params); },
+		releaseResource: function(handle, mediaType) {
+			if(mediaType.startsWith('image'))
+				gfx.releaseTexture(handle);
+			else if(mediaType.startsWith('audio'))
+				audio.release(handle);
+		},
 		setImageCenter: function(img, cx, cy) { gfx.setTextureCenter(img, cx, cy); },
 		queryImage: function(texId) { return gfx.queryTexture(texId); },
 		queryFont: function(fontId, text) { return gfx.measureText(fontId, text); },
@@ -231,10 +245,30 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		httpGet: function(url, callback) { arcajs.http.get(url, null, callback) },
 		httpPost: function(url, data, callback) { arcajs.http.post(url, data, callback) },
 		createSpriteSet: function(...args) { return arcajs.createSpriteSet(...args); },
+		include: function(url, callback) { 
+			const node = document.createElement('script');
+			node.type = "text/javascript";
+			node.src = url;
+			node.async = false;
+			if(callback)
+				node.addEventListener("load", callback, false);
+			document.querySelector("head").appendChild(node);
+		},
 		require: function(name) { return modules[name]; },
 		exports: function(name, module) { modules[name] = module; },
 		resizable: function(isResizable) { /* browser windows always resizable */ },
-		fullscreen: function(fullscreen) { console.warn('fullscreen not yet implemented'); },
+		fullscreen: function(fullscreen) {
+			if(fullscreen) {
+				if(document.fullscreenEnabled && !document.fullscreenElement)
+					document.documentElement.requestFullscreen();
+				else if(document.webkitFullscreenEnabled && !document.webkitFullscreenElement)
+					document.documentElement.webkitRequestFullscreen();
+			}
+			else if(document.fullscreenElement)
+				document.exitFullscreen();
+			else if(document.webkitFullscreenElement)
+				document.webkitExitFullscreen();
+		},
 		vibrate: function(duration) {
 			if('vibrate' in navigator)
 				navigator.vibrate(duration*1000);
@@ -265,13 +299,11 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			}
 
 			if (s < 5.0e-6) {
-				this.r = this.g = this.b = Math.floor(l*255);
-				return;
+				l = Math.floor(l*255);
+				return [l,l,l, a];		
 			}
-			if(isNaN(h)) {
-				this.r = this.g = this.b = 0;
-				return;
-			}
+			if(isNaN(h))
+				return [0,0,0,a];
 			while(h>=360.0)
 				h-=360.0;
 			while(h<0.0)
@@ -293,8 +325,24 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				cbArgs.push(arguments[i]);
 			for(let i=0, end=arr.length; i<end; i+=stride)
 				callback(arr.slice(i, i+stride), arr.subarray(i, i+stride), ...cbArgs)
+		},
+		_run: function(byUser=false) {
+			if(loadEmitted)
+				return;
+			if(byUser)
+				startedByUser = true;
+			if(startedByUser===true && loadEmitted===false && resourcesLoading===0) {
+				app.emit('load');
+				loadEmitted = true;
+			}
+			if(loadEmitted)
+				setTimeout(()=>{ requestAnimationFrame(update); }, 0);
 		}
 	}
+
+	const userAgent = navigator.userAgent;
+	if(userAgent.match(/AFT/) || userAgent.match(/smart\-tv/i) || userAgent.match(/smarttv/i)) // Fire OS TV, other Smart TVs
+		app.platform = 'tv';
 
 	function emitTextInput(evt) {
 		if(!('textinput'in eventListeners))
@@ -329,7 +377,9 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	function updateListeners() {
 		app.emit('leave');
 		const listener = nextListeners;
-		['update', 'draw', 'resize', 'keyboard', 'pointer', 'gamepad', 'enter', 'leave', 'custom'].forEach(function(evt) {
+		['update', 'draw', 'resize', 'keyboard', 'pointer', 'gamepad', 'enter', 'leave',
+			'visibilitychange', 'custom'].forEach(function(evt)
+		{
 			if(evt in listener)
 				app.on(evt, function(...args) { listener[evt](...args); });
 			else
@@ -361,18 +411,32 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 
 		requestAnimationFrame(update);
 	}
-	setTimeout(()=>{
-		if(resourcesLoading===0 && Object.keys(resources).length===0)
-			app.emit('load');
-		requestAnimationFrame(update);
-	}, 0);
+
+	const stopMediaKeyEventPropagation = (app.platform==='tv') ? function(evt) {
+		switch(evt.key) {
+		case 'MediaRewind':
+		case 'MediaFastForward':
+		case 'MediaPlayPause':
+		case 'ContextMenu':
+		case 'GoBack':
+			evt.stopImmediatePropagation();
+			evt.stopPropagation();
+			evt.preventDefault();
+		};
+	} : function() {};
 
 	document.body.addEventListener("touchmove", (evt)=>{ }, {passive: true});
 	window.addEventListener('unload', ()=>{ app.emit('close'); });
 	window.addEventListener('keydown', (evt)=>{
-		if(('keyboard'in eventListeners) || ('textinput'in eventListeners)) {
-			app.emit('keyboard', evt); emitTextInput(evt); evt.preventDefault(); } });
-	window.addEventListener('keyup', (evt)=>{ app.emit('keyboard', evt); });
+		stopMediaKeyEventPropagation(evt);
+		if(evt.ctrlKey && evt.key==='v')
+			return;
+		if(('keyboard' in eventListeners) || ('textinput' in eventListeners)) {
+			app.emit('keyboard', evt); emitTextInput(evt); evt.preventDefault();
+		}
+	});
+	window.addEventListener('keyup', (evt)=>{ stopMediaKeyEventPropagation(evt); app.emit('keyboard', evt); });
+	document.addEventListener('keypress', (evt)=>{ stopMediaKeyEventPropagation(evt); });
 	window.addEventListener("gamepadconnected", (evt)=>{
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:true, state:null };
 		app.emit('gamepad', { index:evt.gamepad.index, name:evt.gamepad.id, type:'connected',
@@ -382,7 +446,51 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:false, state:null };
 		app.emit('gamepad', { index:evt.gamepad.index, name:evt.gamepad.id, type:'disconnected' });
 	});
+	canvas.addEventListener("dragover", (evt)=>{ evt.preventDefault(); });
+	canvas.addEventListener("drop", (evt)=>{
+		evt.preventDefault();
+		if (evt.dataTransfer.items) [...evt.dataTransfer.items].forEach((item) => {
+			if (item.kind === 'file') {
+				const reader = new FileReader();
+				reader.addEventListener("load", () => { app.emit('textinsert', {type:'drop', data: reader.result}); });
+				reader.readAsText(item.getAsFile());
+			}
+			else if(item.kind === 'string') {
+				item.getAsString((data)=>{
+					if(data)
+						app.emit('textinsert', {type:'drop', data: data});
+				});
+			}
+		});
+		else if(evt.dataTransfer.files) [...evt.dataTransfer.files].forEach((file) => {
+			const reader = new FileReader();
+			reader.addEventListener("load", () => { app.emit('textinsert', {type:'drop', data: reader.result}); });
+			reader.readAsText(file);
+		});
+		else {
+			const data = evt.dataTransfer.getData("text/plain");
+			if(data)
+				app.emit('textinsert', {type:'drop', data: data});
+		}
+	});
+	window.addEventListener("paste", (evt)=>{
+		evt.preventDefault();
+		const text = (evt.clipboardData || window.clipboardData).getData('text');
+		if((typeof text === 'string') && text.length)
+			app.emit('textinsert', {type:'paste', data:text});
+	});
 	arcajs.infra.addPointerEventListener(canvas, (evt)=>{ app.emit('pointer', evt); });
-	setTimeout(()=>{ app.emit('resize', canvas.width, canvas.height); }, 0);
+
+	if(!('hidden' in document) && ('webkitHidden' in document))
+		document.addEventListener('webkitvisibilitychange', ()=>{
+			app.emit('visibilitychange', { visible:!document.webkitHidden }); });
+	else document.addEventListener("visibilitychange", ()=>{
+		app.emit('visibilitychange', { visible:!document.hidden }); });
+	//window.addEventListener("blur", ()=>{ app.emit('visibilitychange', {visible:false}); });
+	//window.addEventListener("focus", ()=>{ app.emit('visibilitychange', {visible:true}); });
+	document.addEventListener("pause", ()=>{ app.emit('visibilitychange', {visible:false}) }, false);
+	document.addEventListener("resume", ()=>{ app.emit('visibilitychange', {visible:true}) }, false);
+
+	setTimeout(()=>{ app.emit('resize', {width:canvas.width, height:canvas.height}); }, 0);
 	return app;
 })();

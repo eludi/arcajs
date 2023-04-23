@@ -46,10 +46,7 @@ app.on('draw', function(gfx) {
         gfx.lineWidth(i).drawPoints([120+24*i,146, 120+24*i,168, 120+24*i,190, 120+24*i,212]);
     gfx.lineWidth(1);
 
-    gfx.color(85,85,255);
-    gfx.drawImage(img, 10,240);
-    gfx.drawImage(img, 100,240, 160,60);
-    gfx.drawImage(img, 0,0, 50,50, 340,200,100,100, 0,0,Math.PI/4);
+    gfx.color(85,85,255).drawImage(img, 10,240);
 
     for(var i=0; i<360; i+=5) {
         var angle = 2*Math.PI*i/360;

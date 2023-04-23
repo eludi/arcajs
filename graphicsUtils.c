@@ -91,3 +91,10 @@ unsigned char* svgRasterize(char* svg, float scale, int* w, int* h, int* d) {
 	nsvgDelete(svgParsed);
 	return img;
 }
+
+unsigned char* readImageData(const unsigned char* buf, size_t bufsz, int* w, int* h, int* d) {
+	unsigned char* data = stbi_load_from_memory(buf, (int)bufsz, w, h, d, 0);
+	if(!data)
+		w = h = d = 0;
+	return data;
+}

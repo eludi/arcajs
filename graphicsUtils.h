@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define GFX_FLIP_NONE 0
 #define GFX_FLIP_X 1
@@ -22,3 +23,4 @@ typedef enum {
 extern uint32_t hsla2rgba(float h, float s, float l, float a);
 
 extern unsigned char* svgRasterize(char* svg, float scale, int* w, int* h, int* d);
+extern unsigned char* readImageData(const unsigned char* buf, size_t bufsz, int* w, int* h, int* d);

@@ -8,7 +8,7 @@
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
 #  include <WinInet.h>
-#else
+#elif !(defined NO_CURL)
 #  include <curl/curl.h>
 #endif
 
@@ -160,14 +160,14 @@ static void winInetReadResponse(HINTERNET req, StringBuf* sb) {
 	}
 }
 
-#else
+#elif !(defined NO_CURL)
 size_t writeFunction(void *ptr, size_t size, size_t nmemb, StringBuf* sb) {
 	StringBuf_append(sb, (char*) ptr, size * nmemb);
 	return size * nmemb;
 }
 #endif // WIN32
 
-int httpGet(const char* url, char** resp) {
+int httpGet(const char* url, char** resp, size_t* respsz) {
 	*resp = NULL;
 #if defined __WIN32__ || defined WIN32
 	HINTERNET session, conn, req = winInetRequest(url, "GET", &session, &conn);
@@ -180,6 +180,8 @@ int httpGet(const char* url, char** resp) {
 	int ret = httpGetResponseCode(req);
 	//printf("\t-> %i, %s\n", ret, httpGetContentType(req));
 	*resp = sb->data;
+	if(respsz)
+		*respsz = sb->len;
 	StringBuf_delete(sb, 1);
 
 	InternetCloseHandle(req);
@@ -187,7 +189,7 @@ int httpGet(const char* url, char** resp) {
 	InternetCloseHandle(session);
 	return ret;
 
-#else
+#elif !(defined NO_CURL)
 	CURL *curl = curl_easy_init();
 	if(!curl)
 		return -1;
@@ -213,12 +215,14 @@ int httpGet(const char* url, char** resp) {
 	}
 	curl_easy_cleanup(curl);
 	*resp = sb->data;
+	if(respsz)
+		*respsz = sb->len;
 	StringBuf_delete(sb, 1);
 	return ret;
 #endif
 }
 
-int httpPost(const char* url, const char* data, char** resp) {
+int httpPost(const char* url, const char* data, char** resp, size_t* respsz) {
 	if(resp)
 		*resp = NULL;
 #if defined __WIN32__ || defined WIN32
@@ -232,6 +236,8 @@ int httpPost(const char* url, const char* data, char** resp) {
 	int ret = httpGetResponseCode(req);
 	if(resp)
 		*resp = sb->data;
+	if(respsz)
+		*respsz = sb->len;
 	StringBuf_delete(sb, 1);
 
 	InternetCloseHandle(req);
@@ -239,7 +245,7 @@ int httpPost(const char* url, const char* data, char** resp) {
 	InternetCloseHandle(session);
 	return ret;
 
-#else
+#elif !(defined NO_CURL)
 	CURL *curl = curl_easy_init();
 	if(!curl)
 		return -1;
@@ -263,6 +269,8 @@ int httpPost(const char* url, const char* data, char** resp) {
 	curl_easy_cleanup(curl);
 	if(resp)
 		*resp = sb->data;
+	if(respsz)
+		*respsz = sb->len;
 	StringBuf_delete(sb, 1);
 	return ret;
 #endif

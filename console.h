@@ -11,7 +11,6 @@ extern void ConsoleLog(const char* msg);
 extern void ConsoleWarn(const char* msg);
 extern void ConsoleError(const char* msg);
 extern void ConsoleDraw();
-extern void ConsoleDraw_gl();
 
 #include "value.h"
 extern int DialogMessageBox(const char* msg, char* prompt, Value* options);

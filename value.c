@@ -442,11 +442,14 @@ static void Value_print2(FILE* stream, Value* v, int indent, const char* tail) {
 			fprintf(stream, "\"%s\"%s", v->str, tail);
 			break;
 		case VALUE_INT:
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat"
 #ifdef __MINGW32__
 			fprintf(stream, "%I64d%s", v->i, tail);
 #else
 			fprintf(stream, "%lld%s", v->i, tail);
 #endif
+#pragma GCC diagnostic pop
 			break;
 		case VALUE_BOOL:
 			fprintf(stream, v->i ? "true%s" : "false$s", tail);

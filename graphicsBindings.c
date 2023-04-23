@@ -9,7 +9,7 @@ extern uint32_t array2color(duk_context *ctx, duk_idx_t idx);
 extern float getPropFloatDefault(duk_context *ctx, duk_idx_t idx, const char* key, float defaultValue);
 extern uint32_t getPropUint32Default(duk_context *ctx, duk_idx_t idx, const char* key, uint32_t defaultValue);
 
-/** @module graphics2
+/** @module graphics
  *
  * drawing functions, only available within the  draw event callback function
  *
@@ -42,8 +42,8 @@ uint32_t readUint32Array(duk_context *ctx, duk_idx_t idx, uint32_t** arr, uint32
 /**
  * @function gfx.color
  * sets the current drawing color
- * @param {number} r - RGB red component in range 0..255 or unified uint32 color
- * @param {number} [g] - RGB green component in range 0..255
+ * @param {number} r - RGB red component in range 0..255 or unified uint32 RGBA color
+ * @param {number} [g] - RGB green component in range 0..255 or opacity if first argument is a unified uint32 RGBA color 
  * @param {number} [b] - RGB blue component in range 0..255
  * @param {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
  * @returns {object} - this gfx object
@@ -53,6 +53,13 @@ static duk_ret_t dk_gfxColor(duk_context *ctx) {
 		gfxColor(array2color(ctx, 0));
 	else if(duk_is_undefined(ctx, 1))
 		gfxColor(duk_to_uint(ctx, 0));
+	else if(duk_is_undefined(ctx, 2)) { // color, alpha
+		uint32_t color = (duk_to_uint(ctx, 0) | 0xff);
+		uint32_t alpha =  duk_to_uint32(ctx, 1);
+		if(alpha>255)
+			alpha = 255;
+		gfxColor((color&0xFFffFF00)|alpha);
+	}
 	else {
 		uint32_t r = duk_to_uint32(ctx, 0);
 		uint32_t g = duk_to_uint32(ctx, 1);
@@ -114,34 +121,43 @@ static duk_ret_t dk_gfxClipRect(duk_context *ctx) {
 }
 
 #define getPropFloatLiteral(ctx, idx, key, value) \
-	if(duk_get_prop_literal((ctx), (idx), (key))) \
-		value = duk_to_number((ctx), -1); \
+	if(duk_get_prop_literal((ctx), (idx), (key))) {\
+		value = duk_to_number((ctx), -1); }\
 	duk_pop((ctx));
 
 /**
  * @function gfx.transform
  * sets the current transformation
- * @param {number} x - horizontal translation
- * @param {number} y - vertical translation
+ * @param {number|object} x - horizontal translation or an object having {x:0,y:0,z:0,rotX:0,rotY:0,rotZ:0,sc:1.0} members of type number
+ * @param {number} [y] - vertical translation
  * @param {number} [rot=0] - rotation angle in radians
  * @param {number} [sc=1] - scale factor
  * @returns {object} this gfx object for chained calls
  */
 static duk_ret_t dk_gfxTransform(duk_context *ctx) { 
-    float x=0, y=0, rot=0, sc=1.0f;
 	if(duk_is_object(ctx,0)) {
+		float x=0, y=0, z=0, rotX=0, rotY=0, rotZ=0, sc=1.0f;
 		getPropFloatLiteral(ctx, 0, "x", x);
 		getPropFloatLiteral(ctx, 0, "y", y);
-		getPropFloatLiteral(ctx, 0, "rot", rot);
+		getPropFloatLiteral(ctx, 0, "z", z);
+		getPropFloatLiteral(ctx, 0, "rotX", rotX);
+		getPropFloatLiteral(ctx, 0, "rotY", rotY);
+		if(duk_has_prop_literal(ctx,0,"rot")) {
+			getPropFloatLiteral(ctx, 0, "rot", rotZ);
+		}
+		else {
+			getPropFloatLiteral(ctx, 0, "rotZ", rotZ);
+		}
 		getPropFloatLiteral(ctx, 0, "sc", sc);
+		gfxTransf3d(x, y, z, rotX, rotY, rotZ, sc);
 	}
 	else {
-		x = duk_to_number(ctx, 0);
-		y = duk_to_number(ctx, 1);
-		rot = duk_get_number_default(ctx, 2, 0.0);
-		sc = duk_get_number_default(ctx, 3, 1.0);
+		float x = duk_to_number(ctx, 0);
+		float y = duk_to_number(ctx, 1);
+		float rot = duk_get_number_default(ctx, 2, 0.0);
+		float sc = duk_get_number_default(ctx, 3, 1.0);
+		gfxTransform(x, y, rot, sc);
 	}
-    gfxTransform(x, y, rot, sc);
 	duk_push_this(ctx);
 	return 1;
 }
@@ -395,7 +411,6 @@ static duk_ret_t dk_gfxFillText(duk_context *ctx) {
  * @param {Uint32Array} imgOffsets - array of image handle offsets
  * @param {Uint32Array} [colors] - optional tile color array
  * @param {number} [stride=tilesX] - number of array elements to proceed to next row
- * @param {Float32Array} arr - data array containing at least the positions of the images to be drawn and optionally further components
  */
 static duk_ret_t dk_gfxDrawTiles(duk_context *ctx) {
 	uint32_t imgBase = duk_get_uint(ctx, 0);
@@ -407,8 +422,6 @@ static duk_ret_t dk_gfxDrawTiles(duk_context *ctx) {
 	if(!duk_is_undefined(ctx, 4))
 		readUint32Array(ctx, 4, &colors, &colorBuf);
 	uint32_t stride = duk_get_uint_default(ctx, 5, tilesX);
-	//uint32_t arrayOriginX = duk_get_uint_default(ctx, 6, 0);
-	//uint32_t arrayOriginY = duk_get_uint_default(ctx, 7, 0);
 	// TODO validate / adjust tilesX and tilesY to stay within arrSz and adapt imgOffsets and colors pointers respectively
 	gfxDrawTiles(tilesX, tilesY, stride, imgBase, imgOffsets, colors);
 	free(colorBuf);
@@ -419,11 +432,11 @@ static duk_ret_t dk_gfxDrawTiles(duk_context *ctx) {
 /**
  * @function gfx.drawImages
  *
- * draws multiple images based on a data array
+ * draws multiple images based on array data
  * @param {number} imgBase - base image handle
  * @param {number} stride - number of array elements to proceed to next image data record
- * @param {number} components - components contained in data array, a bitwise combination of gfx.COMP_xyz constants
- * @param {Float32Array} arr - data array containing at least the positions of the images to be drawn and optionally further components
+ * @param {number} components - components contained in array, a bitwise combination of gfx.COMP_xyz constants
+ * @param {Float32Array} arr - array containing at least the positions of the images to be drawn and optionally further components
  */
 static duk_ret_t dk_gfxDrawImages(duk_context *ctx) {
 	uint32_t imgBase = duk_get_uint(ctx, 0);
@@ -520,7 +533,7 @@ void bindGraphics(duk_context *ctx) {
 	duk_push_c_function(ctx, dk_gfxFillText, 5);
 	duk_put_prop_string(ctx, -2, "fillText");
 
-	duk_push_c_function(ctx, dk_gfxDrawTiles, 7);
+	duk_push_c_function(ctx, dk_gfxDrawTiles, 6);
 	duk_put_prop_string(ctx, -2, "drawTiles");
 	duk_push_c_function(ctx, dk_gfxDrawImages, 4);
 	duk_put_prop_string(ctx, -2, "drawImages");

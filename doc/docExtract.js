@@ -1,8 +1,8 @@
 
-var fs = app.require('fs');
+const os = app.require('os');
 
 function docExtract(inFilename) {
-	var input = fs.readFileSync(inFilename, 'utf-8');
+	var input = os.readFileSync(inFilename, 'utf-8');
 
 	var doc = [];
 	var longDoc = false;
@@ -92,5 +92,5 @@ var doc = ['# arcajs API','','- [app](#module-app)','- [audio](#module-audio)',
 	.concat(docExtract("../jsBindings.c")).concat(docExtract("../graphicsBindings.c"))
 	.concat(docExtract("../modules/intersectsBindings.c"));
 doc = doc2md(doc);
-fs.writeFileSync("API.md", doc.join('\n').replace(/\n(\n)+/g, '\n\n'));
+os.writeFileSync("API.md", doc.join('\n').replace(/\n(\n)+/g, '\n\n'));
 app.close();

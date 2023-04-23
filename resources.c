@@ -5,8 +5,6 @@
 
 #include "audio.h"
 
-#include "external/stb_image.h"
-
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +13,7 @@
 typedef struct {
 	char* name;
 	size_t handle;
+	float scale;
 } Resource;
 
 typedef struct {
@@ -76,9 +75,9 @@ int isImageFile(const char* fname) {
 	const char* suffix = ResourceSuffix(fname);
 	if(!suffix)
 		return 0;
-	if(strcasecmp(suffix, "png")==0 || strcasecmp(suffix, "jpg")==0)
+	if(strncasecmp(suffix, "png", 3)==0 || strncasecmp(suffix, "jpg", 3)==0)
 		return 1;
-	if(strcasecmp(suffix, "svg")==0)
+	if(strncasecmp(suffix, "svg", 3)==0)
 		return 2;
 	return 0;
 }
@@ -86,11 +85,23 @@ int isAudioFile(const char* fname) {
 	const char* suffix = ResourceSuffix(fname);
 	if(!suffix)
 		return 0;
-	return (strcasecmp(suffix, "mp3")==0) || (strcasecmp(suffix, "wav")==0);
+	return (strncasecmp(suffix, "mp3", 3)==0) || (strncasecmp(suffix, "wav", 3)==0);
 }
 int isFontFile(const char* fname) {
 	const char* suffix = ResourceSuffix(fname);
-	return suffix && (strcasecmp(suffix, "ttf")==0);
+	return suffix && (strncasecmp(suffix, "ttf", 3)==0);
+}
+
+ResourceTypeId ResourceType(const char* url) {
+	if(!url || strlen(url)<3)
+		return RESOURCE_NONE;
+	if(isImageFile(url))
+		return RESOURCE_IMAGE;
+	if(isAudioFile(url))
+		return RESOURCE_AUDIO;
+	if(isFontFile(url))
+		return RESOURCE_FONT;
+	return RESOURCE_TEXT;
 }
 
 //------------------------------------------------------------------
@@ -115,7 +126,7 @@ static size_t ArchiveLoadImage(Archive* ar, const char* fname) {
 		return 0;
 
 	int w,h,d;
-	unsigned char *data = stbi_load_from_memory(buf, (int)fsize, &w, &h, &d, 0);
+	unsigned char *data = readImageData(buf, fsize, &w, &h, &d);
 	free(buf);
 	if(!data)
 		return 0;
@@ -144,8 +155,7 @@ static size_t ArchiveLoadAudio(Archive* ar, const char* fname) {
 	if(!buf)
 		return 0;
 
-	size_t sample = (strcasecmp(ResourceSuffix(fname), "mp3")==0) ?
-		AudioUploadMP3(buf, fsize) : AudioUploadWAV(buf, fsize);
+	size_t sample = AudioUpload(buf, fsize);
 	free(buf);
 	return sample;
 }
@@ -189,13 +199,17 @@ void ResourceArchiveClose() {
 	ra = NULL;
 }
 
+const char* ResourceArchiveName() {
+	return ra ? ArchivePath(ra->ar) : "";
+}
+
 size_t ResourceGetImage(const char* name, float scale, int filtering) {
 	int isImage = isImageFile(name);
 	if(!ra || !isImage)
 		return 0;
 
-	for(unsigned i=0; i<ra->numImages; ++i) // lookup by name
-		if(strcmp(ra->images[i].name, name)==0)
+	for(unsigned i=0; i<ra->numImages; ++i) // lookup by name and scale
+		if((strcmp(ra->images[i].name, name)==0) && (isImage==1 || ra->images[i].scale == scale))
 			return ra->images[i].handle;
 	gfxTextureFiltering(filtering);
 	size_t handle = (isImage==1) ?
@@ -211,6 +225,7 @@ size_t ResourceGetImage(const char* name, float scale, int filtering) {
 	Resource* res = &ra->images[ra->numImages++];
 	res->handle = handle;
 	res->name = strdup(name);
+	res->scale = scale;
 	return handle;
 }
 
@@ -234,6 +249,7 @@ size_t ResourceGetAudio(const char* name) {
 	Resource* res = &ra->samples[ra->numSamples++];
 	res->handle = handle;
 	res->name = strdup(name);
+	res->scale = 1.0f;
 	return handle;
 }
 

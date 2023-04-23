@@ -32,6 +32,8 @@ typedef struct Archive_s {
 Archive* ArchiveOpen(const char* url);
 /// closes currently opened resource archive
 int ArchiveClose(Archive* ar);
+/// returns path and name of archive
+const char* ArchivePath(const Archive* ar);
 /// reads information about files in the archive
 /** \return number of fileInfos returned, or otherwise an error code */
 int ArchiveContent(Archive* ar, FileInfo** pFileInfo);

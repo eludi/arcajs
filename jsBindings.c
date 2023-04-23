@@ -2,6 +2,7 @@
 #include "jsCode.h"
 #include "window.h"
 #include "graphics.h"
+#include "graphicsUtils.h"
 #include "resources.h"
 #include "audio.h"
 #include "graphics.h"
@@ -227,6 +228,21 @@ static void dk_encodeURI(duk_context *ctx, duk_idx_t objIdx) {
 	//duk_push_context_dump(ctx); printf("%s\n", duk_to_string(ctx, -1)); duk_pop(ctx);
 	duk_replace(ctx, objIdx); // replace object by concat string
 	duk_pop_2(ctx); // pop enum obj and funcIdx
+}
+
+static float noteStr2freq(const char* s) {
+	size_t slen = strlen(s);
+	if(slen == 2 || slen == 3) {
+		char note = s[0];
+		char accidental = (slen==3 && (s[1] == '#' || s[1]=='b')) ? s[1] : ' ';
+
+		if(note!='-' && (s[slen-1] < '0' || s[slen-1]>'9'))
+			return -1.0f;
+			
+		int octave = s[slen-1] - '0';
+		return note2freq(note, accidental, octave);
+	}
+	else return -2.0f;
 }
 
 #define ERROR_MAXLEN 512
@@ -534,16 +550,18 @@ static void readImageResourceParams(
 }
 
 static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
+	const char* suffix = ResourceSuffix(name);
 	int filtering = 1;
 	float scale = 1.0;
 	float cx = 0.0f, cy=0.0f;
 	readImageResourceParams(ctx, 1, &scale, &filtering, &cx, &cy);
 
 	size_t handle = ResourceGetImage(name, scale, filtering);
-	gfxImageSetCenter(handle, cx, cy);
-	if(!handle)
+	if(handle)
+		gfxImageSetCenter(handle, cx, cy);
+	else
 		handle = ResourceGetAudio(name);
-	if(!handle) {
+	if(!handle && SDL_strncasecmp(suffix, "ttf", 3)==0) {
 		if(duk_is_object(ctx, 1)) {
 			if(duk_get_prop_string(ctx, 1, "size"))
 				scale = duk_to_number(ctx, -1);
@@ -559,6 +577,8 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 	if(text) {
 		duk_push_string(ctx, text);
 		free(text);
+		if(SDL_strncasecmp(suffix, "json", 4)==0)
+			duk_json_decode(ctx, -1);
 		return 1;
 	}
 	snprintf(s_lastError, ERROR_MAXLEN, "app.getResource(\"%s\") failed\n", name);
@@ -567,7 +587,7 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 
 /**
  * @function app.getResource
- * returns handle to an image/audio/font or text resource or array of handles
+ * returns handle to an image/audio/font or text/json resource or array of handles
  * @param {string|array} name - resource file name or list of resource file names
  * @param {object} [params] - optional additional parameters as key-value pairs such as
  *   filtering for images, scale for SVG images, or size for font resources
@@ -702,6 +722,36 @@ static duk_ret_t dk_createTileResource(duk_context *ctx) {
 }
 
 /**
+ * @function app.createImageFontResource
+ * creates a font based on a texture containing a fixed 16x16 grid of glyphs
+ * @param {number|string} img - image resource handle
+ * @param {object} [params] - additional optional parameters: border, scale
+ * @returns {number} handle of the created font resource
+ */
+
+static duk_ret_t dk_createImageFontResource(duk_context *ctx) {
+	uint32_t parent;
+	float scale = 1.0f, border = 0.0f, cx = 0.0f, cy=0.0f;
+	int filtering = 1;
+	if( duk_is_object(ctx, 1)) {
+		border = getPropFloatDefault(ctx, 1, "border", border);
+		readImageResourceParams(ctx, 1, &scale, &filtering, &cx, &cy);
+	}
+	if(duk_is_number(ctx,0))
+		parent = duk_to_uint32(ctx, 0);
+	else {
+		parent = ResourceGetImage(duk_to_string(ctx,0), scale, filtering);
+		gfxImageSetCenter(parent, cx, cy);
+		border *= scale;
+	}
+	if(!parent && scale!=1.0f)
+		parent = gfxSVGUpload(0,0, scale);
+
+	duk_push_uint(ctx, parent ? gfxFontFromImage(parent, border) : 0);
+	return 1;
+}
+
+/**
  * @function app.setImageCenter
  * sets image origin and rotation center relative to upper left (0|0) and lower right (1.0|1.0) corners
  * @param {number} img - image resource handle
@@ -736,50 +786,89 @@ static duk_ret_t dk_createSVGResource(duk_context *ctx) {
 
 /**
  * @function app.createImageResource
- * creates an RGBA image resource from an buffer
- * @param {number} width - image width
- * @param {number} height - image height
- * @param {buffer|array} data - RGBA 4-byte per pixel image data
+ * creates an image resource from a buffer
+ * @param {number|object} width - image width or an object having width, height, depth, and data properties
+ * @param {number} [height] - image height
+ * @param {buffer|array} [data] - RGBA 4-byte per pixel image data
  * @param {object} [params] - optional additional parameters as key-value pairs such as filtering
  * @returns {number} handle of the created image resource
  */
 static duk_ret_t dk_createImageResource(duk_context *ctx) {
-	int width = duk_to_int(ctx, 0), height = duk_to_int(ctx, 1);
+	int width, height, depth = 4;
 	size_t img = 0;
 	int filtering = 1;
 	float cx = 0.0f, cy=0.0f;
-	readImageResourceParams(ctx, 3, NULL, &filtering, &cx, &cy);
+	if(duk_is_object(ctx,0)) {
+		width = getPropUint32Default(ctx,0,"width",0);
+		height = getPropUint32Default(ctx,0,"height",0);
+		depth = getPropUint32Default(ctx,0,"depth",depth);
 
-	if(duk_is_buffer_data(ctx, 2)) {
-		duk_size_t nBytes;
-		unsigned char* data = duk_get_buffer_data(ctx, 2, &nBytes);
-		if(nBytes!=width*height*4)
+		duk_size_t nBytes = 0;
+		unsigned char* data = (duk_get_prop_string(ctx, 0, "data") && duk_is_buffer_data(ctx, -1)) ?
+			duk_get_buffer_data(ctx, -1, &nBytes) : NULL;
+		duk_pop(ctx);
+		if(nBytes!=width*height*depth)
 			return duk_error(ctx, DUK_ERR_ERROR,
 				"createImageResource buffer size does not fit to width and height");
-		img = ResourceCreateImage(width, height, data, filtering);
+
+		readImageResourceParams(ctx, 1, NULL, &filtering, &cx, &cy);
+		gfxTextureFiltering(filtering);
+		img = gfxImageUpload(data, width, height, depth, 0xff);
 	}
-	else if(duk_is_array(ctx, 2)) {
- 		duk_size_t nBytes = duk_get_length(ctx, 2);
-		if(nBytes!=width*height*4)
-			return duk_error(ctx, DUK_ERR_ERROR,
-				"createImageResource array size does not fit to width and height");
-		unsigned char* data = malloc(nBytes);
-		for(unsigned i=0; i<nBytes; ++i) {
-			duk_get_prop_index(ctx, 2, i);
-			int value = duk_get_int_default(ctx, -1, 0);
-			if(value<0)
-				value = 0;
-			else if(value>255)
-				value = 255;
-			data[i] = value;
-			duk_pop(ctx);
+	else {
+		width = duk_to_int(ctx, 0);
+		height = duk_to_int(ctx, 1);
+		readImageResourceParams(ctx, 3, NULL, &filtering, &cx, &cy);
+
+		if(duk_is_buffer_data(ctx, 2)) {
+			duk_size_t nBytes;
+			unsigned char* data = duk_get_buffer_data(ctx, 2, &nBytes);
+			if(nBytes!=width*height*depth)
+				return duk_error(ctx, DUK_ERR_ERROR,
+					"createImageResource buffer size does not fit to width and height");
+			img = ResourceCreateImage(width, height, data, filtering);
 		}
-		img = ResourceCreateImage(width, height, data, filtering);
-		free(data);
+		else if(duk_is_array(ctx, 2)) {
+			duk_size_t nBytes = duk_get_length(ctx, 2);
+			if(nBytes!=width*height*depth)
+				return duk_error(ctx, DUK_ERR_ERROR,
+					"createImageResource array size does not fit to width and height");
+			unsigned char* data = malloc(nBytes);
+			for(unsigned i=0; i<nBytes; ++i) {
+				duk_get_prop_index(ctx, 2, i);
+				int value = duk_get_int_default(ctx, -1, 0);
+				if(value<0)
+					value = 0;
+				else if(value>255)
+					value = 255;
+				data[i] = value;
+				duk_pop(ctx);
+			}
+			img = ResourceCreateImage(width, height, data, filtering);
+			free(data);
+		}
 	}
 	gfxImageSetCenter(img, cx, cy);
 	duk_push_uint(ctx, img);
 	return 1;
+}
+
+/**
+ * @function app.releaseResource
+ * releases a previously uploade image, audio, or font resource
+ * @param {number} handle - resource handle
+ * @param {string} mediaType - mediaType, either 'image', 'audio', or 'font'
+ */
+static duk_ret_t dk_releaseResource(duk_context *ctx) {
+	uint32_t handle = duk_to_uint32(ctx, 0);
+	const char* mediaType = duk_to_string(ctx, 1);
+	if(strncmp(mediaType, "image", 5)==0)
+		gfxImageRelease(handle);
+	else if(strncmp(mediaType, "font", 4)==0)
+		gfxFontRelease(handle);
+	else if(strncmp(mediaType, "audio", 5)==0)
+		AudioRelease(handle);
+	return 0;
 }
 
 /**
@@ -913,7 +1002,7 @@ static duk_ret_t dk_appVibrate(duk_context *ctx) {
 /**
  * @function app.prompt
  *
- * reads a string from a modal window
+ * reads a string from a modal window or popup overlay
  *
  * @param {string|array} message - (multi-line) message to be displayed
  * @param {string} [initialValue] - optional prefilled value
@@ -948,7 +1037,7 @@ static duk_ret_t dk_appPrompt(duk_context *ctx) {
 /**
  * @function app.message
  *
- * displays a modal message window
+ * displays a modal message window or popup overlay
  *
  * @param {string|array} message - (multi-line) message to be displayed
  * @param {string} [options] - display options
@@ -985,6 +1074,8 @@ typedef struct {
 typedef struct {
 	int status;
 	char* resp;
+	size_t respsz;
+	ResourceTypeId mediaType;
 } HttpRequest;
 
 #define httpRequestsMax 32
@@ -993,8 +1084,9 @@ static HttpRequest httpRequests[httpRequestsMax];
 static int httpThread(void* udata) {
 	HttpParams* params = (HttpParams*)udata;
 	char* resp = NULL;
-	int status = params->isPost ? httpPost(params->url, params->data, &resp)
-		: httpGet(params->url, &resp);
+	size_t respsz = 0;
+	int status = params->isPost ? httpPost(params->url, params->data, &resp, &respsz)
+		: httpGet(params->url, &resp, &respsz);
 
 	if(params->callbackId<0)
 		free(resp);
@@ -1002,6 +1094,9 @@ static int httpThread(void* udata) {
 		HttpRequest* req = &httpRequests[params->callbackId];
 		req->resp = resp;
 		req->status = status;
+		req->respsz = respsz;
+		if(resp)
+			req->mediaType = ResourceType(params->url);
 	}
 	free(params->url);
 	free(params->data);
@@ -1020,7 +1115,9 @@ static int initHttpCallback(duk_context *ctx, duk_idx_t cbIndex) {
 		return -1;
 	}
 	httpRequests[callbackId].resp = NULL;
+	httpRequests[callbackId].respsz = 0;
 	httpRequests[callbackId].status = 103;
+	httpRequests[callbackId].mediaType = RESOURCE_NONE;
 	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("httpCallbacks"));
 	duk_dup(ctx, cbIndex);
 	duk_put_prop_index(ctx, -2, callbackId);
@@ -1070,6 +1167,20 @@ static duk_ret_t dk_httpPost(duk_context *ctx) {
 	params->isPost = 1;
 	SDL_Thread *thread = SDL_CreateThread(httpThread, "httpPost", (void*)params);
 	SDL_DetachThread(thread);
+	return 0;
+}
+
+/**
+ * @function app.include
+ * loads JavaScript code from one or more other javascript source files
+ * @param {string} filename - file name
+ */
+static duk_ret_t dk_appInclude(duk_context *ctx) {
+	int argc = duk_get_top(ctx);
+	for(int i=0; i<argc; ++i) {
+		const char* fname = duk_to_string(ctx, i);
+		jsvmEvalScript((size_t)ctx, fname);
+	}
 	return 0;
 }
 
@@ -1226,6 +1337,10 @@ static void bindApp(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "createSVGResource");
 	duk_push_c_function(ctx, dk_createImageResource, 4);
 	duk_put_prop_string(ctx, -2, "createImageResource");
+	duk_push_c_function(ctx, dk_createImageFontResource, 2);
+	duk_put_prop_string(ctx, -2, "createImageFontResource");
+	duk_push_c_function(ctx, dk_releaseResource, 2);
+	duk_put_prop_string(ctx, -2, "releaseResource");
 	duk_push_c_function(ctx, dk_appSetImageCenter, 3);
 	duk_put_prop_string(ctx, -2, "setImageCenter");
 	duk_push_c_function(ctx, dk_gfxQueryImage, 1);
@@ -1257,12 +1372,19 @@ static void bindApp(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "httpGet");
 	duk_push_c_function(ctx, dk_httpPost, 3);
 	duk_put_prop_string(ctx, -2, "httpPost");
+	duk_push_c_function(ctx, dk_appInclude, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "include");
 	duk_push_c_function(ctx, dk_appRequire, 1);
 	duk_put_prop_string(ctx, -2, "require");
 	duk_push_c_function(ctx, dk_appExports, 2);
 	duk_put_prop_string(ctx, -2, "exports");
 	duk_push_c_function(ctx, dk_appVibrate, 1);
 	duk_put_prop_string(ctx, -2, "vibrate");
+
+	duk_push_literal(ctx, "arcajs_builtin_js_func_emitAsGamepadEvent");
+	duk_compile_string_filename(ctx, DUK_COMPILE_FUNCTION, emitAsGamepadEvent_js);
+	duk_put_prop_literal(ctx, -2, "emitAsGamepadEvent");
+
 	dk_defineReadOnlyProperty(ctx,"width", -1, dk_getWindowWidth);
 	dk_defineReadOnlyProperty(ctx,"height", -1, dk_getWindowHeight);
 	dk_defineReadOnlyProperty(ctx,"pixelRatio", -1, dk_getWindowPixelRatio);
@@ -1316,18 +1438,20 @@ static duk_ret_t dk_audioVolume(duk_context *ctx) {
  */
 static duk_ret_t dk_audioPlaying(duk_context *ctx) {
 	int isPlaying = 0;
-	if(duk_is_undefined(ctx, 0))
-		for(unsigned i=0, end = AudioTracks(); i<end && !isPlaying; ++i)
-			isPlaying = AudioPlaying(i);
-	else
-		isPlaying = AudioPlaying(duk_to_number(ctx, 0));
+	if(AudioIsRunning()) {
+		if(duk_is_undefined(ctx, 0))
+				for(unsigned i=0, end = AudioTracks(); i<end && !isPlaying; ++i)
+					isPlaying = AudioPlaying(i);
+		else
+			isPlaying = AudioPlaying(duk_to_number(ctx, 0));
+	}
 	duk_push_boolean(ctx, isPlaying);
 	return 1;
 }
 
 /**
  * @function audio.stop
- * immediate stops an individual track or all tracks
+ * immediately stops an individual track or all tracks
  * @param {number} [track] - track ID
  */
 static duk_ret_t dk_audioStop(duk_context *ctx) {
@@ -1337,6 +1461,24 @@ static duk_ret_t dk_audioStop(duk_context *ctx) {
 			AudioStop(i);
 	else
 		AudioStop(duk_to_number(ctx, 0));
+	return 0;
+}
+
+/**
+ * @function audio.suspend
+ * (temporarily) suspends all audio output
+ */
+static duk_ret_t dk_audioSuspend(duk_context *ctx) {
+	AudioSuspend();
+	return 0;
+}
+
+/**
+ * @function audio.resume
+ * resumes previously suspended audio output
+ */
+static duk_ret_t dk_audioResume(duk_context *ctx) {
+	AudioResume();
 	return 0;
 }
 
@@ -1402,7 +1544,7 @@ static SoundWave readWaveForm(duk_context *ctx, duk_idx_t idx) {
  * @function audio.sound
  * immediately plays an oscillator-generated sound
  * @param {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
- * @param {number} freq - frequency in Hz
+ * @param {number|string} freq - frequency in Hz or note in form of F#2, A4
  * @param {number} duration - duration in seconds
  * @param {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
  * @param {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
@@ -1412,7 +1554,7 @@ static duk_ret_t dk_audioSound(duk_context *ctx) {
 	SoundWave waveForm = readWaveForm(ctx, 0);
 	if(!waveForm)
 		return 0;
-	int freq = duk_to_int(ctx, 1);
+	float freq = duk_is_number(ctx, 1) ? duk_get_number(ctx, 1) : noteStr2freq(duk_to_string(ctx, 1));
 	float duration = duk_to_number(ctx, 2);
 	float volume = duk_get_number_default(ctx, 3, 1.0);
 	float balance = duk_get_number_default(ctx, 4, 0.0);
@@ -1438,18 +1580,9 @@ static duk_ret_t dk_audioCreateSound(duk_context *ctx) {
 		if(duk_is_number(ctx, i))
 			param = duk_get_number(ctx, i);
 		else {
-			const char* s = duk_to_string(ctx, i);
-			size_t slen = strlen(s);
-			if(slen == 2 || slen == 3) {
-				char note = s[0];
-				char accidental = (slen==3 && (s[1] == '#' || s[1]=='b')) ? s[1] : ' ';
-
-				if(note!='-' && (s[slen-1] < '0' || s[slen-1]>'9'))
-					return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
-				int octave = s[slen-1] - '0';
-				param = note2freq(note, accidental, octave);
-			}
-			else return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
+			param = noteStr2freq(duk_to_string(ctx, i));
+			if(param<0.0f)
+				return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
 		}
 		params[i-1] = param;
 	}
@@ -1475,18 +1608,9 @@ static duk_ret_t dk_audioCreateSoundBuffer(duk_context *ctx) {
 		if(duk_is_number(ctx, i))
 			param = duk_get_number(ctx, i);
 		else {
-			const char* s = duk_to_string(ctx, i);
-			size_t slen = strlen(s);
-			if(slen == 2 || slen == 3) {
-				char note = s[0];
-				char accidental = (slen==3 && (s[1] == '#' || s[1]=='b')) ? s[1] : ' ';
-
-				if(note!='-' && (s[slen-1] < '0' || s[slen-1]>'9'))
-					return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
-				int octave = s[slen-1] - '0';
-				param = note2freq(note, accidental, octave);
-			}
-			else return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
+			param = noteStr2freq(duk_to_string(ctx, i));
+			if(param<0.0f)
+				return duk_error(ctx, DUK_ERR_ERROR,  "invalid note as argument %u\n", i);
 		}
 		params[i-1] = param;
 	}
@@ -1524,20 +1648,55 @@ static duk_ret_t dk_audioMelody(duk_context *ctx) {
 /**
  * @function audio.uploadPCM
  * uploads PCM data from an array of floating point numbers and returns a handle for later playback
- * @param {array|Float32Array} data - array of PCM sample values in range -1.0..1.0
- * @param {number} [numChannels=1] - number of channels, 1=mono, 2=stereo
+ * @param {array|Float32Array|object} data - array of PCM sample values in range -1.0..1.0, or an object having data, channels, and offset attributes
+ * @param {number} [channels=1] - number of channels, 1=mono, 2=stereo
  * @returns {number} sample handle to be used in audio
  */
 static duk_ret_t dk_audioUploadPCM(duk_context *ctx) {
-	float *waveData, *buf;
-	uint32_t sampleLen = readFloatArray(ctx, 0, &waveData, &buf);
-	uint8_t numChannels = duk_get_uint_default(ctx, 1, 1u);
-	if(!buf) {
+	float *waveData=0, *buf=0;
+	uint32_t sampleLen=0, offset=0;
+	uint8_t numChannels = 1;
+	if(duk_is_array(ctx, 0) || duk_is_buffer_data(ctx, 0)) {
+		sampleLen = readFloatArray(ctx, 0, &waveData, &buf);
+		numChannels = duk_get_uint_default(ctx, 1, numChannels);
+	}
+	else if(duk_is_object(ctx, 0)) {
+		sampleLen = getPropUint32Default(ctx, 0, "samples",0);
+		numChannels = getPropUint32Default(ctx, 0, "channels", numChannels);
+		offset = getPropUint32Default(ctx, 0, "offset", offset);
+
+		duk_size_t nBytes = 0;
+		waveData = (duk_get_prop_string(ctx, 0, "data") && duk_is_buffer_data(ctx, -1)) ?
+			duk_get_buffer_data(ctx, -1, &nBytes) : NULL;
+		duk_pop(ctx);
+		if(nBytes != sampleLen*numChannels*sizeof(float))
+			return duk_error(ctx, DUK_ERR_ERROR,
+				"audio.uploadPCM buffer size does not fit to samples and channels count");
+	}
+	if(waveData && !buf) {
 		buf = (float*)malloc(sampleLen*sizeof(float));
 		memcpy(buf, waveData, sampleLen*sizeof(float));
 	}
-	size_t sample = AudioUploadPCM(buf, sampleLen/numChannels, numChannels, 0);
+	size_t sample = AudioUploadPCM(buf, sampleLen/numChannels, numChannels, offset);
 	duk_push_number(ctx, sample);
+	return 1;
+}
+
+/**
+ * @function audio.note2freq
+ * translates a musical note (e.g., A4 , Bb5 C#3) to the corresponding frequency
+ * @param {string|number} note - musical note pitch as string or as numeric frequency
+ * @returns {number} - corresponding frequency
+ */
+static duk_ret_t dk_audioNote2freq(duk_context *ctx) {
+	if(duk_is_number(ctx, 0))
+		duk_dup(ctx, 0);
+	else {
+		float freq = noteStr2freq(duk_to_string(ctx, 0));
+		if(freq<0.0f)
+			return duk_error(ctx, DUK_ERR_ERROR,  "invalid note: %s\n", duk_to_string(ctx, 0));
+		duk_push_number(ctx, freq);
+	}
 	return 1;
 }
 
@@ -1628,6 +1787,10 @@ static void audio_exports(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "playing");
 	duk_push_c_function(ctx, dk_audioStop, 1);
 	duk_put_prop_string(ctx, -2, "stop");
+	duk_push_c_function(ctx, dk_audioSuspend, 0);
+	duk_put_prop_string(ctx, -2, "suspend");
+	duk_push_c_function(ctx, dk_audioResume, 0);
+	duk_put_prop_string(ctx, -2, "resume");
 	duk_push_c_function(ctx, dk_audioFadeOut, 2);
 	duk_put_prop_string(ctx, -2, "fadeOut");
 	duk_push_c_function(ctx, dk_audioReplay, 4);
@@ -1642,6 +1805,8 @@ static void audio_exports(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "melody");
 	duk_push_c_function(ctx, dk_audioUploadPCM, 2);
 	duk_put_prop_string(ctx, -2, "uploadPCM");
+	duk_push_c_function(ctx, dk_audioNote2freq, 1);
+	duk_put_prop_string(ctx, -2, "note2freq");
 	duk_push_c_function(ctx, dk_audioSampleBuffer, 1);
 	duk_put_prop_string(ctx, -2, "sampleBuffer");
 	duk_push_c_function(ctx, dk_audioClampBuffer, 3);
@@ -1846,7 +2011,10 @@ static void* moduleLoad(const char* dllName) {
 	char* unloadFuncName = malloc(len+sizeof(unloadFuncNameSuffix)+1);
 	strncpy(unloadFuncName, dllName, len);
 	strcpy(unloadFuncName+len, unloadFuncNameSuffix);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 	void (*unloadFunc)() = (void (*)())SDL_LoadFunction(libHandle, unloadFuncName);
+#pragma GCC diagnostic pop
 	if(!unloadFunc)
 		SDL_ClearError();
 	free(unloadFuncName);
@@ -1885,8 +2053,6 @@ size_t jsvmInit(const char* storageFileName) {
 	bindGraphics(ctx);
 	bindConsole(ctx);
 	bindLocalStorage(ctx, storageFileName);
-	if(jsvmEval((size_t)ctx, jsCode, "jsCode.h")!=0)
-		return 0;;
 
 	duk_push_c_function(ctx, dk_setTimeout, DUK_VARARGS);
 	duk_put_global_string(ctx, "setTimeout");
@@ -1923,6 +2089,17 @@ int jsvmEval(size_t vm, const char* src, const char* fname) {
 			"%s:%i: runtime error: %s\n", fname, duk_to_int(ctx, -1), duk_safe_to_string(ctx, -2));
 		duk_pop_2(ctx);
 	}
+	return ret;
+}
+
+int jsvmEvalScript(size_t vm, const char* fname) {
+	char* script = ResourceGetText(fname);
+	if(!script) {
+		snprintf(s_lastError, ERROR_MAXLEN, "Could not find \"%s\" in \"%s\", exiting.\n", fname, ResourceArchiveName());
+		return -1;
+	}
+	int ret = jsvmEval(vm, script, fname);
+	free(script);
 	return ret;
 }
 
@@ -2026,7 +2203,8 @@ void jsvmUpdateEventListeners(size_t vm) {
 		duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("currHandler"));
 		// update listeners:
 		static const char* events[] = {
-			"update", "draw", "resize", "keyboard", "pointer", "gamepad", "enter", "leave", "custom", NULL
+			"update", "draw", "resize", "keyboard", "pointer", "gamepad", "enter", "leave",
+			"visibilitychange", "custom", NULL
 		};
 		for(const char**evt = events; *evt; ++evt) {
 			duk_get_prop_string(ctx, handlerIdx, *evt);
@@ -2049,7 +2227,56 @@ void jsvmAsyncCalls(size_t vm, double timestamp) {
 			HttpRequest* req = &httpRequests[i];
 			duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("httpCallbacks"));
 			duk_get_prop_index(ctx, -1, i);
-			duk_push_string(ctx, req->resp);
+			unsigned char* data = 0;
+			if(req->resp && req->mediaType == RESOURCE_IMAGE) {
+				int w,h,d;
+				data = readImageData((const unsigned char *)(req->resp), req->respsz, &w, &h, &d);
+				if(data) {
+					const size_t bufSz = w * h * d;
+					duk_push_object(ctx);
+					memcpy(duk_push_fixed_buffer(ctx, bufSz), data, bufSz);
+					duk_push_buffer_object(ctx, -1, 0, bufSz, DUK_BUFOBJ_UINT8ARRAY);
+					duk_put_prop_string(ctx, -3, "data");
+					duk_pop(ctx); // fixed buffer no longer needed on the stack, bound by buffer object
+					duk_push_number(ctx, w);
+					duk_put_prop_string(ctx, -2, "width");
+					duk_push_number(ctx, h);
+					duk_put_prop_string(ctx, -2, "height");
+					duk_push_number(ctx, d);
+					duk_put_prop_string(ctx, -2, "depth");
+					duk_push_literal(ctx, "image");
+					duk_put_prop_string(ctx, -2, "mediaType");
+				}
+			}
+			else if(req->resp && req->mediaType == RESOURCE_AUDIO) {
+				uint32_t samples = 0, offset = 0;
+				uint8_t channels=0;
+				data = (unsigned char*)AudioRead(req->resp, req->respsz, &samples, &channels, &offset);
+				if(data) {
+					const size_t bufSz = samples * channels * sizeof(float);
+					duk_push_object(ctx);
+					memcpy(duk_push_fixed_buffer(ctx, bufSz), data, bufSz);
+					duk_push_buffer_object(ctx, -1, 0, bufSz, DUK_BUFOBJ_FLOAT32ARRAY);
+					duk_put_prop_string(ctx, -3, "data");
+					duk_pop(ctx); // fixed buffer no longer needed on the stack, bound by buffer object
+					duk_push_number(ctx, samples);
+					duk_put_prop_string(ctx, -2, "samples");
+					duk_push_number(ctx, channels);
+					duk_put_prop_string(ctx, -2, "channels");
+					duk_push_number(ctx, offset);
+					duk_put_prop_string(ctx, -2, "offset");
+					duk_push_literal(ctx, "audio");
+					duk_put_prop_string(ctx, -2, "mediaType");
+				}
+			}
+			else if(req->resp && req->mediaType == RESOURCE_FONT) {
+				snprintf(s_lastError, ERROR_MAXLEN, "loading of fonts via http not implemented");
+			}
+
+			if(data)
+				free(data);
+			else
+				duk_push_string(ctx, req->resp);
 			duk_push_int(ctx, req->status);
 			duk_pcall(ctx, 2);
 			duk_pop(ctx); // ignore cb return value
@@ -2057,7 +2284,9 @@ void jsvmAsyncCalls(size_t vm, double timestamp) {
 			duk_pop(ctx);
 			free(req->resp);
 			req->resp = NULL;
+			req->respsz = 0;
 			req->status = 0;
+			req->mediaType = RESOURCE_NONE;
 		}
 	}
 	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("timeoutCallbacks"));
@@ -2100,8 +2329,11 @@ int jsvmRequire(size_t vm, const char* dllName) {
 	char* exportsFuncName = malloc(len+sizeof(exportsFuncNameSuffix)+1);
 	strncpy(exportsFuncName, dllName, len);
 	strcpy(exportsFuncName+len, exportsFuncNameSuffix);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 	void (*bindFunc)(duk_context *ctx)
 		= (void (*)(duk_context *))SDL_LoadFunction(libHandle, exportsFuncName);
+#pragma GCC diagnostic pop
 	if(!bindFunc) {
 		snprintf(s_lastError, ERROR_MAXLEN,
 			"shared library %s does not contain %s(ctx) function", dllName, exportsFuncName);

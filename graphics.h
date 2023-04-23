@@ -7,7 +7,7 @@
 #define GFX_IMG_SQUARE 2
 
 ///@{ setup and resource management:
-extern void gfxInit(void* renderer, float pixelRatio);
+extern void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float perspectivity, float pixelRatio, void *arg);
 extern void gfxClose();
 extern void gfxTextureFiltering(int level);
 
@@ -23,22 +23,21 @@ extern uint32_t gfxImageTile(uint32_t parent, int x, int y, int w, int h);
 extern uint32_t gfxImageTileGrid(uint32_t parent, uint16_t tilesX, uint16_t tilesY, uint16_t border);
 /// sets rotation center relative to width/height, 0.0|0.0 means upper left corner 1.0|1.0 lower right corner
 extern void gfxImageSetCenter(uint32_t img, float cx, float cy);
-/// sets shape as an array of floats for intersection/collision tests
-/** memory is not owned/copied, so memory referenced by the passed pointer needs to stay valid as long as the image exists */
-extern void gfxImageSetShape(uint32_t img, const float* shape);
-/// returns shape as an array of floats for intersection/collision tests
-extern const float* gfxImageGetShape(uint32_t img);
 /// returns width and height of image in pixels
 extern void gfxImageDimensions(uint32_t img, int* w, int* h);
 /// releases an image from graphics memory
 extern void gfxImageRelease(uint32_t img);
 /// uploads a TTF font resource and returns handle
 extern uint32_t gfxFontUpload(void* data, size_t dataSize, float fontSize);
+/// creates font resource based on a texture containing a fixed 16x16 grid of glyphs
+extern uint32_t gfxFontFromImage(uint32_t img, int margin);
 /// releases a font from graphics memory
 extern void gfxFontRelease(uint32_t font);
 ///@}
 
 ///@{ render state/context:
+extern void gfxBeginFrame(uint32_t clearColor);
+extern void gfxEndFrame();
 /// resets state to its initial values
 extern void gfxStateReset();
 /// pushes current state onto a stack
@@ -47,11 +46,10 @@ extern void gfxStateSave();
 /// restores previous state from stack
 extern void gfxStateRestore();
 
-/// sets the current transformation
-extern void gfxSetTransform(float x, float y, float rot, float sc);
 /// multiplies current transformation with this additional transformation
 extern void gfxTransform(float x, float y, float rot, float sc);
-
+/// multiplies current transformation with this additional 3D transformation
+extern void gfxTransf3d(float x, float y, float z, float rotX, float rotY, float rotZ, float sc);
 /// sets current color
 extern void gfxColor(uint32_t color);
 /// sets current line width

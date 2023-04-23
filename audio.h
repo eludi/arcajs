@@ -18,6 +18,12 @@ typedef enum {
 uint32_t AudioOpen(uint32_t freq, uint32_t tracks);
 /// closes audio devices
 void AudioClose();
+/// (temporarily) suspends all audio output
+void AudioSuspend();
+/// resumes previously suspended audio output
+void AudioResume();
+/// checks if audio output is not suspended
+int AudioIsRunning();
 /// sets master volume
 void AudioSetVolume(float volume);
 /// returns master volume
@@ -28,8 +34,8 @@ uint32_t AudioTracks();
 uint32_t AudioSampleRate();
 /// immediately plays a sound, balance 0.0 means center, -1.0 left, +1.0 right
 /** \return track number playing this sound or UINT_MAX if no track is available */
-uint32_t AudioSound(SoundWave waveForm, int freq, float duration, float volume, float balance);
-/// immediately plays a mono or stereo wave data sample
+uint32_t AudioSound(SoundWave waveForm, float freq, float duration, float volume, float balance);
+/// immediately plays a mono or stereo PCM wave data sample
 /** \return track number playing this sample or UINT_MAX if no track is available */
 uint32_t AudioPlay(const float* data, uint32_t numSamples, uint8_t numChannels, float volume, float balance, float detune);
 /// immediately plays a sequence of notes, e.g., AudioMelody("{w:tri a:.025 d:.025 s:.25 r:.05 b:120} A3/12 C#4/12 E4/12 {s:.5 r:.45 g:1.5} A4/4", 0.66f, 0.0f);
@@ -43,13 +49,15 @@ void AudioStop(uint32_t track);
 void AudioFadeOut(uint32_t track, float deltaT);
 /// adjusts volume of a currently playing track
 void AudioAdjustVolume(uint32_t track, float volume);
-/// uploads an audio MP3 sample and returns a handle for later playback
-uint32_t AudioUploadMP3(void* mp3data, uint32_t numBytes);
-/// uploads an audio WAV sample and returns a handle for later playback
-uint32_t AudioUploadWAV(void* wavdata, uint32_t numBytes);
+/// tries to convert a MP3 or WAV sample file to an audio buffer
+float* AudioRead(void* data, uint32_t numBytes, uint32_t* samples, uint8_t* channels, uint32_t* offset);
+/// converts and uploads an audio sample in MP3 or WAV format, returns a handle for later playback
+uint32_t AudioUpload(void* data, uint32_t numBytes);
 /// uploads mono or stereo PCM wave data and returns a handle for later playback
 /** wave data memory ownership is passed to the function */
 uint32_t AudioUploadPCM(float* waveData, uint32_t numSamples, uint8_t numChannels, uint32_t offset);
+/// releases an uploaded audio sample from memory
+void AudioRelease(uint32_t sample);
 /// immediately plays previously uploaded sample data
 /** \note For stereo samples, detune and balance must be 0.0f
  * \return track number playing this sound or UINT_MAX if the input is invalid or no track is available */

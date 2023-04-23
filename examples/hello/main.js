@@ -32,3 +32,7 @@ app.on('keyboard', function(evt) {
         audio.melody("{w:tri a:.025 d:.025 s:.25 r:.05 b:120} A3/12 C#4/12 E4/12 {s:.5 r:.45 g:1.5} A4/4", 0.7, 0.0);
     }
 });
+
+app.on('textinsert', function(evt) {
+    console.log(evt);
+});

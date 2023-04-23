@@ -8,6 +8,13 @@ var patt1_1 = "{w:saw a:.025 d:.025 s:.25 r:.05 b:65}"
 var track1 = -1;
 var samplePool = [];
 
+var cowbell = audio.createSoundBuffer(
+	'sin', 'G#5',0,0,0.125, 'G#5',0.8,0.003,0.125, 'G#5',0.2,0.02,0.25, 'G#5',0.05,0.1,0.5, 'G#5',0,0.15,1);
+for(var i=0, end=cowbell.length; i<end; ++i)
+	cowbell[i] *= 0.85+Math.random()*0.3;
+cowbell = audio.uploadPCM(cowbell);
+console.log('cowbell', cowbell);
+
 function audioUpdate(now) {
 	if(!audio.playing(track1)) {
 		track1 = audio.melody(patt1_1, 0.25, 0.0);
@@ -55,6 +62,10 @@ app.on('update', function(deltaT, now) {
 app.on('keyboard', function(evt) {
 	if(evt.type!=='keydown' || evt.repeat)
 		return;
-	if(evt.key=='r')
-		audio.replay(samplePool,0.25);
+	switch(evt.key) {
+	case 'r':
+		return audio.replay(samplePool,0.25);
+	case 'c':
+		return audio.replay(cowbell);
+	}
 });

@@ -11,7 +11,7 @@
 #define countof(arr) sizeof(arr) / sizeof(arr[0])
 
 static SDL_Renderer* renderer = NULL;
-static SDL_Texture* defaultFont;
+static uint32_t defaultFont;
 static float mat[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f };
 
 typedef struct {
@@ -35,26 +35,31 @@ typedef struct {
 
 static ImgResource* images=NULL;
 static uint32_t numImages=0, numImagesMax=0;
+static uint32_t numFonts=0, numFontsMax=0;
 
-void gfxInit(void* render, float pixelRatio) {
+void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float perspectivity, float pixelRatio, void *arg) {
 	gfxStateReset();
 
-	renderer = (SDL_Renderer*)render;
+	(void)vpWidth;
+	(void)vpHeight;
+	(void)perspectivity;
 	windowPixelRatio = pixelRatio;
+	renderer = (SDL_Renderer*)arg;
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
-	gfxSVGUpload(font12x16, sizeof(font12x16), pixelRatio);
-	defaultFont = images[0].tex;
-	gfxImageTile(0, 160,0,32,32);
-	gfxImageSetCenter(1, 0.5f, 0.5f);
-	images[1].sc = 1.0f/32.0f;
-	gfxImageTile(0, 126,40,1,1);
-	gfxImageSetCenter(2, 0.5f, 0.5f);
+	defaultFont = gfxSVGUpload(font12x16, sizeof(font12x16), pixelRatio);
+	gfxImageTile(defaultFont, 160,0,32,32); // circle texture
+	gfxImageSetCenter(defaultFont+1, 0.5f, 0.5f);
+	images[defaultFont+1].sc = 1.0f/32.0f;
+	gfxImageTile(defaultFont, 126,40,1,1); // square texture
+	gfxImageSetCenter(defaultFont+2, 0.5f, 0.5f); 
 }
 
 void gfxClose() {
 	if(!renderer)
 		return;
+	while(numFonts)
+		gfxFontRelease(numFonts); 
 	while(numImages)
 		gfxImageRelease(numImages-1); 
 	renderer = NULL;
@@ -69,13 +74,27 @@ void gfxTextureFiltering(int level) {
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "2");
 }
 
+void gfxBeginFrame(uint32_t clearColor) {
+	(void)clearColor;
+}
+
+void gfxEndFrame() {
+
+}
+
 uint32_t gfxSVGUpload(const char* svg, size_t svgLen, float scale) {
+	if(!svg) {
+		svg = font12x16;
+		svgLen = sizeof(font12x16);
+		scale *= windowPixelRatio;
+	}
 	char* svgCopy = malloc(svgLen+1);
 	memcpy(svgCopy, svg, svgLen);
 	svgCopy[svgLen]=0;
 	int w, h, d;
 	unsigned char* data = svgRasterize(svgCopy, scale, &w, &h, &d);
 	free(svgCopy);
+
 	if(data == NULL) {
 		fprintf(stderr, "Could not rasterize SVG image.\n");
 		return 0;
@@ -146,7 +165,8 @@ void gfxImageSetCenter(uint32_t img, float cx, float cy) {
 
 void gfxImageRelease(uint32_t img) {
 	if(img < numImages) {
-		if(images[img].ownsTexture) {
+		//printf("%u %i %i %lu\n", img, images[img].src.w, images[img].src.h, (size_t)images[img].tex);
+		if(images[img].ownsTexture && images[img].tex) {
 			SDL_DestroyTexture(images[img].tex);
 			images[img].ownsTexture = SDL_FALSE;
 		}
@@ -176,7 +196,7 @@ uint32_t gfxImageTile(uint32_t parent, int x, int y, int w, int h) {
 }
 
 uint32_t gfxImageTileGrid(uint32_t parent, uint16_t tilesX, uint16_t tilesY, uint16_t border) {
-	if(!parent || parent >= numImages)
+	if(parent >= numImages)
 		return 0;
 	float w = images[parent].src.w/(float)tilesX;
 	float h = images[parent].src.h/(float)tilesY;
@@ -204,13 +224,24 @@ void gfxImageDimensions(uint32_t img, int* w, int* h) {
 
 typedef struct {
 	uint32_t texId;
-	int texW, texH;
+	int texW, texH, margin;
 	float height, ascent, descent;
 	stbtt_bakedchar glyphData[GLYPH_COUNT];
 } FontResource;
 
 static FontResource* fonts=NULL;
-static uint32_t numFonts=0, numFontsMax=0;
+
+static FontResource* pushNewFont() {
+	if(numFontsMax==0) {
+		numFontsMax=4;
+		fonts = (FontResource*)malloc(numFontsMax*sizeof(FontResource));
+	}
+	else if(numFonts == numFontsMax) {
+		numFontsMax *= 2;
+		fonts = (FontResource*)malloc(numFontsMax*sizeof(FontResource));
+	}
+	return &fonts[numFonts];
+}
 
 uint32_t gfxFontUpload(void* fontData, size_t dataSize, float fontHeight) {
 	// render glyphs into bitmap buffer:
@@ -235,19 +266,11 @@ uint32_t gfxFontUpload(void* fontData, size_t dataSize, float fontHeight) {
 	free(pixels);
 	free(bitmap);
 
-	if(numFontsMax==0) {
-		numFontsMax=4;
-		fonts = (FontResource*)malloc(numFontsMax*sizeof(FontResource));
-	}
-	else if(numFonts == numFontsMax) {
-		numFontsMax *= 2;
-		fonts = (FontResource*)malloc(numFontsMax*sizeof(FontResource));
-	}
-
-	FontResource* fnt = &fonts[numFonts];
+	FontResource* fnt = pushNewFont();
 	fnt->texId = texId;
 	fnt->texW = texW;
 	fnt->texH = texH;
+	fnt->margin = -1; // only relevant for fixed width image fonts
 	fnt->height = fontHeight;
 	memcpy(fnt->glyphData, glyphData, GLYPH_COUNT*sizeof(stbtt_bakedchar));
 	float lineGap;
@@ -256,13 +279,25 @@ uint32_t gfxFontUpload(void* fontData, size_t dataSize, float fontHeight) {
 	return ++numFonts;
 }
 
+uint32_t gfxFontFromImage(uint32_t img, int margin) {
+	FontResource* fnt = pushNewFont();
+	fnt->texId = img;
+	fnt->texW = fnt->texH = 0;
+	fnt->margin = margin; // only relevant for fixed width image fonts
+	fnt->height = fnt->ascent = fnt->descent = 0;
+	memset(fnt->glyphData, 0, sizeof(stbtt_bakedchar)*GLYPH_COUNT);
+	return ++numFonts;
+}
+
 void gfxFontRelease(uint32_t font) {
 	if(font<1 || font>numFonts)
 		return;
 	FontResource* fnt = &fonts[font-1];
+	//printf("fontRelease %u tex:%u %i\n", font, fnt->texId, fnt->margin);
 	if(!fnt->texId)
 		return;
-	gfxImageRelease(fnt->texId);
+	if(fnt->margin<0) // means uploaded font, not font from image
+		gfxImageRelease(fnt->texId);
 	fnt->texId = 0;
 
 	while(numFonts>0 && !fonts[numFonts-1].texId)
@@ -322,15 +357,6 @@ void gfxClipRect(int x, int y, int w, int h) {
 	SDL_RenderSetClipRect(renderer, (w<0||h<0) ? NULL : &pos);
 }
 
-void gfxSetTransform(float x, float y, float rot, float sc) {
-	float* transf = &gs[dtransf].transf[0];
-	transf[0] = x;
-	transf[1] = y; 
-	transf[2] = rot;
-	transf[3] = sc;
-	setMat(transf);
-}
-
 void gfxTransform(float x, float y, float rot, float sc) {
 	float* transf = &gs[dtransf].transf[0];
 	transf[0] += mat[0]*x + mat[1]*y;
@@ -340,6 +366,12 @@ void gfxTransform(float x, float y, float rot, float sc) {
 	setMat(transf);
 }
 
+void gfxTransf3d(float x, float y, float z, float rotX, float rotY, float rotZ, float sc) {
+	(void)z;
+	(void)rotX;
+	(void)rotY;
+	gfxTransform(x,y,rotZ,sc);
+}
 
 //--- low level ops ------------------------------------------------
 
@@ -487,9 +519,13 @@ void gfxStretchImage(uint32_t img, float x, float y, float w, float h) {
 	gfxDrawImageEx(res->tex, res->src.x,res->src.y,res->src.w,res->src.h, x,y,w,h, 0,0,0,0);
 }
 
-void gfxFillTextDefault(float x, float y, const char* str) {
-	const unsigned char wChar = 12*windowPixelRatio, hChar = 16*windowPixelRatio;
-	SDL_Texture* texture = defaultFont;
+/// write text using a texture containing a fixed 16x16 grid of glyphs
+static void gfxFillTextFixedFont(uint32_t img, float x, float y, int margin, const char* str) {
+	if(img>=numImages)
+		img = 0;
+	const unsigned char wCell = images[img].src.w/16, wChar = wCell - margin*2;
+	const unsigned char hCell = images[img].src.h/16, hChar = hCell - margin*2;
+	SDL_Texture* texture = images[img].tex;
 
 	const SDL_Color* clr = &gs[dtransf].clr;
 	SDL_SetTextureColorMod(texture, clr->r, clr->g, clr->b);
@@ -503,8 +539,8 @@ void gfxFillTextDefault(float x, float y, const char* str) {
 	for(size_t readIndex=0; str[readIndex]; x += wChar) {
 		unsigned char c = utf8ToLatin1(str, &readIndex);
 		if(c) {
-			src.x = (c%16)*wChar;
-			src.y = (c/16)*hChar;
+			src.x = (c%16)*wCell + margin;
+			src.y = (c/16)*hCell + margin;
 			SDL_RenderCopyExF(renderer, texture, &src, &dest, rot, &ctr, SDL_FLIP_NONE);
 		}
 		dest.x += wChar*mat[0];
@@ -512,18 +548,12 @@ void gfxFillTextDefault(float x, float y, const char* str) {
 	}
 }
 
-void gfxFillTextFont(uint32_t font, float x, float y, const char* str) {
-	const FontResource* fnt = NULL;
-	if(font>0 && font<=numFonts) {
-		fnt = &fonts[font-1];
-		if(!fnt->texId)
-			fnt = NULL;
-	}
-	if(!fnt) {
-		gfxFillTextDefault(x, y, str);
+static void gfxFillTextProportionalFont(uint32_t font, float x, float y, const char* str) {
+	const FontResource* fnt = &fonts[font-1];
+	if(fnt->margin >= 0) {
+		gfxFillTextFixedFont(fnt->texId, x,y, fnt->margin, str);
 		return;
 	}
-
 	SDL_Texture* texture = images[fnt->texId].tex;
 	const SDL_Color* clr = &gs[dtransf].clr;
 	SDL_SetTextureColorMod(texture, clr->r, clr->g, clr->b);
@@ -553,9 +583,10 @@ void gfxFillTextFont(uint32_t font, float x, float y, const char* str) {
 }
 
 void gfxFillText(uint32_t font, float x, float y, const char* str) {
-	if(font==0)
-		gfxFillTextDefault(x,y,str);
-	gfxFillTextFont(font, x,y, str);
+	if(!font || font>numFonts)
+		gfxFillTextFixedFont(0, x,y, 0, str);
+	else
+		gfxFillTextProportionalFont(font, x,y, str);
 }
 
 void gfxFillTextAlign(uint32_t font, float x, float y, const char* str, int align) {
@@ -573,8 +604,12 @@ void gfxFillTextAlign(uint32_t font, float x, float y, const char* str, int alig
 }
 
 void gfxMeasureText(uint32_t font, const char* text, float* width, float* height, float* ascent, float* descent) {
-	if(!font) {
-		const unsigned char wChar = 12*windowPixelRatio, hChar = 16*windowPixelRatio;
+	if(!font || font>numFonts || fonts[font-1].margin >= 0) {
+		uint32_t img = (!font || font>numFonts) ? 0 : fonts[font-1].texId;
+		if(img>=numImages)
+			img = 0;
+		const int margin = img ? fonts[font-1].margin : 0;
+		const unsigned char wChar = images[img].src.w/16 - margin*2, hChar = images[img].src.h/16 - margin*2;
 		if(width) {
 			*width = 0;
 			for(size_t readIndex=0; text[readIndex]; utf8ToLatin1(text, &readIndex))
@@ -588,7 +623,8 @@ void gfxMeasureText(uint32_t font, const char* text, float* width, float* height
 			*descent = wChar-hChar;
 		return;
 	}
-	if(font>numFonts || !fonts[font-1].texId)
+
+	if(!fonts[font-1].texId)
 		return;
 	const FontResource* fnt = &fonts[font-1];
 	if(width) {

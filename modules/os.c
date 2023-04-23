@@ -1,6 +1,7 @@
 #include "../external/duk_config.h"
 #include "../external/duktape.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 static duk_ret_t readFileSync(duk_context *ctx) {
 	const char* fname = duk_to_string(ctx, 0);
@@ -62,11 +63,20 @@ static duk_ret_t writeFileSync(duk_context *ctx) {
 	return 0;
 }
 
-void fs_exports(duk_context *ctx) {
+static duk_ret_t systemCall(duk_context *ctx) {
+	const char* cmd = duk_to_string(ctx, 0);
+	int ret = system(cmd);
+	duk_push_int(ctx, ret);
+	return 1;
+}
+
+void os_exports(duk_context *ctx) {
 	duk_push_object(ctx);
 
 	duk_push_c_function(ctx, readFileSync, 2);
 	duk_put_prop_literal(ctx, -2, "readFileSync");
 	duk_push_c_function(ctx, writeFileSync, 3);
 	duk_put_prop_literal(ctx, -2, "writeFileSync");
+	duk_push_c_function(ctx, systemCall, 1);
+	duk_put_prop_literal(ctx, -2, "system");
 }

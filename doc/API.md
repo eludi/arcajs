@@ -69,7 +69,7 @@ app.on('keyboard', function(evt) {
 
 ### function app.getResource
 
-returns handle to an image/audio/font or text resource or array of handles
+returns handle to an image/audio/font or text/json resource or array of handles
 
 #### Parameters:
 
@@ -147,6 +147,19 @@ creates image resource based on an existing image resource
 
 - {number} handle of the created image resource
 
+### function app.createImageFontResource
+
+creates a font based on a texture containing a fixed 16x16 grid of glyphs
+
+#### Parameters:
+
+- {number\|string} img - image resource handle
+- {object} [params] - additional optional parameters: border, scale
+
+#### Returns:
+
+- {number} handle of the created font resource
+
 ### function app.setImageCenter
 
 sets image origin and rotation center relative to upper left (0\|0) and lower right (1.0\|1.0) corners
@@ -172,18 +185,27 @@ creates an image resource from an inline SVG string
 
 ### function app.createImageResource
 
-creates an RGBA image resource from an buffer
+creates an image resource from a buffer
 
 #### Parameters:
 
-- {number} width - image width
-- {number} height - image height
-- {buffer\|array} data - RGBA 4-byte per pixel image data
+- {number\|object} width - image width or an object having width, height, depth, and data properties
+- {number} [height] - image height
+- {buffer\|array} [data] - RGBA 4-byte per pixel image data
 - {object} [params] - optional additional parameters as key-value pairs such as filtering
 
 #### Returns:
 
 - {number} handle of the created image resource
+
+### function app.releaseResource
+
+releases a previously uploade image, audio, or font resource
+
+#### Parameters:
+
+- {number} handle - resource handle
+- {string} mediaType - mediaType, either 'image', 'audio', or 'font'
 
 ### function app.setBackground
 
@@ -252,7 +274,7 @@ vibrates the device, if supported by the platform, likely on mobile browsers onl
 
 ### function app.prompt
 
-reads a string from a modal window
+reads a string from a modal window or popup overlay
 
 #### Parameters:
 
@@ -266,7 +288,7 @@ reads a string from a modal window
 
 ### function app.message
 
-displays a modal message window
+displays a modal message window or popup overlay
 
 #### Parameters:
 
@@ -295,6 +317,14 @@ initiates a HTTP POST request sending data to a URL
 - {string} url - target URL
 - {string\|object} data - data to be sent
 - {function} [callback] - function to be called when a response is received
+
+### function app.include
+
+loads JavaScript code from one or more other javascript source files
+
+#### Parameters:
+
+- {string} filename - file name
 
 ### function app.require
 
@@ -400,11 +430,19 @@ checks if a track or any track is currently playing
 
 ### function audio.stop
 
-immediate stops an individual track or all tracks
+immediately stops an individual track or all tracks
 
 #### Parameters:
 
 - {number} [track] - track ID
+
+### function audio.suspend
+
+(temporarily) suspends all audio output
+
+### function audio.resume
+
+resumes previously suspended audio output
 
 ### function audio.fadeOut
 
@@ -437,7 +475,7 @@ immediately plays an oscillator-generated sound
 #### Parameters:
 
 - {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
-- {number} freq - frequency in Hz
+- {number\|string} freq - frequency in Hz or note in form of F#2, A4
 - {number} duration - duration in seconds
 - {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
 - {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
@@ -492,12 +530,24 @@ uploads PCM data from an array of floating point numbers and returns a handle fo
 
 #### Parameters:
 
-- {array\|Float32Array} data - array of PCM sample values in range -1.0..1.0
-- {number} [numChannels=1] - number of channels, 1=mono, 2=stereo
+- {array\|Float32Array\|object} data - array of PCM sample values in range -1.0..1.0, or an object having data, channels, and offset attributes
+- {number} [channels=1] - number of channels, 1=mono, 2=stereo
 
 #### Returns:
 
 - {number} sample handle to be used in audio
+
+### function audio.note2freq
+
+translates a musical note (e.g., A4 , Bb5 C#3) to the corresponding frequency
+
+#### Parameters:
+
+- {string\|number} note - musical note pitch as string or as numeric frequency
+
+#### Returns:
+
+- {number} - corresponding frequency
 
 ### function audio.sampleBuffer
 
@@ -538,7 +588,7 @@ rate as the current audio device.
 
 - {number} audio.sampleRate - audio device sample rate in Hz
 
-## module graphics2
+## module graphics
 
 drawing functions, only available within the  draw event callback function
 
@@ -556,8 +606,8 @@ sets the current drawing color
 
 #### Parameters:
 
-- {number} r - RGB red component in range 0..255 or unified uint32 color
-- {number} [g] - RGB green component in range 0..255
+- {number} r - RGB red component in range 0..255 or unified uint32 RGBA color
+- {number} [g] - RGB green component in range 0..255 or opacity if first argument is a unified uint32 RGBA color
 - {number} [b] - RGB blue component in range 0..255
 - {number} [a=255] - opacity between 0 (invisible) and 255 (opaque)
 
@@ -606,8 +656,8 @@ sets the current transformation
 
 #### Parameters:
 
-- {number} x - horizontal translation
-- {number} y - vertical translation
+- {number\|object} x - horizontal translation or an object having {x:0,y:0,z:0,rotX:0,rotY:0,rotZ:0,sc:1.0} members of type number
+- {number} [y] - vertical translation
 - {number} [rot=0] - rotation angle in radians
 - {number} [sc=1] - scale factor
 
@@ -772,18 +822,17 @@ draws a rectangular grid of multiple tiled images
 - {Uint32Array} imgOffsets - array of image handle offsets
 - {Uint32Array} [colors] - optional tile color array
 - {number} [stride=tilesX] - number of array elements to proceed to next row
-- {Float32Array} arr - data array containing at least the positions of the images to be drawn and optionally further components
 
 ### function gfx.drawImages
 
-draws multiple images based on a data array
+draws multiple images based on array data
 
 #### Parameters:
 
 - {number} imgBase - base image handle
 - {number} stride - number of array elements to proceed to next image data record
-- {number} components - components contained in data array, a bitwise combination of gfx.COMP_xyz constants
-- {Float32Array} arr - data array containing at least the positions of the images to be drawn and optionally further components
+- {number} components - components contained in array, a bitwise combination of gfx.COMP_xyz constants
+- {Float32Array} arr - array containing at least the positions of the images to be drawn and optionally further components
 
 ### function gfx.drawSprite
 

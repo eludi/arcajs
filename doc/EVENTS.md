@@ -111,6 +111,16 @@ keyboards in the browser runtime.
   for printable ASCII characters, or a key value for non-printable (navigation)
   keys
 
+## textinsert event
+
+The experimental text insert event is triggered when text is dropped or pasted
+into the application window.
+
+### Callback function parameters:
+
+- {object} evt - an event structure containing event type ('drop' or 'paste') 
+  and data (string)
+
 ## gamepad event
 
 The gamepad event is triggered whenever a game controller is connected or
@@ -123,6 +133,14 @@ disconnected, or a button or axis significantly changes its value.
   value is provided. For connect events, also the number of axes and buttons,
   and a device name are reported.
 
+## visibilitychange event
+
+The visibility change event is triggered the application window is hidden or restored.
+
+### Callback function parameters:
+
+- {object} evt - contains boolean property visible (true or false)
+ 
 ## close event
 
 The close event is triggered when the application closes.

@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20220625a";
+const char* appVersion = "v0.20230422a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -135,9 +135,13 @@ int handleEvents(void* udata) {
 		Value* event = Value_new(VALUE_MAP, NULL);
 		Value_set(event, "evt", Value_str("pointer"));
 		Value_set(event, "type", Value_str(mouseButtons ? "move" : "hover"));
+		if(mouseButtons) {
+			Value_set(event, "id", Value_int((mouseButtons & 0x01) ? 0 : (mouseButtons & 0x02) ? 1 : 2));
+		}
 		Value_set(event, "x", Value_int(evt.motion.x));
 		Value_set(event, "y", Value_int(evt.motion.y));
 		Value_set(event, "pointerType", Value_str("mouse"));
+		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 		Value_append(events, event);
 		break;
 	}
@@ -171,6 +175,7 @@ int handleEvents(void* udata) {
 		Value_set(event, "x", Value_int(evt.button.x));
 		Value_set(event, "y", Value_int(evt.button.y));
 		Value_set(event, "pointerType", Value_str("mouse"));
+		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 		Value_append(events, event);
 		break;
 	}
@@ -200,6 +205,7 @@ int handleEvents(void* udata) {
 		Value_set(event, "x", Value_int(x+0.5f));
 		Value_set(event, "y", Value_int(y+0.5f));
 		Value_set(event, "pointerType", Value_str("touch"));
+		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 		Value_append(events, event);
 		break;
 	}
@@ -207,7 +213,22 @@ int handleEvents(void* udata) {
 		if(((evt.key.keysym.sym == SDLK_F4) && (evt.key.keysym.mod & KMOD_LALT))
 			|| ((evt.key.keysym.sym == SDLK_q) && (evt.key.keysym.mod & KMOD_CTRL)))
 			ret = 1;
-		// NO break;
+		else if((evt.key.keysym.sym == SDLK_v) && (evt.key.keysym.mod & KMOD_CTRL)) {
+			if(SDL_HasClipboardText()) {
+				char* text = SDL_GetClipboardText();
+				if(text && text[0]) {
+					Value* event = Value_new(VALUE_MAP, NULL);
+					Value_set(event, "evt", Value_str("textinsert"));
+					Value_set(event, "type", Value_str("paste"));
+					Value_set(event, "data", Value_str(text));
+					Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
+					Value_append(events, event);
+				}
+				SDL_free(text);
+			}
+			break;
+		}
+		// [[fallthrough]]
 	case SDL_KEYUP: {
 		SDL_KeyCode sym = evt.key.keysym.sym;
 		int location;
@@ -225,9 +246,10 @@ int handleEvents(void* udata) {
 			Value_set(event, "shiftKey", Value_bool(isShift));
 			Value_set(event, "metaKey", Value_bool(evt.key.keysym.mod & KMOD_GUI));
 			Value_set(event, "repeat", Value_bool(evt.key.repeat));
+			Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 			Value_append(events, event);
 
-			if(evt.type==SDL_KEYDOWN && WindowTextInputActive() && !isModifier(sym) && (sym<32||sym>127)) {
+			if(evt.type==SDL_KEYDOWN && WindowTextInputActive() && !isModifier(sym) && (sym<32||sym>=127)) {
 				Value* event = Value_new(VALUE_MAP, NULL);
 				Value_set(event, "evt", Value_str("textinput"));
 				switch((int)sym) {
@@ -240,6 +262,7 @@ int handleEvents(void* udata) {
 				default:
 					Value_set(event, "key", Value_str(key));
 				}
+				Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 				Value_append(events, event);
 			}
 		}
@@ -267,6 +290,7 @@ int handleEvents(void* udata) {
 				Value_set(event, "buttons", Value_int(numButtons));
 			}
 		}
+		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 		Value_append(events, event);
 		break;
 	}
@@ -279,39 +303,62 @@ int handleEvents(void* udata) {
 		Value* event = Value_new(VALUE_MAP, NULL);
 		Value_set(event, "evt", Value_str("textinput"));
 		Value_set(event, "char", Value_str(input));
+		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 		Value_append(events, event);
 		//printf("textinput %s\n", input);
 		break;
 	}
 	case SDL_WINDOWEVENT: {
+		Value* event;
 		switch(evt.window.event) {
 		case SDL_WINDOWEVENT_SIZE_CHANGED:
 			WindowDimensions(evt.window.data1, evt.window.data2);
-			Value* event = Value_new(VALUE_MAP, NULL);
+			event = Value_new(VALUE_MAP, NULL);
 			Value_set(event, "evt", Value_str("resize"));
 			Value_set(event, "width", Value_int(evt.window.data1));
 			Value_set(event, "height", Value_int(evt.window.data2));
+			Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
+			Value_append(events, event);
+			break;
+		case SDL_WINDOWEVENT_MINIMIZED:
+		case SDL_WINDOWEVENT_HIDDEN:
+			event = Value_new(VALUE_MAP, NULL);
+			Value_set(event, "evt", Value_str("visibilitychange"));
+			Value_set(event, "visible", Value_bool(0));
+			Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
+			Value_append(events, event);
+			break;
+		case SDL_WINDOWEVENT_RESTORED:
+		case SDL_WINDOWEVENT_SHOWN:
+		case SDL_WINDOWEVENT_EXPOSED:
+			event = Value_new(VALUE_MAP, NULL);
+			Value_set(event, "evt", Value_str("visibilitychange"));
+			Value_set(event, "visible", Value_bool(1));
+			Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 			Value_append(events, event);
 			break;
 		}
+		break;
+	}
+	case SDL_DROPTEXT:
+	case SDL_DROPFILE: {
+		char* fname = evt.drop.file;
+		Value* event = Value_new(VALUE_MAP, NULL);
+		Value_set(event, "evt", Value_str("textinsert"));
+		if(evt.type == SDL_DROPFILE) {
+			// todo load content
+		}
+		Value_set(event, "type", Value_str("drop"));
+		Value_set(event, "data", Value_str(fname));
+		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
+		Value_append(events, event);
+		SDL_free(fname);
 		break;
 	}
 	case SDL_QUIT:
 		ret = 1;
 		break;
 	}
-	return ret;
-}
-
-int evalScriptyByName(size_t vm, const char* fname, const char* archiveName) {
-	char* script = ResourceGetText(fname);
-	if(!script) {
-		showError("Could not find \"%s\" in \"%s\", exiting.\n", fname, archiveName);
-		return -1;
-	}
-
-	int ret = jsvmEval(vm, script, fname);
-	free(script);
 	return ret;
 }
 
@@ -323,8 +370,10 @@ int main(int argc, char **argv) {
 	char* storageFileName = NULL;
 	char* iconName = NULL;
 	int isCalledWithScript = 0;
+	int debug = 0;
 
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
+	float windowPerspectivity = 0.0f;
 	int consoleY=0, consoleSzY = winSzY-32;
 	for(int i=1; i<argc; ++i) {
 		if(strcmp(argv[i],"-f")==0)
@@ -335,11 +384,20 @@ int main(int argc, char **argv) {
 			else
 				windowFlags &= ~WINDOW_VSYNC;
 		}
+		else if(strcmp(argv[i],"-d")==0 || strcmp(argv[i],"--debug")==0)
+			debug = 1;
 		else if(strcmp(argv[i],"-w")==0 && i+1<argc)
 			winSzX = atoi(argv[i+1]);
 		else if(strcmp(argv[i],"-h")==0 && i+1<argc)
 			winSzY = atoi(argv[i+1]);
+		else if(strcmp(argv[i],"--version")==0) {
+			printf("%s\n", appVersion);
+			return 0;
+		}
 	}
+#ifdef _GRAPHICS_GL
+	windowFlags |= WINDOW_GL;
+#endif
 
 	size_t ar = 0;
 	if(!archiveName) {
@@ -382,6 +440,7 @@ int main(int argc, char **argv) {
 		iconName = jsonGetString(json, "icon");
 		winSzX = jsonGetNumber(json, "window_width", winSzX);
 		winSzY = jsonGetNumber(json, "window_height", winSzY);
+		windowPerspectivity = jsonGetNumber(json, "window_perspectivity", windowPerspectivity);
 		consoleY = jsonGetNumber(json, "console_y", consoleY);
 		consoleSzY = jsonGetNumber(json, "console_height", consoleSzY);
 		audioFrequency = jsonGetNumber(json, "audio_frequency", audioFrequency);
@@ -431,7 +490,11 @@ int main(int argc, char **argv) {
 
 	Value* events = Value_new(VALUE_LIST, NULL);
 	WindowEventHandler(handleEvents, events);
-	gfxInit(WindowRenderer(), WindowPixelRatio());
+#ifdef _GRAPHICS_GL
+	gfxInit(winSzX, winSzY, windowPerspectivity, WindowPixelRatio(), SDL_GL_GetProcAddress);
+#else
+	gfxInit(winSzX, winSzY, windowPerspectivity, WindowPixelRatio(), WindowRenderer());
+#endif
 	if(consoleSzY)
 		ConsoleCreate(0,0,consoleY, winSzX, consoleSzY);
 
@@ -467,7 +530,7 @@ int main(int argc, char **argv) {
 	// load and execute scripts:
 	if(scriptNames) {
 		for(char** fname=scriptNames; *fname!=NULL; ++fname) {
-			if(evalScriptyByName(vm, *fname, archiveName)!=0) {
+			if(jsvmEvalScript(vm, *fname)!=0) {
 				if(jsvmLastError(vm))
 					showError("%s", jsvmLastError(vm));
 				ResourceArchiveClose();
@@ -478,7 +541,7 @@ int main(int argc, char **argv) {
 		free(scriptNames);
 		scriptNames = NULL;
 	}
-	else if(evalScriptyByName(vm, scriptName, archiveName)!=0) {
+	else if(jsvmEvalScript(vm, scriptName)!=0) {
 		if(jsvmLastError(vm))
 			showError("%s", jsvmLastError(vm));
 		ResourceArchiveClose();
@@ -498,9 +561,15 @@ int main(int argc, char **argv) {
 		argUpdate->next->f = now;
 		jsvmDispatchGamepadEvents(vm);
 		jsvmDispatchEvent(vm, "update", argUpdate);
+#ifdef _GRAPHICS_GL
+		gfxBeginFrame(WindowGetClearColor());
+#endif
 		jsvmDispatchDrawEvent(vm);
 		if(consoleSzY)
 			ConsoleDraw();
+#ifdef _GRAPHICS_GL
+		gfxEndFrame();
+#endif
 		if(WindowUpdate()!=0) // swap buffers
 			break;
 
@@ -514,20 +583,31 @@ int main(int argc, char **argv) {
 
 	// cleanup:
 	jsvmDispatchEvent(vm, "close", NULL);
-	printf("Cleaning up..."); fflush(stdout);
-	printf(" audio..."); fflush(stdout);
+	if(debug) {
+		printf("Cleaning up... audio..."); fflush(stdout);
+	}
 	AudioClose();
-	printf(" graphics..."); fflush(stdout);
+	if(debug) {
+		printf(" graphics..."); fflush(stdout);
+	}
 	gfxClose();
 	ConsoleDelete();
-	printf(" window..."); fflush(stdout);
+	if(debug) {
+		printf(" window..."); fflush(stdout);
+	}
 	if(WindowIsOpen())
 		WindowClose();
-	printf(" scripting..."); fflush(stdout);
+	if(debug) {
+		printf(" scripting..."); fflush(stdout);
+	}
 	Value_delete(argUpdate, 1);
 	jsvmClose(vm);
-	printf(" resources..."); fflush(stdout);
+	if(debug) {
+		printf(" resources..."); fflush(stdout);
+	}
 	ResourceArchiveClose();
-	printf(" done.\n");
+	if(debug) {
+		printf(" done.\n");
+	}
 	return 0;
 }

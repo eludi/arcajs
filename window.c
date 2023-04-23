@@ -13,6 +13,8 @@ typedef struct {
 	SDL_Window *window;
 	/// pointer to SDL renderer
 	SDL_Renderer* renderer;
+	/// alternative handle of OpenGL context
+	SDL_GLContext context; 
 
 	/// window size x
 	int szX;
@@ -90,6 +92,24 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 		return 1;
 	}
 
+	if(windowFlags & WINDOW_GL) {
+		SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
+		SDL_GL_SetAttribute( SDL_GL_ACCELERATED_VISUAL, 1 );
+		SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 8 );
+		SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 8 );
+		SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 8 );
+		SDL_GL_SetAttribute( SDL_GL_ALPHA_SIZE, 8 );
+#ifdef GRAPHICS_API_OPENGL_ES2
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#elif defined(GRAPHICS_API_OPENGL_33)
+		SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 3 );
+		SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 3 );
+		SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
+#endif
+		sdlFlags |= SDL_WINDOW_OPENGL;
+	}
 	if(windowFlags & WINDOW_FULLSCREEN) {
 		sdlFlags |= SDL_WINDOW_FULLSCREEN;
 		wnd.window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -111,13 +131,20 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 
 	//printf("%s ", SDL_GetCurrentVideoDriver());
 	SDL_GetWindowSize(wnd.window, &wnd.szX, &wnd.szY);
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
-	uint32_t renderFlags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE;
-	if(wnd.vsync)
-		renderFlags |= SDL_RENDERER_PRESENTVSYNC;
-	wnd.renderer = SDL_CreateRenderer(wnd.window, -1, renderFlags);
-	SDL_SetRenderDrawBlendMode(wnd.renderer, SDL_BLENDMODE_BLEND);
-
+	if(windowFlags & WINDOW_GL) {
+		wnd.context = SDL_GL_CreateContext(wnd.window);
+		wnd.renderer = NULL;
+		SDL_GL_SetSwapInterval(1);
+	}
+	else {
+		wnd.context = 0;
+		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+		uint32_t renderFlags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE;
+		if(wnd.vsync)
+			renderFlags |= SDL_RENDERER_PRESENTVSYNC;
+		wnd.renderer = SDL_CreateRenderer(wnd.window, -1, renderFlags);
+		SDL_SetRenderDrawBlendMode(wnd.renderer, SDL_BLENDMODE_BLEND);
+	}
 	SDL_StopTextInput();
 	WindowUpdateTimestamp();
 	return 0;
@@ -131,6 +158,10 @@ void WindowClose() {
 	if(wnd.renderer) {
 		SDL_DestroyRenderer(wnd.renderer);
 		wnd.renderer = NULL;
+	}
+	else if(wnd.context) {
+		SDL_GL_DeleteContext(wnd.context);
+		wnd.context = 0;
 	}
 	if(!wnd.window)
 		return;
@@ -266,6 +297,9 @@ int WindowUpdate() {
 			SDL_ALPHA_OPAQUE);
 		SDL_RenderClear(wnd.renderer);
 	}
+	else if(wnd.context) {
+		SDL_GL_SwapWindow(wnd.window);
+	}
 	else return -1;
 
 	const char* sdl_error = SDL_GetError();
@@ -364,7 +398,7 @@ float WindowPixelRatio() {
 }
 
 int WindowIsOpen() {
-	return wnd.renderer!=0;
+	return wnd.renderer!=0 || wnd.context!=0;
 }
 
 void WindowTitle(const char* str) {
@@ -482,7 +516,7 @@ static void WindowControllerState(JoyData* jd, float** axes, uint32_t* buttons) 
 		for(int i=0; i<jd->nHats; ++i) {
 			uint8_t hat=SDL_JoystickGetHat(jd->pJoy, i);
 			jd->axes[jd->nAxes+2*i] = (hat&SDL_HAT_LEFT) ? -1.0f :  (hat&SDL_HAT_RIGHT) ? 1.0f : 0.0f;
-			jd->axes[jd->nAxes+2*i+1] = (hat&SDL_HAT_DOWN) ? -1.0f :  (hat&SDL_HAT_UP) ? 1.0f : 0.0f;
+			jd->axes[jd->nAxes+2*i+1] = (hat&SDL_HAT_UP) ? -1.0f : (hat&SDL_HAT_DOWN) ? 1.0f : 0.0f;
 		}
 		*axes = jd->axes;
 	}

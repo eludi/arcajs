@@ -1,0 +1,8 @@
+{
+	"name":"memomini",
+	"display":"window",
+	"window_width": 640,
+	"window_height": 400,
+	"scripts":[ "main.js" ]
+}
+

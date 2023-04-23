@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>asteroludi</title>
+	<title>arcajs</title>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="user-scalable=no, width=device-width" />
 	<meta name="apple-mobile-web-app-capable" content="yes" />
-	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-	<link rel="icon" href="../../arcajs_browser_runtime/favicon.ico" type="image/x-icon" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+	<!--<link rel="icon" href="arcajs_icon.svg" />-->
+	<!--<link rel="apple-touch-icon" href="asteroludi_icon.512.png" />-->
+	<link rel="manifest" href="manifest.json" />
 
 	<style type="text/css">
 body {
@@ -15,23 +17,102 @@ body {
 	background: black;
 	touch-action: none;
 }
-body > canvas {
-	display: block;
+#arcajs_screens {
 	width: 100vw;
 	height: 100vh;
+	overflow: hidden;
+}
+#arcajs_load {
+	width: 100%;
+	height: 100%;
+	display:flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	font-family: monospace;
+	font-size: 20px;
+	color: white;
+	background: #222;
+}
+#arcajs_load_icon_container {
+	display:grid;
+	cursor:pointer;
+}
+#arcajs_load_icon_container > * {
+	grid-column:1;
+	grid-row:1;
+}
+.fade_in {
+	animation: fadeIn 3.0s linear infinite;
+}
+@keyframes fadeIn {
+	0% { opacity: 0; }
+	30% { opacity: 0; }
+	50% { opacity: 0.8; }
+	70% { opacity: 0; }
+	100% { opacity: 0; }
+}
+#arcajs_load > div {
+	padding:0.5em;
+	cursor:pointer;
+}
+#arcajs_canvas {
+	width: 100%;
+	height: 100%;
 }
 	</style>
+<!--	<script type="text/javascript">
+		if (('serviceWorker' in navigator) && (location.origin!=='file://')) {
+			navigator.serviceWorker.register('serviceworker.js', {scope:'./'})
+				.then(() => console.log('service worker installed'))
+				.catch(err => console.error('Error', err));
+		}
+	</script>-->
 </head>
 <body
-	><canvas id="arcajs_canvas">this webapp requires javascript to run.</canvas
-></body>
-<script type="text/javascript">arcajs={};</script>
-<script type="text/javascript" src="../../arcajs_browser_runtime/infra.js"></script>
-<script type="text/javascript" src="../../arcajs_browser_runtime/intersects.js"></script>
-<script type="text/javascript" src="../../arcajs_browser_runtime/graphicsGL.js"></script>
-<script type="text/javascript" src="../../arcajs_browser_runtime/audio.js"></script>
-<script type="text/javascript" src="../../arcajs_browser_runtime/app.js"></script>
+	><div id="arcajs_screens"
+		><div id="arcajs_load"
+			><div id="arcajs_load_icon_container"
+				><img id="arcajs_load_icon" src="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3e%3cg stroke='%23000' stroke-width='4'%3e%3cpath d='M24 72L4 92V24L24 4h48l20 20v68L72 72V24H24z' fill='%23af5' stroke-linejoin='round'/%3e%3cpath d='M36 36h24v24H36z' fill='%23a5f'/%3e%3c/g%3e%3cpath d='M4 92l20-20V24H4v68' fill='%235af'/%3e%3cpath d='M24 24h48V4H24v20' fill='%23ffe855'/%3e%3cpath d='M4 24h12 8v-8V4z' fill='%2396df55'/%3e%3cpath d='M72 24v48l20 20V24H72' fill='%23f5a'/%3e%3cpath d='M72 16v8h8 12L72 4z' fill='%23fa5'/%3e%3cpath d='M24 72L4 92V24L24 4h48l20 20v68L72 72V24H24z' fill='none' stroke='%23000' stroke-width='4' stroke-linejoin='round'/%3e%3c/svg%3e"
+				/><svg id="arcajs_start_icon" style="display:none;" width="96" height="96" viewbox="0 0 24 24"
+					><path style="fill:white;" d="M 5 4 l 0 16 l 16 -8 z"></path></svg>
+			</div
+			><div id="arcajs_load_title">A R C A J S</div
+		></div
+		><canvas id="arcajs_canvas">this webapp requires javascript to run.</canvas
+	></div
+><script type="text/javascript"> // for debugging
+window.onerror = function(msg, url, line, col, err) {
+	const stack = (err&&err.stack) ? ('\n'+err.stack) : '';
+	alert('Error at '+url+':'+line+': '+msg+stack);
+}
+</script>	
+<script type="text/javascript" src="../../arcajs_browser_runtime/arcajs.min.js"></script>
+<script type="text/javascript">
+fetch("manifest.json").then(resp=>resp.json()).then((data)=>{
+	if(data.name) {
+		document.title = data.name;
+		document.querySelector("#arcajs_load_title").innerHTML = data.name;
+	}
 
-<script type="text/javascript" src="sound.js"></script>
-<script type="text/javascript" src="asteroludi.js"></script>
-</html>
+	if(data.icon) {
+		const link = document.querySelector("link[rel~='icon']");
+		link.href = data.icon;
+		document.querySelector("#arcajs_load_icon").src = data.icon;
+	}
+	for(let i=0; i<data.scripts.length; ++i)
+		app.include(data.scripts[i]);
+
+	document.querySelector("#arcajs_start_icon").style.display = '';
+	document.querySelector("#arcajs_start_icon").classList.add("fade_in");
+
+	document.getElementById('arcajs_load').addEventListener("click", ()=>{
+		if(data.display === 'fullscreen')
+			app.fullscreen(true);
+		arcajs.audio.resume();
+		document.getElementById('arcajs_load').style.display = 'none';
+		app._run(true);
+	});
+}).catch(err => alert("this app needs to be provided by a web server"));
+</script
+></body></html>

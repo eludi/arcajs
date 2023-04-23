@@ -50,8 +50,11 @@ var screenIntro = (function() {
 		},
 
 		keyboard: function(evt) {
-			if(evt.type=='keydown')
+			if(evt.type=='keydown') {
+				if(evt.key == 'Escape')
+					return app.close();
 				app.on(screenGame);
+			}
 		},
 		gamepad: function(evt) {
 			if(evt.type==='button' && evt.button===0 && evt.value>0)

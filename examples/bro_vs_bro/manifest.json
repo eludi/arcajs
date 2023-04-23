@@ -1,0 +1,8 @@
+{
+	"name":"BRO VS BRO",
+	"display":"window",
+	"window_width": 640,
+	"window_height": 400,
+	"scripts":[ "intro.js", "main.js" ]
+}
+

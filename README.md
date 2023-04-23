@@ -132,6 +132,7 @@ and [test](https://github.com/eludi/arcajs/tree/master/test) folders within
 the repository or try them directly from your browser:
 
 - [asteroludi](https://eludi.github.io/arcajs/examples/asteroludi/)
+- [Bro vs Bro](https://eludi.github.io/arcajs/examples/bro_vs_bro/)
 - [memomini](https://eludi.github.io/arcajs/examples/memomini/)
 - [return!](https://eludi.github.io/arcajs/examples/return/)
 - [sprite performance stresstest](https://eludi.github.io/arcajs/examples/perf/)

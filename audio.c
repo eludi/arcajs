@@ -644,9 +644,9 @@ static float* AudioReadMP3(void* mp3data, uint32_t numBytes, uint32_t* samples, 
 	drmp3_config cfg = { 0/*numChannels unknown*/, audioSpec.freq };
 	uint64_t pcmSamples;
 
-	float* pcmData = drmp3_open_memory_and_read_f32(mp3data, numBytes, &cfg, &pcmSamples);
+	float* pcmData = drmp3_open_memory_and_read_pcm_frames_f32(mp3data, numBytes, &cfg, &pcmSamples, NULL);
 	if(!pcmSamples || !cfg.outputChannels || cfg.outputChannels>2 || cfg.outputSampleRate!=audioSpec.freq || pcmSamples>SDL_MAX_UINT32) {
-		drmp3_free(pcmData);
+		drmp3_free(pcmData, NULL);
 		return 0;
 	}
 	*samples = pcmSamples;

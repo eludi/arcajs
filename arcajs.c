@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20230422a";
+const char* appVersion = "v0.20230423a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];

@@ -114,14 +114,14 @@ function FloatPacker() {
 	/// @function rgba() - packs an rgb(a) color (components range [0..255]) into one float
 	this.rgba = function(r,g,b,a=255) {
 		uint32[0] = (a << 24 | b << 16 | g << 8 | r) & 0xfeffffff;
-		 return float32[0];
+		return float32[0];
 	}
 
 	/// @function int14() - packs two values within range [-16384..16383] into one float
 	this.int14 = function(v1, v2=0) {
 		int16[0] = v1;
 		int16[1] = v2;
-		 return float32[0];
+		return float32[0];
 	}
 }
 let fpack = new FloatPacker();
@@ -324,6 +324,12 @@ return function (canvas, capacity=500) {
 
 	/// creates a new texture from an RGBA uint8 array
 	this.createTexture = function(width, height, data, params={}) {
+		if(typeof(width) === 'object') {
+			const obj = width;
+			width = obj.width;
+			height = obj.height;
+			data = obj.data;
+		}
 		let texInfo = { texture:gl.createTexture(), x:0, y:0, width:width, height:height, cx:0, cy:0, sc:1.0, ready:true };
 		gl.bindTexture(gl.TEXTURE_2D, texInfo.texture);
 		if(Array.isArray(data))
@@ -415,6 +421,57 @@ return function (canvas, capacity=500) {
 
 		return baseTexId;
 	}
+	this.releaseTexture = function(texId) {
+		const tex = textures[texId];
+		if(!tex)
+			return;
+		if(tex.texture) {
+			gl.deleteTexture(tex.texture);
+			tex.texture = 0;
+		}
+		tex.w = tex.h = 0;
+		tex.ready = false;
+	}
+	this.createImageFontResource = function(img, params) {
+		if(typeof img === 'string')
+			img = this.loadTexture(img, params);
+		let texSz = this.queryTexture(img);
+		if(!texSz)
+			return console.error('createImageFontResource() invalid parent image id', img);
+
+		const border = ((typeof params==='object') && ('border' in params)) ? params.border : 0;
+		const fontId = ('fontId' in params) ? params.fontId : fonts.length;
+		const par = textures[img];
+		const font = fonts[fontId] = { texture:null, glyphs:[], width:0, height:0, ready:false };
+
+		const createGlyphInfos = (isAsync)=>{
+			if(isAsync)
+				texSz = this.queryTexture(img);
+			font.texture = par.texture;
+			font.width = texSz.width;
+			font.height = texSz.height;
+			const glyphW = Math.floor(texSz.width/16);
+			const glyphH = Math.floor(texSz.height/16);
+
+			for(let i=32; i<256; ++i)
+				font.glyphs.push({
+					x: glyphW*(i%16)+border,
+					y: glyphH*Math.floor(i/16)+border,
+					w:glyphW-2*border,
+					h:glyphH-2*border,
+					xoff: 0,
+					yoff: 0,
+				});
+			font.glyphs = normalizeGlyphs(font);
+			font.ready = true;
+		}
+
+		if(par.ready)
+			createGlyphInfos(false);
+		else if(par.img)
+			par.img.addEventListener('load', ()=>{createGlyphInfos(true)});
+		return fontId;
+	}
 	this.queryTexture = function(texId) {
 		if(!texId || texId<1 || texId>=textures.length)
 			return null;
@@ -461,6 +518,14 @@ return function (canvas, capacity=500) {
 			g = (v & 0x00ff0000) >>> 16;
 			b = (v & 0x0000ff00) >>> 8;
 			a = (v & 0x000000ff);
+			gs[gs.length-1][4] = fpack.rgba(r,g,b,a);
+		}
+		else if(b===undefined) {
+			const v = r;
+			a = g;
+			r = (v & 0xff000000) >>> 24;
+			g = (v & 0x00ff0000) >>> 16;
+			b = (v & 0x0000ff00) >>> 8;
 			gs[gs.length-1][4] = fpack.rgba(r,g,b,a);
 		}
 		else
@@ -586,12 +651,14 @@ return function (canvas, capacity=500) {
 	}
 	this.measureText = function(fontId, text) {
 		const font = fonts[fontId];
-		if(font===undefined || font.glyphs===null)
+		if(font===undefined || font.glyphs===null || !font.ready)
 			return null;
 		const vbar = font.glyphs[124-32], M=font.glyphs[77-32];
 		let metrics = { height:vbar.yoff+vbar.h, fontBoundingBoxAscent:M.h,
 			fontBoundingBoxDescent:vbar.yoff+vbar.h - M.yoff-M.h };
 		if(text!==undefined) {
+			if(typeof text !=='string')
+				text = ''+text;
 			metrics.width = 0;
 			for(let i=0; i<text.length; ++i) {
 				let ch = text.charCodeAt(i);

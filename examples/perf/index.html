@@ -6,8 +6,8 @@
 	<meta name="viewport" content="user-scalable=no, width=device-width" />
 	<meta name="apple-mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="black" />
-	<!--<link rel="icon" href="arcajs_icon.svg" />-->
-	<!--<link rel="apple-touch-icon" href="asteroludi_icon.512.png" />-->
+	<link rel="icon" />
+	<link rel="apple-touch-icon" />
 	<link rel="manifest" href="manifest.json" />
 
 	<style type="text/css">
@@ -86,8 +86,8 @@ window.onerror = function(msg, url, line, col, err) {
 	const stack = (err&&err.stack) ? ('\n'+err.stack) : '';
 	alert('Error at '+url+':'+line+': '+msg+stack);
 }
-</script>	
-<script type="text/javascript" src="../../arcajs_browser_runtime/arcajs.min.js"></script>
+</script>
+<script type="text/javascript" src="arcajs.min.js"></script>
 <script type="text/javascript">
 fetch("manifest.json").then(resp=>resp.json()).then((data)=>{
 	if(data.name) {
@@ -95,11 +95,16 @@ fetch("manifest.json").then(resp=>resp.json()).then((data)=>{
 		document.querySelector("#arcajs_load_title").innerHTML = data.name;
 	}
 
-	if(data.icon) {
-		const link = document.querySelector("link[rel~='icon']");
-		link.href = data.icon;
-		document.querySelector("#arcajs_load_icon").src = data.icon;
+	{
+		const favicon = document.querySelector("link[rel~='icon']");
+		const appleTouchIcon = document.querySelector("link[rel~='apple-touch-icon']");
+		const loadicon = document.querySelector("#arcajs_load_icon");
+		if(!data.icon)
+			favicon.href = appleTouchIcon.href = loadicon.src;
+		else
+			favicon.href = appleTouchIcon.href = loadicon.src = data.icon;
 	}
+
 	for(let i=0; i<data.scripts.length; ++i)
 		app.include(data.scripts[i]);
 

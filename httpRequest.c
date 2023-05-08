@@ -219,6 +219,8 @@ int httpGet(const char* url, char** resp, size_t* respsz) {
 		*respsz = sb->len;
 	StringBuf_delete(sb, 1);
 	return ret;
+#else
+	return -1;
 #endif
 }
 
@@ -273,5 +275,7 @@ int httpPost(const char* url, const char* data, char** resp, size_t* respsz) {
 		*respsz = sb->len;
 	StringBuf_delete(sb, 1);
 	return ret;
+#else
+	return -1;
 #endif
 }

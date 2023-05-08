@@ -14,8 +14,7 @@ const styleUI = {
 app.setBackground([0x33, 0x33, 0x33]);
 var buttons = [];
 
-const tilesX=5, tilesY=4;
-var numShapes = 12;
+var tilesX=5, tilesY=4, numShapes=12;
 
 function randi(v1, v2) {
     if(v2===undefined) { v2=v1; v1=0; }

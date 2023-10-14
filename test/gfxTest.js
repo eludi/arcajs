@@ -10,6 +10,8 @@ for(var i=0; i<1250; i+=10) {
     sineWave.push(420+Math.sin(i*Math.PI/180.0)*30);
 }
 
+console.log(0xFF000000, 0xFF0000, 0xFF00, 0xFF, '->', app.createColorArray(0xFF000000, 0xFF0000, 0xFF00, 0xFF))
+
 app.on('draw', function(gfx) {
     gfx.color(0xffFFffFF);
     for(var i=1; i<12; i+=2)

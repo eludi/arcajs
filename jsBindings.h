@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "value.h"
 
-extern size_t jsvmInit(const char* storageFileName);
+extern size_t jsvmInit(const char* storageFileName, const Value* args);
 extern void jsvmClose(size_t vm);
 extern int jsvmEval(size_t vm, const char* src, const char* fname);
 extern int jsvmEvalScript(size_t vm, const char* fname);

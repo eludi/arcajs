@@ -6,7 +6,7 @@
 	<meta name="viewport" content="user-scalable=no, width=device-width" />
 	<meta name="apple-mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-	<link rel="icon" href="../arcajs_browser_runtime/favicon.ico" type="image/x-icon" />
+	<link rel="icon" href="../doc/arcajs.ico" type="image/x-icon" />
 
 	<style type="text/css">
 body {
@@ -26,11 +26,11 @@ body > canvas {
 	><canvas id="arcajs_canvas">this webapp requires javascript to run.</canvas
 ></body>
 <script type="text/javascript">arcajs={};</script>
-<script type="text/javascript" src="../arcajs_browser_runtime/infra.js"></script>
-<script type="text/javascript" src="../arcajs_browser_runtime/graphicsGL.js"></script>
-<script type="text/javascript" src="../arcajs_browser_runtime/audio.js"></script>
-<script type="text/javascript" src="../arcajs_browser_runtime/intersects.js"></script>
-<script type="text/javascript" src="../arcajs_browser_runtime/app.js"></script>
+<script type="text/javascript" src="../browser_runtime/infra.js"></script>
+<script type="text/javascript" src="../browser_runtime/graphicsGL.js"></script>
+<script type="text/javascript" src="../browser_runtime/audio.js"></script>
+<script type="text/javascript" src="../browser_runtime/intersects.js"></script>
+<script type="text/javascript" src="../browser_runtime/app.js"></script>
 
 <script type="text/javascript">
 /// returns URL parameters as map
@@ -57,7 +57,7 @@ function loadjs(url, callback) {
 	}
 	document.getElementsByTagName("head")[0].appendChild(node);
 }
-var main = urlParams().main ? (urlParams().main+'.js') : "spriteCollisionTest.js";
+var main = urlParams().main ? (urlParams().main+'.js') : "asyncTest.js";
 document.title += ' '+main;
 loadjs(main);
 </script>

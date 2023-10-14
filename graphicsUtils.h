@@ -21,6 +21,8 @@ typedef enum {
 } GfxAlign;
 
 extern uint32_t hsla2rgba(float h, float s, float l, float a);
+/// byte swap 32bit unsigned int
+extern uint32_t bswap_uint32( uint32_t val );
 
 extern unsigned char* svgRasterize(char* svg, float scale, int* w, int* h, int* d);
 extern unsigned char* readImageData(const unsigned char* buf, size_t bufsz, int* w, int* h, int* d);

@@ -3,7 +3,7 @@
 - [app](#module-app)
 - [audio](#module-audio)
 - [console](#module-console)
-- [graphics](#module-gfx)
+- [graphics](#module-graphics)
 - [intersects](#module-intersects)
 
 ## module console
@@ -280,7 +280,7 @@ reads a string from a modal window or popup overlay
 
 - {string\|array} message - (multi-line) message to be displayed
 - {string} [initialValue] - optional prefilled value
-- {string} [options] - display options
+- {object} [options] - display options. supported keys are font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
 
 #### Returns:
 
@@ -387,8 +387,33 @@ converts a HSL color defined by hue, saturation, lightness, and optionally opaci
 
 - {number} - RGBA color value
 
+### function app.createColorArray
+
+creates an Uint32Array of colors having an appropriate native format for color arrays
+
+#### Parameters:
+
+- {number}[, {number}...] colors - color values as numbers in format #RRGGBBAA (e.g., #00FF00FF for opaque green)
+
+#### Returns:
+
+- {Uint32Array} - color values
+
+### function app.arrayColor
+
+returns a single color number having the appropriate (reverse) byte order for color arrays. May be used for writing or reading individual values of color Uint32Arrays
+
+#### Parameters:
+
+- {number} color - color value as number in format #RRGGBBAA (e.g., #00FF00FF for opaque green)
+
+#### Returns:
+
+- {number} - color value in appropriate byte order for color arrays
+
 ### Properties:
 
+- {array} app.args - script-relevant command line arguments, to be passed after a -- as separator
 - {string} app.version - arcajs version
 - {string} app.platform - arcajs platform, either 'browser' or 'standalone'
 - {number} app.width - window width in logical pixels
@@ -681,7 +706,7 @@ restores the last stored rendering state
 
 - {object} this gfx object for chained calls
 
-### function gfx.resets
+### function gfx.reset
 
 restores the initial rendering state, pops also all stored states
 

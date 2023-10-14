@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20230423a";
+const char* appVersion = "v0.20230730a";
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -29,6 +29,7 @@ static void showError(const char* msg, ...) {
 		return;
 	}
 	ConsoleError(formattedMsg);
+	WindowShowPointer(1);
 	Value* options = Value_new(VALUE_MAP, NULL);
 	Value_set(options, "title", Value_str("arcajs ERROR"));
 	Value_set(options, "background", Value_int(0xaa0055ff));
@@ -141,6 +142,15 @@ int handleEvents(void* udata) {
 		Value_set(event, "x", Value_int(evt.motion.x));
 		Value_set(event, "y", Value_int(evt.motion.y));
 		Value_set(event, "pointerType", Value_str("mouse"));
+		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
+		Value_append(events, event);
+		break;
+	}
+	case SDL_MOUSEWHEEL: {
+		Value* event = Value_new(VALUE_MAP, NULL);
+		Value_set(event, "evt", Value_str("wheel"));
+		Value_set(event, "deltaX", Value_int(evt.wheel.x));
+		Value_set(event, "deltaY", Value_int(evt.wheel.y));
 		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 		Value_append(events, event);
 		break;
@@ -365,18 +375,21 @@ int handleEvents(void* udata) {
 //--- main ---------------------------------------------------------
 int main(int argc, char **argv) {
 	const char* scriptName = "main.js";
-	char* archiveName = argc>1 ? argv[argc-1] : NULL;
+	char* archiveName = NULL;
 	char* windowTitle = NULL;
 	char* storageFileName = NULL;
 	char* iconName = NULL;
 	int isCalledWithScript = 0;
 	int debug = 0;
+	Value* args = NULL;
 
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
 	float windowPerspectivity = 0.0f;
 	int consoleY=0, consoleSzY = winSzY-32;
 	for(int i=1; i<argc; ++i) {
-		if(strcmp(argv[i],"-f")==0)
+		if(args)
+			Value_append(args, Value_str(argv[i]));
+		else if(strcmp(argv[i],"-f")==0)
 			windowFlags |= WINDOW_FULLSCREEN;
 		else if(strcmp(argv[i],"-v")==0 && i+1<argc) {
 			if(atoi(argv[i+1]))
@@ -394,7 +407,17 @@ int main(int argc, char **argv) {
 			printf("%s\n", appVersion);
 			return 0;
 		}
+		else if(strcmp(argv[i],"--")==0) {
+			if(i>1)
+				archiveName = argv[i-1];
+			if(i+1<argc)
+				args = Value_new(VALUE_LIST, NULL);
+		}
+		else if(i+1==argc && !args) {
+			archiveName = argv[i];
+		}
 	}
+
 #ifdef _GRAPHICS_GL
 	windowFlags |= WINDOW_GL;
 #endif
@@ -520,7 +543,7 @@ int main(int argc, char **argv) {
 	for(size_t i=0, end = WindowNumControllers(); i<end; ++i)
 		WindowControllerOpen(i);
 
-	size_t vm = jsvmInit(storageFileName);
+	size_t vm = jsvmInit(storageFileName, args);
 	free(storageFileName);
 	if(!vm) {
 		ResourceArchiveClose();
@@ -601,6 +624,8 @@ int main(int argc, char **argv) {
 		printf(" scripting..."); fflush(stdout);
 	}
 	Value_delete(argUpdate, 1);
+	Value_delete(events, 0);
+	Value_delete(args, 0);
 	jsvmClose(vm);
 	if(debug) {
 		printf(" resources..."); fflush(stdout);

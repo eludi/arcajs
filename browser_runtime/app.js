@@ -131,8 +131,12 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		}
 	}
 
+	function swap32(val) {
+		return ((val & 0xFF) << 24) | ((val & 0xFF00) << 8) | ((val >> 8) & 0xFF00) | ((val >> 24) & 0xFF);
+	}
+
 	const app = {
-		version: 'v0.20230422a',
+		version: 'v0.20231014a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -319,6 +323,15 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				a
 			];
 		},
+		createColorArray: function(/*arguments*/) {
+			let arr = new Uint32Array(arguments.length);
+			for(var i=0; i<arguments.length; ++i)
+				arr[i] = swap32(arguments[i]);
+			return arr;
+		},
+		arrayColor: function(color) {
+			return swap32(color);
+		},
 		transformArray: function(arr, stride/*[, cbArgs], callback*/) {
 			const cbArgs = [], callback = arguments[arguments.length-1];
 			for(let i=2, end= arguments.length-1; i<end; ++i)
@@ -378,7 +391,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		app.emit('leave');
 		const listener = nextListeners;
 		['update', 'draw', 'resize', 'keyboard', 'pointer', 'gamepad', 'enter', 'leave',
-			'visibilitychange', 'custom'].forEach(function(evt)
+			'visibilitychange', 'textinput', 'custom', 'wheel'].forEach(function(evt)
 		{
 			if(evt in listener)
 				app.on(evt, function(...args) { listener[evt](...args); });
@@ -490,6 +503,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	//window.addEventListener("focus", ()=>{ app.emit('visibilitychange', {visible:true}); });
 	document.addEventListener("pause", ()=>{ app.emit('visibilitychange', {visible:false}) }, false);
 	document.addEventListener("resume", ()=>{ app.emit('visibilitychange', {visible:true}) }, false);
+	document.addEventListener("wheel", (evt)=>{ app.emit('wheel', evt); evt.preventDefault(); }, false);
 
 	setTimeout(()=>{ app.emit('resize', {width:canvas.width, height:canvas.height}); }, 0);
 	return app;

@@ -1006,7 +1006,7 @@ static duk_ret_t dk_appVibrate(duk_context *ctx) {
  *
  * @param {string|array} message - (multi-line) message to be displayed
  * @param {string} [initialValue] - optional prefilled value
- * @param {string} [options] - display options
+ * @param {object} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
  * @returns {string} entered string
  */
 static duk_ret_t dk_appPrompt(duk_context *ctx) {
@@ -1040,7 +1040,7 @@ static duk_ret_t dk_appPrompt(duk_context *ctx) {
  * displays a modal message window or popup overlay
  *
  * @param {string|array} message - (multi-line) message to be displayed
- * @param {string} [options] - display options
+ * @param {string} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
  */
 static duk_ret_t dk_appMessage(duk_context *ctx) {
 	const char *msg = duk_is_array(ctx, 0) ? dk_join_array(ctx, 0, "\n") : duk_to_string(ctx, 0);
@@ -1286,6 +1286,35 @@ static duk_ret_t dk_appHSL(duk_context *ctx) {
 	return 1;
 }
 
+/**
+ * @function app.createColorArray
+ * creates an Uint32Array of colors having an appropriate native format for color arrays
+ * @param {number}[, {number}...] colors - color values as numbers in format #RRGGBBAA (e.g., #00FF00FF for opaque green)
+ * @returns {Uint32Array} - color values
+ */
+static duk_ret_t dk_appColorArray(duk_context *ctx) {
+	int argc = duk_get_top(ctx);
+	const size_t bufSz =sizeof(uint32_t)*argc;
+	uint32_t* buf = duk_push_fixed_buffer(ctx, bufSz);
+	for(int i=0; i<argc; ++i)
+		buf[i] = bswap_uint32(duk_to_uint32(ctx, i));
+	duk_push_buffer_object(ctx, -1, 0, bufSz, DUK_BUFOBJ_UINT32ARRAY);
+	return 1;
+}
+
+/**
+ * @function app.arrayColor
+ * returns a single color number having the appropriate (reverse) byte order for color arrays. May be used for writing or reading individual values of color Uint32Arrays
+ * @param {number} color - color value as number in format #RRGGBBAA (e.g., #00FF00FF for opaque green)
+ * @returns {number} - color value in appropriate byte order for color arrays
+ */
+static duk_ret_t dk_appArrayColor(duk_context *ctx) {
+	duk_push_uint(ctx, bswap_uint32(duk_to_uint32(ctx, 0)));
+	return 1;
+}
+
+/// @property {array} app.args - script-relevant command line arguments, to be passed after a -- as separator
+
 /// @property {string} app.version - arcajs version
 static duk_ret_t dk_appVersion(duk_context *ctx) {
 	duk_push_string(ctx, appVersion);
@@ -1316,8 +1345,20 @@ static duk_ret_t dk_getWindowPixelRatio(duk_context * ctx) {
 	return 1;
 }
 
-static void bindApp(duk_context *ctx) {
+static void bindApp(duk_context *ctx, const Value* args) {
 	duk_push_object(ctx);
+
+	duk_idx_t arr = duk_push_array(ctx);
+	if(args && args->type == VALUE_LIST) {
+		duk_uarridx_t idx = 0;
+		const Value* item = args->child;
+		while(item) {
+			dk_push_value(ctx, item);
+			duk_put_prop_index(ctx, arr, idx++);
+			item = item->next;
+		}		
+	}
+	duk_put_prop_literal(ctx, -2, "args");
 
 	duk_push_c_function(ctx, dk_onEvent, 2);
 	duk_put_prop_string(ctx, -2, "on");
@@ -1349,6 +1390,10 @@ static void bindApp(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "queryFont");
 	duk_push_c_function(ctx, dk_appHSL, 4);
 	duk_put_prop_string(ctx, -2, "hsl");
+	duk_push_c_function(ctx, dk_appColorArray, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "createColorArray");
+	duk_push_c_function(ctx, dk_appArrayColor, 1);
+	duk_put_prop_string(ctx, -2, "arrayColor");
 
 	duk_push_c_function(ctx, dk_appSetBackground, 3);
 	duk_put_prop_string(ctx, -2, "setBackground");
@@ -2043,13 +2088,13 @@ static void modulesUnload() {
 
 //--- public interface ---------------------------------------------
 
-size_t jsvmInit(const char* storageFileName) {
+size_t jsvmInit(const char* storageFileName, const Value* args) {
 	s_lastError[0] = 0;
 	duk_context *ctx = duk_create_heap_default();
 	if(!ctx)
 		return 0;
 
-	bindApp(ctx);
+	bindApp(ctx, args);
 	bindGraphics(ctx);
 	bindConsole(ctx);
 	bindLocalStorage(ctx, storageFileName);
@@ -2204,7 +2249,7 @@ void jsvmUpdateEventListeners(size_t vm) {
 		// update listeners:
 		static const char* events[] = {
 			"update", "draw", "resize", "keyboard", "pointer", "gamepad", "enter", "leave",
-			"visibilitychange", "custom", NULL
+			"visibilitychange", "custom", "textinput", "wheel", NULL
 		};
 		for(const char**evt = events; *evt; ++evt) {
 			duk_get_prop_string(ctx, handlerIdx, *evt);

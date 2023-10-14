@@ -81,13 +81,21 @@ currently only happen in the arcajs browser runtime.
 
 ## pointer event
 
-The pointer event unifies mouse and touch events. It reports 4 diffeernt types
+The pointer event unifies mouse and touch events. It reports 4 different types
 of events: start, move, end, and hover (the latter mouse only).
 
 ### Callback function parameters:
 
 - {object} evt - an event structure combining event type, event x and y
   position, id (that is button or touch id), and pointerType (mouse or touch)
+
+## wheel event
+
+The wheel event is triggered when a pointer device wheel is moved.
+
+### Callback function parameters:
+
+- {object} evt - an event structure containing event type, deltaX, and deltaY values
 
 ## keyboard event
 

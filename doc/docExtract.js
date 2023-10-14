@@ -87,7 +87,7 @@ function doc2md(doc) {
 
 
 var doc = ['# arcajs API','','- [app](#module-app)','- [audio](#module-audio)',
-	'- [console](#module-console)','- [graphics](#module-gfx)',
+	'- [console](#module-console)','- [graphics](#module-graphics)',
 	'- [intersects](#module-intersects)', '']
 	.concat(docExtract("../jsBindings.c")).concat(docExtract("../graphicsBindings.c"))
 	.concat(docExtract("../modules/intersectsBindings.c"));

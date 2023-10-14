@@ -3,6 +3,7 @@
 #include "./external/duk_config.h"
 #include "./external/duktape.h"
 #include <stdint.h>
+
 extern uint32_t readFloatArray(duk_context *ctx, duk_idx_t idx, float** arr, float** buf);
 extern uint32_t readUint8Array(duk_context *ctx, duk_idx_t idx, uint8_t** arr, uint8_t** buf);
 extern uint32_t array2color(duk_context *ctx, duk_idx_t idx);
@@ -101,8 +102,8 @@ static duk_ret_t dk_gfxBlend(duk_context *ctx) {
 
 /**
  * @function gfx.clipRect
- * sets viewport/clipping rectangle (in screen coordinates) or turns clipping off if called without parameters
- * @param {number} [x] - X ordinate
+ * sets viewport/clipping rectangle (in screen coordinates) or turns clipping off if called without parameters or with false as sole parameter
+ * @param {number|boolean} [x] - X ordinate or false for turning clipping off
  * @param {number} [y] - Y ordinate
  * @param {number} [w] - width
  * @param {number} [h] - height
@@ -185,7 +186,7 @@ static duk_ret_t dk_gfxStateRestore(duk_context *ctx) {
 }
 
 /**
- * @function gfx.resets
+ * @function gfx.reset
  * restores the initial rendering state, pops also all stored states
  * @returns {object} this gfx object for chained calls
  */
@@ -317,13 +318,13 @@ static duk_ret_t dk_gfxFillTriangle(duk_context *ctx) {
 static duk_ret_t dk_gfxFillTriangles(duk_context *ctx) {
 	float *arr, *buf;
 	uint32_t n = readFloatArray(ctx, 0, &arr, &buf);
-	uint8_t *colors = NULL, *colorBuf = NULL;
+	uint32_t *colors = NULL, *colorBuf = NULL;
 	if(!duk_is_undefined(ctx, 1)) {
-		uint32_t nColors = readUint8Array(ctx, 1, &colors, &colorBuf);
-		if(nColors != 2*n)
+		uint32_t nColors = readUint32Array(ctx, 1, &colors, &colorBuf);
+		if(nColors != n/2)
 			return duk_error(ctx, DUK_ERR_ERROR, "triangle colors array size does not fit coordinate size");
 	}
-	gfxFillTriangles(n/2, arr, (uint32_t*)colors, 0, NULL);
+	gfxFillTriangles(n/2, arr, colors, 0, NULL);
 	free(buf);
 	free(colorBuf);
 	return 0;

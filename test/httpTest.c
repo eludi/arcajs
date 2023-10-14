@@ -51,13 +51,13 @@ int main(int argc, char** argv) {
 
 	printf("\nHTTP GET %s...", url); fflush(stdout);
 	char* resp = NULL;
-	int ret = httpGet(url, &resp);
+	int ret = httpGet(url, &resp, 0);
 	printf(" -> %i %s\n", ret, resp);
 	free(resp);
 
 	printf("\nHTTP POST %s...", urlPost); fflush(stdout);
 	char* msg = "hello=world";
-	ret = httpPost(urlPost, msg, &resp);
+	ret = httpPost(urlPost, msg, &resp, 0);
 	printf(" -> %i %s\n", ret, resp);
 	free(resp);
 

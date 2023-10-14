@@ -62,6 +62,11 @@ uint32_t hsla2rgba(float h, float s, float l, float a) {
 	return (r << 24) + (g << 16) + (b << 8) + (uint32_t)(clampf(a,0,1.0f)*255.0f);
 }
 
+uint32_t bswap_uint32( uint32_t val ) {
+    val = ((val << 8) & 0xFF00FF00 ) | ((val >> 8) & 0xFF00FF ); 
+    return (val << 16) | (val >> 16);
+}
+
 unsigned char* svgRasterize(char* svg, float scale, int* w, int* h, int* d) {
 	if(!svg || scale <= 0.0f)
 		return 0;

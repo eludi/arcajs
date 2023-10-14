@@ -193,6 +193,8 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		v = Value_get(options, "button1");
 		if(v && v->type==VALUE_STRING)
 			button1 = v->str;
+		else if(v && v->type==VALUE_NONE)
+			button1 = NULL;
 	}
 
 	int winSzX = WindowWidth(), winSzY = WindowHeight();

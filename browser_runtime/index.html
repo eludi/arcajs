@@ -42,6 +42,10 @@ body {
 	grid-column:1;
 	grid-row:1;
 }
+#arcajs_load_icon {
+	width: 96px;
+	height:	96px;
+}
 .fade_in {
 	animation: fadeIn 3.0s linear infinite;
 }
@@ -109,6 +113,10 @@ fetch("manifest.json").then(resp=>resp.json()).then((data)=>{
 			favicon.href = appleTouchIcon.href = loadicon.src = data.icon;
 	}
 
+	if(data.display === 'fullscreen') {
+		app.width = window.screen.width;
+		app.height = window.screen.height;
+	}
 	for(let i=0; i<data.scripts.length; ++i)
 		app.include(data.scripts[i]);
 

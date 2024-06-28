@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #define GFX_FLIP_NONE 0
 #define GFX_FLIP_X 1
@@ -24,5 +25,9 @@ extern uint32_t hsla2rgba(float h, float s, float l, float a);
 /// byte swap 32bit unsigned int
 extern uint32_t bswap_uint32( uint32_t val );
 
+/// loads a file from file system
+extern size_t loadFile(const char* fname, bool isBinary, void** data);
 extern unsigned char* svgRasterize(char* svg, float scale, int* w, int* h, int* d);
 extern unsigned char* readImageData(const unsigned char* buf, size_t bufsz, int* w, int* h, int* d);
+/// convenience function loading an image file from file system and uploading it to graphics memory in a single call
+extern uint32_t gfxImageLoad(const char* fname, uint32_t rMask);

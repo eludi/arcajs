@@ -19,6 +19,12 @@
 #include <stdlib.h>
 #include <math.h>
 
+#ifdef __ANDROID__
+#include <SDL_rwops.h>
+#endif
+
+extern uint32_t gfxImageUpload(const unsigned char* data, int w, int h, int d, uint32_t rMask);
+
 static float hue2rgb(float m1, float m2, float h) {
 	while(h < 0.0f)
 		h += 1.0f;
@@ -67,6 +73,47 @@ uint32_t bswap_uint32( uint32_t val ) {
     return (val << 16) | (val >> 16);
 }
 
+size_t loadFile(const char* fname, bool isBinary, void** data) {
+#ifdef __ANDROID__
+	SDL_RWops *io = SDL_RWFromFile(fname, "rb");
+	if (!io || io->size(io)<=0)
+		return 0;
+
+	size_t sz = io->size(io);
+	*data = malloc(sz + (isBinary ? 0 : 1));
+	int numRead = SDL_RWread(io, *data, sz, 1);
+	SDL_RWclose(io);
+
+	if(numRead!=1) {
+		free(*data);
+		*data = 0;
+		return 0;
+	}
+#else
+	FILE *fp;
+	fp = fopen(fname, "rb");
+	if (!fp)
+		return 0;
+
+	fseek(fp, 0L, SEEK_END);
+	size_t sz = ftell(fp);
+	rewind(fp);
+
+	*data = malloc(sz);
+	size_t szRead = fread(*data, 1, sz, fp);
+	fclose(fp);
+
+	if(sz!=szRead) {
+		free(*data);
+		*data = 0;
+		return 0;
+	}
+#endif
+	if(!isBinary)
+		((char*)(*data))[sz] = 0;
+	return sz;
+}
+
 unsigned char* svgRasterize(char* svg, float scale, int* w, int* h, int* d) {
 	if(!svg || scale <= 0.0f)
 		return 0;
@@ -103,3 +150,21 @@ unsigned char* readImageData(const unsigned char* buf, size_t bufsz, int* w, int
 		w = h = d = 0;
 	return data;
 }
+
+uint32_t gfxImageLoad(const char* fname, uint32_t rMask) {
+	void* buf;
+	size_t sz = loadFile(fname, true, &buf);
+	if(!sz)
+		return 0;
+
+	int w,h,d;
+	unsigned char *data = stbi_load_from_memory(buf, (int)sz, &w, &h, &d, 0);
+	free(buf);
+	if(!data)
+		return 0;
+
+	uint32_t img = gfxImageUpload(data, w, h, d, rMask);
+	free(data);
+	return img;
+}
+

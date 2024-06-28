@@ -47,7 +47,8 @@ void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float perspectivity, float pix
 	renderer = (SDL_Renderer*)arg;
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
-	defaultFont = gfxSVGUpload(font12x16, sizeof(font12x16), pixelRatio);
+	defaultFont = gfxSVGUpload(font12x16, sizeof(font12x16), windowPixelRatio);
+	images[defaultFont].sc = 1.0f/windowPixelRatio;
 	gfxImageTile(defaultFont, 160,0,32,32); // circle texture
 	gfxImageSetCenter(defaultFont+1, 0.5f, 0.5f);
 	images[defaultFont+1].sc = 1.0f/32.0f;
@@ -75,11 +76,15 @@ void gfxTextureFiltering(int level) {
 }
 
 void gfxBeginFrame(uint32_t clearColor) {
-	(void)clearColor;
+	SDL_SetRenderDrawColor(renderer, clearColor >> 24, clearColor >> 16, clearColor >> 8, SDL_ALPHA_OPAQUE);
+	SDL_RenderClear(renderer);
+	gfxStateReset();
+	if(windowPixelRatio!=1.0f)
+		gfxTransform(0,0,0,windowPixelRatio);
 }
 
 void gfxEndFrame() {
-
+	SDL_RenderPresent(renderer);
 }
 
 uint32_t gfxSVGUpload(const char* svg, size_t svgLen, float scale) {
@@ -102,6 +107,23 @@ uint32_t gfxSVGUpload(const char* svg, size_t svgLen, float scale) {
 	uint32_t img = gfxImageUpload(data, w, h, d, 0xff);
 	free(data);
 	return img;
+}
+
+uint32_t storeTexture(SDL_Texture* texture, int w, int h, SDL_bool ownsTexture) {
+	if(numImagesMax==0) {
+		numImagesMax=4;
+		images = (ImgResource*)malloc(numImagesMax*sizeof(ImgResource));
+	}
+	else if(numImages == numImagesMax) {
+		numImagesMax *= 2;
+		images = (ImgResource*)realloc(images, numImagesMax*sizeof(ImgResource));
+	}
+	images[numImages].tex = texture;
+	images[numImages].src = (SDL_Rect){0, 0, w, h};
+	images[numImages].ownsTexture = ownsTexture;
+	images[numImages].cx = images[numImages].cy = 0.0f;
+	images[numImages].sc = 1.0f;
+	return ++numImages -1;
 }
 
 uint32_t gfxImageUpload(const unsigned char* data, int w, int h, int d, uint32_t rMask) {
@@ -137,22 +159,9 @@ uint32_t gfxImageUpload(const unsigned char* data, int w, int h, int d, uint32_t
 		if(d==2 || d==4)
 			SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
 		SDL_ClearError();
+		return storeTexture(texture, w, h, SDL_TRUE);
 	}
-
-	if(numImagesMax==0) {
-		numImagesMax=4;
-		images = (ImgResource*)malloc(numImagesMax*sizeof(ImgResource));
-	}
-	else if(numImages == numImagesMax) {
-		numImagesMax *= 2;
-		images = (ImgResource*)realloc(images, numImagesMax*sizeof(ImgResource));
-	}
-	images[numImages].tex = texture;
-	images[numImages].src = (SDL_Rect){0, 0, w, h};
-	images[numImages].ownsTexture = SDL_TRUE;
-	images[numImages].cx = images[numImages].cy = 0.0f;
-	images[numImages].sc = 1.0f;
-	return ++numImages -1;
+	return 0;
 }
 
 void gfxImageSetCenter(uint32_t img, float cx, float cy) {
@@ -177,6 +186,40 @@ void gfxImageRelease(uint32_t img) {
 		--numImages;
 }
 
+size_t gfxCanvasCreate(int w, int h) {
+	SDL_Texture * texture = SDL_CreateTexture(renderer,
+		SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET, w, h);
+	SDL_SetRenderTarget(renderer, texture);
+	SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+	return (size_t)texture;
+}
+
+uint32_t gfxCanvasUpload(size_t canvas) {
+	SDL_SetRenderTarget(renderer, NULL);
+	SDL_Texture* texture = (SDL_Texture *)canvas;
+	int w,h;
+	SDL_QueryTexture(texture, NULL, NULL, &w, &h);
+	return storeTexture(texture, w,h, SDL_TRUE);
+}
+
+uint32_t gfxVideoCanvasCreate(int w, int h) {
+	SDL_Texture * texture = SDL_CreateTexture(renderer,
+		SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, w, h);
+	return storeTexture(texture, w,h, SDL_TRUE);
+}
+
+int gfxVideoCanvasUpdate(uint32_t img,
+	const uint8_t* yData, int yPitch, const uint8_t* uData, int uPitch, const uint8_t* vData, int vPitch) {
+	if(img >= numImages)
+		return -1;
+	SDL_Texture * texture = images[img].tex;
+	if(SDL_UpdateYUVTexture(texture, NULL, yData, yPitch, uData, uPitch, vData, vPitch) !=0) {
+		printf( "Unable to update texture! %s\n", SDL_GetError() );
+		return -2;
+	}
+	return 0;
+}
+
 uint32_t gfxImageTile(uint32_t parent, int x, int y, int w, int h) {
 	if(parent >= numImages)
 		return 0;
@@ -191,7 +234,7 @@ uint32_t gfxImageTile(uint32_t parent, int x, int y, int w, int h) {
 	const float parentW = images[parent].src.w, parentH = images[parent].src.h;
 	images[numImages].cx = images[parent].cx * w/parentW;
 	images[numImages].cy = images[parent].cy * h/parentH;
-	images[numImages].sc = 1.0f;
+	images[numImages].sc = images[parent].sc;
 	return ++numImages - 1;
 }
 
@@ -533,9 +576,10 @@ static void gfxFillTextFixedFont(uint32_t img, float x, float y, int margin, con
 	SDL_SetTextureBlendMode(texture, gs[dtransf].blendMode);
 
 	SDL_Rect src  = { 0, 0, wChar, hChar };
-	float rot = gs[dtransf].transf[2]*180.0f/M_PI, sc = gs[dtransf].transf[3];
+	float rot = gs[dtransf].transf[2]*180.0f/M_PI, sc = gs[dtransf].transf[3] * images[img].sc;
 	SDL_FRect dest = {x*mat[0] + y*mat[1] + mat[2], x*mat[3] + y*mat[4] + mat[5], wChar*sc, hChar*sc};
 	static const SDL_FPoint ctr = { 0, 0 };
+	const float dx = wChar*mat[0] * images[img].sc, dy = wChar*mat[3] * images[img].sc;
 	for(size_t readIndex=0; str[readIndex]; x += wChar) {
 		unsigned char c = utf8ToLatin1(str, &readIndex);
 		if(c) {
@@ -543,8 +587,8 @@ static void gfxFillTextFixedFont(uint32_t img, float x, float y, int margin, con
 			src.y = (c/16)*hCell + margin;
 			SDL_RenderCopyExF(renderer, texture, &src, &dest, rot, &ctr, SDL_FLIP_NONE);
 		}
-		dest.x += wChar*mat[0];
-		dest.y += wChar*mat[3];
+		dest.x += dx;
+		dest.y += dy;
 	}
 }
 
@@ -567,7 +611,7 @@ static void gfxFillTextProportionalFont(uint32_t font, float x, float y, const c
 
 	for(size_t readIndex=0; str[readIndex]; ) {
 		unsigned char c = utf8ToLatin1(str, &readIndex);
-		if(c<GLYPH_MIN || c>=GLYPH_MIN+GLYPH_COUNT)
+		if(c<GLYPH_MIN)
 			c = ' '; // render as space
 
 		const stbtt_bakedchar* glyph = &fnt->glyphData[c - GLYPH_MIN];
@@ -631,7 +675,7 @@ void gfxMeasureText(uint32_t font, const char* text, float* width, float* height
 		*width = 0.0f;
 		if(text) for(size_t readIndex=0; text[readIndex]; ) {
 			unsigned char c = utf8ToLatin1(text, &readIndex);
-			if(c<GLYPH_MIN || c>=GLYPH_MIN+GLYPH_COUNT)
+			if(c<GLYPH_MIN)
 				c = ' '; // render as space
 			c-=GLYPH_MIN;
 			const stbtt_bakedchar* glyph = &fnt->glyphData[c];
@@ -686,6 +730,7 @@ void gfxDrawImages(uint32_t imgBase, uint32_t numInstances, uint32_t stride,
 				continue;
 			SDL_SetRenderDrawColor(renderer, clr->r, clr->g, clr->b, clr->a);
 		}
+		//printf("x:%.1f y:%.1f rot:%.1f sc:%.2f r:%u g:%u b:%u a:%u\n", x,y,rot,sc, clr->r, clr->g, clr->b, clr->a);
 		ImgResource* res = &images[img];
 		gfxDrawImageEx(res->tex, res->src.x,res->src.y,res->src.w,res->src.h,
 			x,y,res->src.w*res->sc*sc,res->src.h*res->sc*sc, res->cx,res->cy,rot,0);

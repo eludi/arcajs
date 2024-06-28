@@ -141,6 +141,15 @@ disconnected, or a button or axis significantly changes its value.
   value is provided. For connect events, also the number of axes and buttons,
   and a device name are reported.
 
+arcajs attempts to report the axes / button indices in a stable and reasonable
+sequence across devices but depends here on the underlying APIs' correctness.
+
+For a device resembling a typical gamepad, the axis index sequence is as follows:
+DPAD_X/Y, STICK_LEFT_X/Y, TRIGGER_LEFT, STICK_RIGHT_X/Y, TRIGGER_RIGHT
+
+The button index sequence of a typical gamepad is as follows:
+ACTION_A/B/X/Y, SHOULDER_LEFT/RIGHT, SELECT, START, MENU, STICK_LEFT/RIGHT
+
 ## visibilitychange event
 
 The visibility change event is triggered the application window is hidden or restored.

@@ -33,6 +33,12 @@ extern uint32_t gfxFontUpload(void* data, size_t dataSize, float fontSize);
 extern uint32_t gfxFontFromImage(uint32_t img, int margin);
 /// releases a font from graphics memory
 extern void gfxFontRelease(uint32_t font);
+
+extern size_t gfxCanvasCreate(int w, int h);
+extern uint32_t gfxCanvasUpload(size_t canvas);
+extern uint32_t gfxVideoCanvasCreate(int w, int h);
+extern int gfxVideoCanvasUpdate(uint32_t img,
+	const uint8_t* yData, int yPitch, const uint8_t* uData, int uPitch, const uint8_t* vData, int vPitch);
 ///@}
 
 ///@{ render state/context:

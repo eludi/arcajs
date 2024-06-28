@@ -33,7 +33,7 @@ void printError(const char* s) {
 #endif
 }
 
-int socketHasData(int sd, unsigned long milliWait ) {
+int socketHasData(int sd, unsigned long milliWait) {
 	fd_set fds;
 	FD_ZERO(&fds);
 	FD_SET(sd, &fds);
@@ -112,14 +112,15 @@ int socketRecv(int sd, char*buf, uint16_t bufSz) {
 
 
 int socketRead(int sd, char* buf, uint16_t bufSz, uint16_t msTimeout) {
+	if(sd==0) // stdin
+		return !socketHasData(sd, msTimeout) ? 0 : read(sd, buf, bufSz);
 	return (sd<0 || !socketHasData(sd, msTimeout)) ? 0 : socketRecv(sd, buf, bufSz);
 }
 
 int socketWrite(int sd, const char * buffer, uint16_t bufSz) {
 	if(sd<0)
 		return sd;
-    ssize_t nChars = send(sd, buffer, bufSz, 0);
-    return nChars;
+	return sd==0 ? write(1, buffer, bufSz) : send(sd, buffer, bufSz, 0);
 }
 
 void socketClose(int sd) {
@@ -182,12 +183,17 @@ static duk_ret_t dk_socketClose(duk_context *ctx) {
 }
 
 duk_ret_t dk_socketCreate(duk_context *ctx) {
-	uint16_t port = duk_to_uint16(ctx, 0);
-	const char* host = duk_is_string(ctx, 1) ? duk_get_string(ctx, 1) : NULL;
-	int sd = host ? socketCreateClient(host, port) : socketCreateServer(port);
-	if(sd<=0)
-		return host ? duk_error(ctx, DUK_ERR_ERROR, "failed to connect to host %s:%u", host, port)
-			: duk_error(ctx, DUK_ERR_ERROR, "failed to open socket at port %u", port);
+	int sd = -1;
+	if(duk_is_string(ctx, 0) && strcmp(duk_get_string(ctx, 0), "stdio")==0)
+		sd = 0;
+	else {
+		uint16_t port = duk_to_uint16(ctx, 0);
+		const char* host = duk_is_string(ctx, 1) ? duk_get_string(ctx, 1) : NULL;
+		sd = host ? socketCreateClient(host, port) : socketCreateServer(port);
+		if(sd<=0)
+			return host ? duk_error(ctx, DUK_ERR_ERROR, "failed to connect to host %s:%u", host, port)
+				: duk_error(ctx, DUK_ERR_ERROR, "failed to open socket at port %u", port);
+	}
 
 	duk_push_object(ctx);
 	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("Socket_prototype"));

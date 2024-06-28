@@ -433,7 +433,7 @@ return {
 		loadSample(url, sample.id, callback);
 		return sample.id;
 	},
-	replay: function(id, gain=1.0, pan=0, detune=0, deltaT=0) {
+	replay: function(id, gain=1.0, pan=0, detune=0, deltaT=0, loop=false) {
 		if(Array.isArray(id))
 			id = id[Math.floor(Math.random()*id.length)];
 		if(id===0 || id>samples.length)
@@ -449,10 +449,14 @@ return {
 		if(detune!==0)
 			source.playbackRate.value = Math.pow(2, detune/12);
 		source.buffer = sample.buffer;
+		source.loop = loop;
 		tracks[trackId] = { src:source, gain:connectSource(source, gain, pan) };
 		source.start(audioCtx.currentTime + deltaT, sample.offset || 0);
 		source.addEventListener('ended', ()=>{ tracks[trackId]=null; })
 		return trackId;
+	},
+	loop: function(id, gain=1.0, pan=0, detune=0, deltaT=0) {
+		return this.replay(id, gain, pan, detune, deltaT, true);
 	},
 	stop: function(track) {
 		if(track===undefined) for(let i=0; i<numTracksMax; ++i)
@@ -550,6 +554,7 @@ return {
 		sample.buffer = null;
 	},
 	sampleRate: audioCtx.sampleRate,
+	tracks: numTracksMax,
 
 	createSoundBuffer: function(/*arguments*/) {
 		const sampleRate = audio.sampleRate;

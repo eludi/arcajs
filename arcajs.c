@@ -14,7 +14,8 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20230730a";
+const char* appVersion = "v0.20240628a";
+int debug = 0, useJoystickApi = 0;
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -281,7 +282,7 @@ int handleEvents(void* udata) {
 	case SDL_JOYDEVICEADDED:
 	case SDL_JOYDEVICEREMOVED: {
 		if(evt.type==SDL_JOYDEVICEADDED) 
-			WindowControllerOpen(evt.jdevice.which);
+			WindowControllerOpen(evt.jdevice.which, useJoystickApi);
 		else
 			WindowControllerClose(evt.jdevice.which);
 
@@ -380,7 +381,6 @@ int main(int argc, char **argv) {
 	char* storageFileName = NULL;
 	char* iconName = NULL;
 	int isCalledWithScript = 0;
-	int debug = 0;
 	Value* args = NULL;
 
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
@@ -399,6 +399,8 @@ int main(int argc, char **argv) {
 		}
 		else if(strcmp(argv[i],"-d")==0 || strcmp(argv[i],"--debug")==0)
 			debug = 1;
+		else if(strcmp(argv[i],"-j")==0 || strcmp(argv[i],"--joystick")==0)
+			useJoystickApi = 1;
 		else if(strcmp(argv[i],"-w")==0 && i+1<argc)
 			winSzX = atoi(argv[i+1]);
 		else if(strcmp(argv[i],"-h")==0 && i+1<argc)
@@ -541,7 +543,7 @@ int main(int argc, char **argv) {
 
 	AudioOpen(audioFrequency, audioTracks);
 	for(size_t i=0, end = WindowNumControllers(); i<end; ++i)
-		WindowControllerOpen(i);
+		WindowControllerOpen(i, useJoystickApi);
 
 	size_t vm = jsvmInit(storageFileName, args);
 	free(storageFileName);
@@ -584,15 +586,11 @@ int main(int argc, char **argv) {
 		argUpdate->next->f = now;
 		jsvmDispatchGamepadEvents(vm);
 		jsvmDispatchEvent(vm, "update", argUpdate);
-#ifdef _GRAPHICS_GL
 		gfxBeginFrame(WindowGetClearColor());
-#endif
 		jsvmDispatchDrawEvent(vm);
 		if(consoleSzY)
 			ConsoleDraw();
-#ifdef _GRAPHICS_GL
 		gfxEndFrame();
-#endif
 		if(WindowUpdate()!=0) // swap buffers
 			break;
 

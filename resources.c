@@ -41,7 +41,7 @@ const char* ResourceSuffix(const char* fname) {
 		 	return fname+pos+1;
 		case '/':
 		case '\\':
-			break;
+			return "";
 		}
 	return "";
 }

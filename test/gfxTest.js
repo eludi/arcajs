@@ -12,7 +12,11 @@ for(var i=0; i<1250; i+=10) {
 
 console.log(0xFF000000, 0xFF0000, 0xFF00, 0xFF, '->', app.createColorArray(0xFF000000, 0xFF0000, 0xFF00, 0xFF))
 
+const bgCoords = new Float32Array([0.0,0.0, app.width,app.height, 0.0,app.height, 0.0,0.0, app.width,0, app.width,app.height]);
+const bgColors = new app.createColorArray(0x000000FF, 0x550000FF, 0x000055FF, 0x000000FF,0x000000FF, 0x550000FF);
+
 app.on('draw', function(gfx) {
+    gfx.fillTriangles(bgCoords, bgColors);
     gfx.color(0xffFFffFF);
     for(var i=1; i<12; i+=2)
         gfx.lineWidth(i).drawLine(i, i*10,20, i*10, 120);

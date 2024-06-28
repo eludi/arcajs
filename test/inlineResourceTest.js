@@ -5,10 +5,17 @@ var logo = app.createSVGResource('<svg width="64" height="64"><path d="M 32,4 C 
 var lines = app.createSVGResource('<svg width="64" height="64"><line x1="0" y1="5.5" x2="30" y2="5.5" stroke="white" stroke-width="3" /><line x1="0" y1="15.5" x2="30" y2="15.5" stroke="white" stroke-dasharray="8 4" stroke-width="5"/><line x1="5" y1="25" x2="25" y2="25" stroke="white" stroke-width="10" stroke-linecap="round" /></svg>');
 var solid = app.createImageResource(1,1, new Uint8Array([0xff, 0xff, 0xff, 0xff]));
 
+var canvas = app.createImageResource(64,64, function(gfx) {
+	gfx.color(0xFFffFFff).lineWidth(5);
+	gfx.drawLine(0,0,64,64);
+	gfx.drawLine(0,64,64,0);
+});
+
 app.on('draw', function(gfx) {
 	gfx.color(255,255,255).drawImage(c1,60,60);
 	gfx.drawImage(path,0,120);
 	gfx.drawImage(logo,120,0);
 	gfx.drawImage(lines,240,120);
 	gfx.drawImage(solid,360,40,40,40);
+	gfx.color(0xFFaa55ff).drawImage(canvas,480,0)
 });

@@ -10,13 +10,15 @@ else
   OS            = $(shell uname -s)
   ARCH          = $(OS)_$(shell uname -m)
 endif
+CFLAGS += -DARCAJS_ARCH=\"$(ARCH)\"
 
 ifeq ($(OS),Linux)
   INCDIR        = -I$(SDL)/include -D_REENTRANT -Iexternal
+  LIBS          = -rdynamic
   ifeq ($(ARCH),Linux_armv7l)
-    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -ldl -lcurl -lm
+    LIBS       += -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -ldl -lcurl -lm
   else
-    LIBS        = -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lpthread -ldl -lcurl -lm
+    LIBS       += -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lpthread -ldl -lcurl -lm
   endif
   GLLIBS        = -lGL
   CFLAGS       += -fPIC -no-pie
@@ -32,11 +34,9 @@ else
     EXESUFFIX = .app
   else # windows, MinGW
     INCDIR        = -I$(SDL)/include -Iexternal
-    LIBS          = -L$(SDL)/lib/$(ARCH) -lmingw32 -lSDL2main -lSDL2 -lwinmm -luser32 \
-                    -lgdi32 -lkernel32 -lwininet -lwsock32 -lm -mconsole
-    STATIC_LIBS   = -L$(SDL)/lib/$(ARCH) -static -lmingw32 -lSDL2main -lSDL2 -Wl,--no-undefined -lm \
+    LIBS          = -L$(SDL)/lib/$(ARCH) -static -lmingw32 -lSDL2main -lSDL2 -Wl,--no-undefined -lm \
                     -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 \
-                    -lshell32 -lsetupapi -lversion -luuid -lwininet -static-libgcc -mwindows
+                    -lshell32 -lsetupapi -lversion -luuid -lwininet -lwsock32 -static-libgcc -mconsole
     GLLIBS        = -lopengl32 -lSetupapi -lhid -lole32 -loleaut32 -limm32 -lversion
     DLLFLAGS      = -shared -s
     DLLSUFFIX     = .dll
@@ -46,36 +46,27 @@ else
   endif
 endif
 
-SRCSHARED = arcajs.c window.c graphicsUtils.c console.c \
-  audio.c resources.c archive.c graphicsBindings.c jsBindings.c value.c httpRequest.c \
+SRCLIB = window.c graphicsUtils.c console.c audio.c resources.c archive.c \
+  value.c httpRequest.c external/miniz.c graphics.c
+SRC = arcajs.c graphicsBindings.c jsBindings.c \
   modules/intersects.c modules/intersectsBindings.c external/miniz.c external/duktape.c
-SRC = $(SRCSHARED) graphics.c
 OBJ = $(SRC:.c=.o)
 EXE = arcajs$(EXESUFFIX)
+LIB = libarcajs.a
 
-all: $(EXE)
+all: $(EXE) $(LIB)
 
 # executable link rules:
-$(EXE) : $(OBJ)
-	$(CC) $(CFLAGS) $^ $(LIBS) -o $@ -s
+$(EXE) : $(LIB) $(OBJ)
+	$(CC) $(CFLAGS) $^ $(LIB) $(LIBS) -o $@ -s
 
-SRCGL = $(SRCSHARED) graphicsGL.c
-OBJGL = $(SRCGL:.c=.o)
-
-graphicsGL.o : graphicsGL.c rlglutils.h external/rlgl.h external/glad.h
-	$(CC) $(CFLAGS) -DGRAPHICS_API_OPENGL_33 -c $< -o $@ -s
-
-arcajsGL$(EXESUFFIX) : CFLAGS += -D_GRAPHICS_GL
-arcajsGL$(EXESUFFIX) : $(OBJGL)
-	$(CC) $(CFLAGS) $^ $(LIBS) $(GLLIBS) -o $@ -s
-
-static: $(OBJ)
-	$(CC) $(CFLAGS) $(OBJ) $(STATIC_LIBS) -o $(EXE) -s
+$(LIB) : $(SRCLIB:.c=.o)
+	ar -rcs $@ $^
 
 zzipsetstub$(EXESUFFIX): zzipsetstub.o
 	$(CC) $(CFLAGS) $^ -o $@ -s
 
-dist: static
+dist: $(EXE)
 	rcedit-x64.exe $(EXE) --set-icon doc\arcajs.ico
 	upx $(EXE)
 

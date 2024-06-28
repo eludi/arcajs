@@ -214,6 +214,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 	float button1Pos[] = { 0.50*winSzX, winSzY-2.5*sz, 0.25*winSzX-sz, 1.5*sz };
 
 	gfxStateReset();
+	gfxClipRect(0,0,-1,-1);
 
 	int done = 0;
 	while(WindowIsOpen() && !done) {

@@ -77,7 +77,8 @@ void* WindowEventData();
 /// returns number of available game controllers / gamepads / joysticks
 size_t WindowNumControllers();
 /// opens the nth controller
-int WindowControllerOpen(size_t id);
+/** if not useJoystickApi is specified, the controller attempts to apply the semantic button/axis mapping of SDL2's GameController API*/
+int WindowControllerOpen(size_t id, int useJoystickApi);
 /// returns the name of the identified controller
 const char* WindowControllerName(size_t id);
 /// closes a previously opened controller

@@ -16,8 +16,11 @@ app.on('gamepad', function(evt) {
         gamepads[evt.index]=null;
     else if(evt.type=='axis' && gamepads[evt.index])
         gamepads[evt.index].axes[evt.axis] = evt.value;
-    else if(evt.type=='button' && gamepads[evt.index])
+    else if(evt.type=='button' && gamepads[evt.index]) {
         gamepads[evt.index].buttons[evt.button] = evt.value;
+		if(gamepads[evt.index].buttons[6] && gamepads[evt.index].buttons[7]) // select and start
+			app.close();
+	}
 });
 
 app.on('draw', function(gfx) {

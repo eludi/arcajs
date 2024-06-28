@@ -89,9 +89,9 @@ creates a circle image resource
 #### Parameters:
 
 - {number} radius - circle radius
-- {array} [fillColor=[255,255,255,255]] - fill color (RGBA)
+- {array\|number} [fillColor=[255,255,255,255]] - fill color (RGBA)
 - {number} [strokeWidth=0] - stroke width
-- {array} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
+- {array\|number} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
 
 #### Returns:
 
@@ -106,9 +106,9 @@ creates an image resource from an SVG path description
 - {number} width - image width
 - {number} height - image height
 - {string\|array} path - path description
-- {array} [fillColor=[255,255,255,255]] - fill color (RGBA)
+- {array\|number} [fillColor=[255,255,255,255]] - fill color (RGBA)
 - {number} [strokeWidth=0] - stroke width
-- {array} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
+- {array\|number} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
 
 #### Returns:
 
@@ -185,13 +185,13 @@ creates an image resource from an inline SVG string
 
 ### function app.createImageResource
 
-creates an image resource from a buffer
+creates an image resource from a buffer or from a callback function
 
 #### Parameters:
 
 - {number\|object} width - image width or an object having width, height, depth, and data properties
 - {number} [height] - image height
-- {buffer\|array} [data] - RGBA 4-byte per pixel image data
+- {buffer\|array\|function} [data\|cb] - RGBA 4-byte per pixel image data or callback function having a graphics context as parameter
 - {object} [params] - optional additional parameters as key-value pairs such as filtering
 
 #### Returns:
@@ -245,6 +245,14 @@ toggles window fullscreen or returns fullscreen state
 
 - {bool} current fullscreen state, if called without parameter
 
+### function app.minimize
+
+minimizes or restores an application window
+
+#### Parameters:
+
+- {bool} minimized
+
 ### function app.transformArray
 
 transforms a Float32Array by applying a function on all groups of members
@@ -280,7 +288,7 @@ reads a string from a modal window or popup overlay
 
 - {string\|array} message - (multi-line) message to be displayed
 - {string} [initialValue] - optional prefilled value
-- {object} [options] - display options. supported keys are font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
+- {object} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
 
 #### Returns:
 
@@ -293,7 +301,7 @@ displays a modal message window or popup overlay
 #### Parameters:
 
 - {string\|array} message - (multi-line) message to be displayed
-- {string} [options] - display options
+- {string} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
 
 ### function app.close
 
@@ -306,7 +314,7 @@ initiates a HTTP GET request
 #### Parameters:
 
 - {string} url - requested URL
-- {function} [callback] - function to be called when the response is received
+- {function} [callback] - function to be called when the response is received. The first argument contains the received data, the second argument is the http response status code.
 
 ### function app.httpPost
 
@@ -316,7 +324,23 @@ initiates a HTTP POST request sending data to a URL
 
 - {string} url - target URL
 - {string\|object} data - data to be sent
-- {function} [callback] - function to be called when a response is received
+- {function} [callback] - function to be called when a response is received. The first argument contains the received data, the second argument is the http response status code.
+
+### function app.openURL
+
+opens a URL in a (new) browser window
+
+#### Parameters:
+
+- {string} url - target URL
+
+### function app.parse
+
+parses an XML or (X)HTML, or JSON string as Javascript object
+
+#### Parameters:
+
+- {string} url - target URL
 
 ### function app.include
 
@@ -416,6 +440,7 @@ returns a single color number having the appropriate (reverse) byte order for co
 - {array} app.args - script-relevant command line arguments, to be passed after a -- as separator
 - {string} app.version - arcajs version
 - {string} app.platform - arcajs platform, either 'browser' or 'standalone'
+- {string} app.arch - operating system name and architecture, for example Linux_x86_64
 - {number} app.width - window width in logical pixels
 - {number} app.height - window height in logical pixels
 - {number} app.pixelRatio - ratio physical to logical pixels
@@ -481,6 +506,21 @@ linearly fades out a currently playing track
 ### function audio.replay
 
 immediately plays a buffered PCM sample
+
+#### Parameters:
+
+- {number\|array} sample - sample handle or array of alternative samples (randomly chosen)
+- {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
+- {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+- {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less
+
+#### Returns:
+
+- {number} track number playing this sound or UINT_MAX if no track is available
+
+### function audio.loop
+
+immediately and repeatedly plays a buffered PCM sample
 
 #### Parameters:
 
@@ -612,6 +652,7 @@ rate as the current audio device.
 ### Properties:
 
 - {number} audio.sampleRate - audio device sample rate in Hz
+- {number} audio.tracks - number of parallel audio tracks
 
 ## module graphics
 
@@ -666,11 +707,11 @@ sets current drawing blend mode.
 
 ### function gfx.clipRect
 
-sets viewport/clipping rectangle (in screen coordinates) or turns clipping off if called without parameters
+sets viewport/clipping rectangle (in screen coordinates) or turns clipping off if called without parameters or with false as sole parameter
 
 #### Parameters:
 
-- {number} [x] - X ordinate
+- {number\|boolean} [x] - X ordinate or false for turning clipping off
 - {number} [y] - Y ordinate
 - {number} [w] - width
 - {number} [h] - height
@@ -796,15 +837,15 @@ draws filled triangles.
 
 ### function gfx.drawImage
 
-gfx.drawImage(img[,dstX, dstY, angle, scale, flip])
+gfx.drawImage(img[,x, y, angle, scale, flip])
 
-draws an image or part of an image at a given target position, optionally scaled
+draws an image at a given target position, optionally scaled and flipped
 
 #### Parameters:
 
 - {number} img - image handle
-- {number} [dstX=0] - destination X position
-- {number} [dstY=0] - destination Y position
+- {number} [x=0] - destination X position
+- {number} [y=0] - destination Y position
 - {number} [angle=0] - rotation angle in radians
 - {number} [scale=1] - scale factor
 - {number} [flip=gfx.FLIP_NONE] - flip image in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions

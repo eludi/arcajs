@@ -14,7 +14,7 @@ typedef struct {
 	/// pointer to SDL renderer
 	SDL_Renderer* renderer;
 	/// alternative handle of OpenGL context
-	SDL_GLContext context; 
+	SDL_GLContext context;
 
 	/// window size x
 	int szX;
@@ -173,6 +173,8 @@ void WindowClose() {
 	wnd.szY=0;
 	for(size_t i=0; i<NUM_JOYSTICKS_MAX; ++i)
 		WindowControllerClose(i);
+	if(SDL_WasInit(SDL_INIT_JOYSTICK))
+		SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
 	SDL_Quit();
 }
 
@@ -291,16 +293,10 @@ static int WindowHandleEvents() {
 }
 
 int WindowUpdate() {
-	if(wnd.renderer) {
-		SDL_RenderPresent(wnd.renderer);
-		SDL_SetRenderDrawColor(wnd.renderer, wnd.clearColor >> 24, wnd.clearColor >> 16, wnd.clearColor >> 8,
-			SDL_ALPHA_OPAQUE);
-		SDL_RenderClear(wnd.renderer);
-	}
-	else if(wnd.context) {
+	if(wnd.context)
 		SDL_GL_SwapWindow(wnd.window);
-	}
-	else return -1;
+	else if(!wnd.renderer)
+		return -1;
 
 	const char* sdl_error = SDL_GetError();
 	if(*sdl_error) {
@@ -341,7 +337,7 @@ void WindowToggleFullScreen() {
 
 int WindowIsFullscreen() {
 	return wnd.fullscreen;
-} 
+}
 
 void WindowShowPointer(int visible) {
 	SDL_ShowCursor(visible ? SDL_ENABLE : SDL_DISABLE);
@@ -439,6 +435,7 @@ uint32_t WindowGetClearColor() {
 
 typedef struct {
 	SDL_Joystick* pJoy;
+	SDL_GameController* pGamepad;
 	int nButtons;
 	int nAxes;
 	int nHats;
@@ -452,7 +449,7 @@ static JoyData joysticks[NUM_JOYSTICKS_MAX];
 
 size_t WindowNumControllers() {
 	if(!SDL_WasInit(SDL_INIT_JOYSTICK)) {
-		if(SDL_InitSubSystem(SDL_INIT_JOYSTICK)<0) {
+		if(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER)<0) {
 			fprintf(stderr, "WindowNumControllers ERROR: cannot initialize SDL joystick.\n");
 			SDL_ClearError();
 			return 0;
@@ -464,11 +461,11 @@ size_t WindowNumControllers() {
 	return n < NUM_JOYSTICKS_MAX ? n : NUM_JOYSTICKS_MAX;
 }
 
-int WindowControllerOpen(size_t id) {
+int WindowControllerOpen(size_t id, int useJoystickApi) {
 	if(id>=NUM_JOYSTICKS_MAX)
 		return -1;
 	if(!SDL_WasInit(SDL_INIT_JOYSTICK))
-		if(SDL_InitSubSystem(SDL_INIT_JOYSTICK)<0) {
+		if(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER)<0) {
 			fprintf(stderr, "WindowControllerOpen(%u) ERROR: cannot initialize SDL joystick.\n", (unsigned)id);
 			return -1;
 		}
@@ -489,6 +486,20 @@ int WindowControllerOpen(size_t id) {
 	joysticks[id].axes = (float*)malloc(sizeof(float)*nAxesTotal);
 	joysticks[id].axesPrev = (float*)malloc(sizeof(float)*nAxesTotal);
 
+	if(!SDL_IsGameController(id) || useJoystickApi)
+		joysticks[id].pGamepad = NULL;
+	else {
+		joysticks[id].pGamepad = SDL_GameControllerOpen(id);
+		if(!joysticks[id].pGamepad) {
+			fprintf(stderr,"WindowControllerOpen(%u) ERROR: cannot initialize controller: %s\n", (unsigned)id, SDL_GetError());
+			SDL_ClearError();
+			return -1;
+		}
+		if(joysticks[id].nButtons>11)
+			joysticks[id].nButtons=11;
+		SDL_ClearError();
+	}
+
 	//printf("open joystick %u \"%s\" axes:%i hats:%i buttons:%i\n", (unsigned)id,
 	//	SDL_JoystickName(pJoy), joysticks[id].nAxes, joysticks[id].nHats, joysticks[id].nButtons);
 	return 0;
@@ -500,6 +511,10 @@ const char * WindowControllerName(size_t id) {
 
 void WindowControllerClose(size_t id) {
 	if(id < NUM_JOYSTICKS_MAX && joysticks[id].pJoy) {
+		if(joysticks[id].pGamepad) {
+			SDL_GameControllerClose(joysticks[id].pGamepad);
+			joysticks[id].pGamepad = NULL;
+		}
 		SDL_JoystickClose(joysticks[id].pJoy);
 		joysticks[id].pJoy = NULL;
 		free(joysticks[id].axes);
@@ -507,16 +522,67 @@ void WindowControllerClose(size_t id) {
 	}
 }
 
-static void WindowControllerState(JoyData* jd, float** axes, uint32_t* buttons) {
+static void WindowGamepadState(JoyData* jd, float** axes, uint32_t* buttons) {
+	SDL_GameController* gp = jd->pGamepad;
 	if(axes) {
-		for(int i=0; i<jd->nAxes; ++i) {
-			int16_t value = SDL_JoystickGetAxis(jd->pJoy,i);
-			jd->axes[i] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
+		if(jd->nAxes>1 && SDL_GameControllerHasButton(gp, SDL_CONTROLLER_BUTTON_DPAD_LEFT)) {
+			jd->axes[0] = SDL_GameControllerGetButton(gp, SDL_CONTROLLER_BUTTON_DPAD_LEFT) ? -1.0f
+				: SDL_GameControllerGetButton(gp, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) ? 1.0f : 0.0f;
+			jd->axes[1] = SDL_GameControllerGetButton(gp, SDL_CONTROLLER_BUTTON_DPAD_UP) ? -1.0f
+				: SDL_GameControllerGetButton(gp, SDL_CONTROLLER_BUTTON_DPAD_DOWN) ? 1.0f : 0.0f;
 		}
+		if(jd->nAxes>3 && SDL_GameControllerHasAxis(gp, SDL_CONTROLLER_AXIS_LEFTX)) {
+			int16_t value = SDL_GameControllerGetAxis(gp, SDL_CONTROLLER_AXIS_LEFTX);
+			jd->axes[2] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
+			value = SDL_GameControllerGetAxis(gp, SDL_CONTROLLER_AXIS_LEFTY);
+			jd->axes[3] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
+		}
+		if(jd->nAxes>4 && SDL_GameControllerHasAxis(gp, SDL_CONTROLLER_AXIS_TRIGGERLEFT)) {
+			float value = ((float)SDL_GameControllerGetAxis(gp, SDL_CONTROLLER_AXIS_TRIGGERLEFT) - INT16_MAX/2.0f)*2.0f;
+			jd->axes[4] = value<-32767.0f ? -1.0f : value/32767.0f;
+		}
+		if(jd->nAxes>6 && SDL_GameControllerHasAxis(gp, SDL_CONTROLLER_AXIS_RIGHTX)) {
+			int16_t value = SDL_GameControllerGetAxis(gp, SDL_CONTROLLER_AXIS_RIGHTX);
+			jd->axes[5] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
+			value = SDL_GameControllerGetAxis(gp, SDL_CONTROLLER_AXIS_RIGHTY);
+			jd->axes[6] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
+		}
+		if(jd->nAxes>7 && SDL_GameControllerHasAxis(gp, SDL_CONTROLLER_AXIS_TRIGGERRIGHT)) {
+			float value = ((float)SDL_GameControllerGetAxis(gp, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) - INT16_MAX/2.0f)*2.0f;
+			jd->axes[7] = value<-32767.0f ? -1.0f : value/32767.0f;
+		}
+		*axes = jd->axes;
+	}
+
+	if(buttons) {
+		*buttons=0;
+		static int btn[] = {
+			SDL_CONTROLLER_BUTTON_A, SDL_CONTROLLER_BUTTON_B, SDL_CONTROLLER_BUTTON_X, SDL_CONTROLLER_BUTTON_Y,
+			SDL_CONTROLLER_BUTTON_LEFTSHOULDER, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER,
+			SDL_CONTROLLER_BUTTON_BACK, SDL_CONTROLLER_BUTTON_START, SDL_CONTROLLER_BUTTON_GUIDE,
+			SDL_CONTROLLER_BUTTON_LEFTSTICK, SDL_CONTROLLER_BUTTON_RIGHTSTICK
+		};
+		for(int i=0; i<jd->nButtons && i<11; ++i)
+			if(SDL_GameControllerHasButton(gp, btn[i]) && SDL_GameControllerGetButton(gp, btn[i]))
+				*buttons |= (1<<i);
+		jd->buttons = *buttons;
+	}
+}
+
+static void WindowControllerState(JoyData* jd, float** axes, uint32_t* buttons) {
+	if(jd->pGamepad) {
+		WindowGamepadState(jd, axes, buttons);
+		return;
+	}
+	if(axes) {
 		for(int i=0; i<jd->nHats; ++i) {
 			uint8_t hat=SDL_JoystickGetHat(jd->pJoy, i);
-			jd->axes[jd->nAxes+2*i] = (hat&SDL_HAT_LEFT) ? -1.0f :  (hat&SDL_HAT_RIGHT) ? 1.0f : 0.0f;
-			jd->axes[jd->nAxes+2*i+1] = (hat&SDL_HAT_UP) ? -1.0f : (hat&SDL_HAT_DOWN) ? 1.0f : 0.0f;
+			jd->axes[2*i] = (hat&SDL_HAT_LEFT) ? -1.0f : (hat&SDL_HAT_RIGHT) ? 1.0f : 0.0f;
+			jd->axes[2*i+1] = (hat&SDL_HAT_UP) ? -1.0f : (hat&SDL_HAT_DOWN)  ? 1.0f : 0.0f;
+		}
+		for(int i=0; i<jd->nAxes; ++i) {
+			int16_t value = SDL_JoystickGetAxis(jd->pJoy,i);
+			jd->axes[2*jd->nHats + i] = value<-32767 ? -1.0f : ((float)value)/32767.0f;
 		}
 		*axes = jd->axes;
 	}

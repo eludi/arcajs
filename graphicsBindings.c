@@ -333,12 +333,12 @@ static duk_ret_t dk_gfxFillTriangles(duk_context *ctx) {
 /**
  * @function gfx.drawImage
  *
- * gfx.drawImage(img[,dstX, dstY, angle, scale, flip])
+ * gfx.drawImage(img[,x, y, angle, scale, flip])
  *
- * draws an image or part of an image at a given target position, optionally scaled
+ * draws an image at a given target position, optionally scaled and flipped
  * @param {number} img - image handle
- * @param {number} [dstX=0] - destination X position
- * @param {number} [dstY=0] - destination Y position
+ * @param {number} [x=0] - destination X position
+ * @param {number} [y=0] - destination Y position
  * @param {number} [angle=0] - rotation angle in radians
  * @param {number} [scale=1] - scale factor
  * @param {number} [flip=gfx.FLIP_NONE] - flip image in X (gfx.FLIP_X), Y (gfx.FLIP_Y), or in both (gfx.FLIP_XY) directions
@@ -599,23 +599,23 @@ void bindGraphics(duk_context *ctx) {
 		{ "IMG_SQUARE", GFX_IMG_SQUARE },
 
 /// @constant {number} gfx.COMP_IMG_OFFSET
-		{ "COMP_IMG_OFFSET", 1<<0 },
+		{ "COMP_IMG_OFFSET", GFX_COMP_IMG_OFFSET },
 /// @constant {number} gfx.COMP_ROT
-		{ "COMP_ROT", 1<<3 },
+		{ "COMP_ROT", GFX_COMP_ROT },
 /// @constant {number} gfx.COMP_SCALE
-		{ "COMP_SCALE", 1<<4 },
+		{ "COMP_SCALE", GFX_COMP_SCALE },
 /// @constant {number} gfx.COMP_COLOR_R
-		{ "COMP_COLOR_R", 1<<5 },
+		{ "COMP_COLOR_R", GFX_COMP_COLOR_R },
 /// @constant {number} gfx.COMP_COLOR_G
-		{ "COMP_COLOR_G", 1<<6 },
+		{ "COMP_COLOR_G", GFX_COMP_COLOR_G },
 /// @constant {number} gfx.COMP_COLOR_B
-		{ "COMP_COLOR_B", 1<<7 },
+		{ "COMP_COLOR_B", GFX_COMP_COLOR_B },
 /// @constant {number} gfx.COMP_COLOR_A
-		{ "COMP_COLOR_A", 1<<8 },
+		{ "COMP_COLOR_A", GFX_COMP_COLOR_A },
 /// @constant {number} gfx.COMP_COLOR_RGB
-		{ "COMP_COLOR_RGB", 7<<5 },
+		{ "COMP_COLOR_RGB", GFX_COMP_COLOR_R|GFX_COMP_COLOR_G|GFX_COMP_COLOR_B },
 /// @constant {number} gfx.COMP_COLOR_RGBA
-		{ "COMP_COLOR_RGBA", 15<<5 },
+		{ "COMP_COLOR_RGBA", GFX_COMP_COLOR_RGBA },
 		{ NULL, 0.0 }
 	};
 	duk_put_number_list(ctx, -1, gfx_consts);

@@ -20,6 +20,10 @@
 #include <SDL_thread.h>
 #include <SDL_loadso.h>
 #include <SDL_filesystem.h>
+#include <SDL_misc.h>
+#ifndef ARCAJS_ARCH
+#  define ARCAJS_ARCH "UNKNOWN"
+#endif
 
 extern float clampf(float f, float min, float max);
 extern uint32_t hsla2rgba(float h, float s, float l, float a);
@@ -27,6 +31,7 @@ extern float randf();
 extern const char* appVersion;
 extern void intersects_exports(duk_context *ctx);
 extern void bindGraphics(duk_context *ctx);
+extern int debug;
 
 uint32_t rgbaColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
 	return (r << 24) + (g << 16) + (b << 8) + a;
@@ -115,6 +120,8 @@ uint32_t array2color(duk_context *ctx, duk_idx_t idx) {
 		}
 		return rgbaColor(arr[0], arr[1], arr[2], arr[3]);
 	}
+	if(duk_is_number(ctx, idx))
+		return duk_to_uint(ctx, idx);
 	return 0xffffffff;
 }
 
@@ -302,6 +309,26 @@ static duk_ret_t dk_setTimeout(duk_context *ctx) {
 
 	duk_push_int(ctx, cb->timeoutId);
 	return 1;
+}
+
+static duk_ret_t dk_clearTimeout(duk_context *ctx) {
+	const int timeoutId = duk_get_int(ctx,0);
+	TimeoutCallback *curr = timeoutCallbacks, *prev = NULL;
+
+	while(curr && curr->timeoutId != timeoutId) {
+		prev = curr;
+		curr = curr->next;
+	}
+	if(!curr)
+		return 0;
+	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("timeoutCallbacks"));
+	duk_del_prop_index(ctx, -1, timeoutId); // delete callback array
+	if(prev)
+		prev->next = curr->next;
+	else
+		timeoutCallbacks = curr->next;
+	free(curr);
+	return 0;
 }
 
 //--- console ------------------------------------------------------
@@ -528,7 +555,7 @@ uint32_t getPropFloatBuffer(duk_context *ctx, duk_idx_t idx, const char* key, fl
 	return bufSz/sizeof(float);
 }
 
-static void readImageResourceParams(
+void readImageResourceParams(
 	duk_context *ctx, duk_idx_t idx, float* scale, int* filtering, float* cx, float* cy)
 {
 	if(!duk_is_object(ctx, idx))
@@ -575,9 +602,18 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 	}
 	char* text = ResourceGetText(name);
 	if(text) {
-		duk_push_string(ctx, text);
+		if((SDL_strncasecmp(suffix, "html", 4)==0 && strlen(suffix) == 4)
+			|| (SDL_strncasecmp(suffix, "xml", 3)==0 && strlen(suffix) == 3)
+			|| (SDL_strncasecmp(suffix, "xhtml", 5)==0 && strlen(suffix) == 5))
+		{
+			Value* v = Value_parseXML(text, NULL);
+			dk_push_value(ctx, v);
+			free(v);
+		}
+		else
+			duk_push_string(ctx, text);
 		free(text);
-		if(SDL_strncasecmp(suffix, "json", 4)==0)
+		if(SDL_strncasecmp(suffix, "json", 4)==0 && strlen(suffix) == 4)
 			duk_json_decode(ctx, -1);
 		return 1;
 	}
@@ -615,9 +651,9 @@ static duk_ret_t dk_getResource(duk_context *ctx) {
  * @function app.createCircleResource
  * creates a circle image resource
  * @param {number} radius - circle radius
- * @param {array} [fillColor=[255,255,255,255]] - fill color (RGBA)
+ * @param {array|number} [fillColor=[255,255,255,255]] - fill color (RGBA)
  * @param {number} [strokeWidth=0] - stroke width
- * @param {array} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
+ * @param {array|number} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
  * @returns {number} handle of the created image resource
  */
 static duk_ret_t dk_createCircleResource(duk_context *ctx) {
@@ -638,9 +674,9 @@ static duk_ret_t dk_createCircleResource(duk_context *ctx) {
  * @param {number} width - image width
  * @param {number} height - image height
  * @param {string|array} path - path description
- * @param {array} [fillColor=[255,255,255,255]] - fill color (RGBA)
+ * @param {array|number} [fillColor=[255,255,255,255]] - fill color (RGBA)
  * @param {number} [strokeWidth=0] - stroke width
- * @param {array} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
+ * @param {array|number} [strokeColor=[0,0,0,0]] - stroke color (RGBA)
  * @returns {number} handle of the created image resource
  */
 static duk_ret_t dk_createPathResource(duk_context *ctx) {
@@ -786,10 +822,10 @@ static duk_ret_t dk_createSVGResource(duk_context *ctx) {
 
 /**
  * @function app.createImageResource
- * creates an image resource from a buffer
+ * creates an image resource from a buffer or from a callback function
  * @param {number|object} width - image width or an object having width, height, depth, and data properties
  * @param {number} [height] - image height
- * @param {buffer|array} [data] - RGBA 4-byte per pixel image data
+ * @param {buffer|array|function} [data|cb] - RGBA 4-byte per pixel image data or callback function having a graphics context as parameter
  * @param {object} [params] - optional additional parameters as key-value pairs such as filtering
  * @returns {number} handle of the created image resource
  */
@@ -846,6 +882,14 @@ static duk_ret_t dk_createImageResource(duk_context *ctx) {
 			}
 			img = ResourceCreateImage(width, height, data, filtering);
 			free(data);
+		}
+		else if(duk_is_function(ctx, 2)) {
+			size_t canvas = gfxCanvasCreate(width, height);
+			duk_dup(ctx, 2); // push callback function onto stack
+			gfxStateReset();
+			duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("gfx")); // push graphics context
+			duk_call(ctx, 1);
+			img = gfxCanvasUpload(canvas);
 		}
 	}
 	gfxImageSetCenter(img, cx, cy);
@@ -927,6 +971,20 @@ static duk_ret_t dk_appFullscreen(duk_context *ctx) {
 	int goFullscreen = duk_to_boolean(ctx, 0);
 	if(goFullscreen != isFullscreen)
 		WindowToggleFullScreen();
+	return 0;
+}
+
+/**
+ * @function app.minimize
+ * minimizes or restores an application window
+ * @param {bool} minimized
+ */
+static duk_ret_t dk_appMinimize(duk_context *ctx) {
+	int minimize = duk_to_boolean(ctx, 0);
+	if(minimize)
+		WindowMinimize();
+	else
+		WindowRestore();
 	return 0;
 }
 
@@ -1129,7 +1187,7 @@ static int initHttpCallback(duk_context *ctx, duk_idx_t cbIndex) {
  * @function app.httpGet
  * initiates a HTTP GET request
  * @param {string} url - requested URL
- * @param {function} [callback] - function to be called when the response is received
+ * @param {function} [callback] - function to be called when the response is received. The first argument contains the received data, the second argument is the http response status code.
  */
 static duk_ret_t dk_httpGet(duk_context *ctx) {
 	const char* url = duk_to_string(ctx, 0);
@@ -1150,7 +1208,7 @@ static duk_ret_t dk_httpGet(duk_context *ctx) {
  * initiates a HTTP POST request sending data to a URL
  * @param {string} url - target URL
  * @param {string|object} data - data to be sent
- * @param {function} [callback] - function to be called when a response is received
+ * @param {function} [callback] - function to be called when a response is received. The first argument contains the received data, the second argument is the http response status code.
  */
 static duk_ret_t dk_httpPost(duk_context *ctx) {
 	const char* url = duk_to_string(ctx, 0);
@@ -1168,6 +1226,40 @@ static duk_ret_t dk_httpPost(duk_context *ctx) {
 	SDL_Thread *thread = SDL_CreateThread(httpThread, "httpPost", (void*)params);
 	SDL_DetachThread(thread);
 	return 0;
+}
+
+/**
+ * @function app.openURL
+ * opens a URL in a (new) browser window
+ * @param {string} url - target URL
+ */
+static duk_ret_t dk_appOpenURL(duk_context *ctx) {
+	const char* url = duk_to_string(ctx, 0);
+	if(SDL_OpenURL(url)!=0) {
+		snprintf(s_lastError, ERROR_MAXLEN, "app.openURL error: %s", SDL_GetError());
+		SDL_ClearError();
+		return duk_error(ctx, DUK_ERR_ERROR, s_lastError);
+	}
+	return 0;
+}
+
+/**
+ * @function app.parse
+ * parses an XML or (X)HTML, or JSON string as Javascript object
+ * @param {string} url - target URL
+ */
+static duk_ret_t dk_appParse(duk_context *ctx) {
+	const char* str = duk_to_string(ctx, 0);
+	if(str) {
+		const char* ch0 = str;
+		while(*ch0 && SDL_isspace(*ch0))
+			++ch0;
+		Value* v = (SDL_isdigit(*ch0) || *ch0=='[' || *ch0=='"' || *ch0=='{') ?
+			Value_parse(str) : Value_parseXML(str, NULL);
+		dk_push_value(ctx, v);
+		free(v);
+	}
+	return 1;
 }
 
 /**
@@ -1327,6 +1419,12 @@ static duk_ret_t dk_appPlatform(duk_context *ctx) {
 	return 1;
 }
 
+/// @property {string} app.arch - operating system name and architecture, for example Linux_x86_64
+static duk_ret_t dk_appArch(duk_context *ctx) {
+	duk_push_literal(ctx, ARCAJS_ARCH);
+	return 1;
+}
+
 /// @property {number} app.width - window width in logical pixels
 static duk_ret_t dk_getWindowWidth(duk_context * ctx) {
 	duk_push_int(ctx, WindowWidth());
@@ -1403,6 +1501,8 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_string(ctx, -2, "resizable");
 	duk_push_c_function(ctx, dk_appFullscreen, 1);
 	duk_put_prop_string(ctx, -2, "fullscreen");
+	duk_push_c_function(ctx, dk_appMinimize, 1);
+	duk_put_prop_string(ctx, -2, "minimize");
 	duk_push_c_function(ctx, dk_transformArray, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "transformArray");
 	duk_push_c_function(ctx, dk_appSetPointer, 1);
@@ -1417,6 +1517,10 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_string(ctx, -2, "httpGet");
 	duk_push_c_function(ctx, dk_httpPost, 3);
 	duk_put_prop_string(ctx, -2, "httpPost");
+	duk_push_c_function(ctx, dk_appOpenURL, 1);
+	duk_put_prop_string(ctx, -2, "openURL");
+	duk_push_c_function(ctx, dk_appParse, 1);
+	duk_put_prop_string(ctx, -2, "parse");
 	duk_push_c_function(ctx, dk_appInclude, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "include");
 	duk_push_c_function(ctx, dk_appRequire, 1);
@@ -1435,6 +1539,7 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	dk_defineReadOnlyProperty(ctx,"pixelRatio", -1, dk_getWindowPixelRatio);
 	dk_defineReadOnlyProperty(ctx,"version", -1, dk_appVersion);
 	dk_defineReadOnlyProperty(ctx,"platform", -1, dk_appPlatform);
+	dk_defineReadOnlyProperty(ctx,"arch", -1, dk_appArch);
 
 	duk_put_global_string(ctx, "app");
 
@@ -1565,6 +1670,36 @@ static duk_ret_t dk_audioReplay(duk_context *ctx) {
 	float balance = duk_get_number_default(ctx, 2, 0.0);
 	float detune = duk_get_number_default(ctx, 3, 0.0);
 	duk_push_number(ctx, AudioReplay(sample, volume, balance, detune));
+	return 1;
+}
+
+/**
+ * @function audio.loop
+ * immediately and repeatedly plays a buffered PCM sample
+ * @param {number|array} sample - sample handle or array of alternative samples (randomly chosen)
+ * @param {number} [vol=1.0] - volume/maximum amplitude, value range 0.0..1.0
+ * @param {number} [balance=0.0] - stereo balance, value range -1.0 (left)..+1.0 (right)
+ * @param {number} [detune=0.0] - sample pitch shift in half tones. For example, -12.0 means half replay speed/ one octave less
+ * @returns {number} track number playing this sound or UINT_MAX if no track is available
+ */
+static duk_ret_t dk_audioLoop(duk_context *ctx) {
+	size_t sample;
+	if(!duk_is_array(ctx,0))
+		sample = duk_to_number(ctx, 0);
+	else {
+		uint32_t len = duk_get_length(ctx, 0);
+		uint32_t idx = randf() * len;
+		duk_get_prop_index(ctx, 0, idx);
+		sample = duk_to_number(ctx, -1);
+		//printf("random sample (%u/%u): %u\n", idx, len, (unsigned)sample);
+		duk_pop(ctx);
+	}
+	if(!sample)
+		return 0;
+	float volume = duk_get_number_default(ctx, 1, 1.0);
+	float balance = duk_get_number_default(ctx, 2, 0.0);
+	float detune = duk_get_number_default(ctx, 3, 0.0);
+	duk_push_number(ctx, AudioLoop(sample, volume, balance, detune));
 	return 1;
 }
 
@@ -1819,7 +1954,13 @@ static duk_ret_t dk_audioMixToBuffer(duk_context *ctx) {
 
 /// @property {number} audio.sampleRate - audio device sample rate in Hz
 static duk_ret_t dk_audioSampleRate(duk_context * ctx) {
-	duk_push_uint(ctx,AudioSampleRate());
+	duk_push_uint(ctx, AudioSampleRate());
+	return 1;
+}
+
+/// @property {number} audio.tracks - number of parallel audio tracks
+static duk_ret_t dk_audioNumTracks(duk_context * ctx) {
+	duk_push_uint(ctx, AudioTracks());
 	return 1;
 }
 
@@ -1840,6 +1981,8 @@ static void audio_exports(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "fadeOut");
 	duk_push_c_function(ctx, dk_audioReplay, 4);
 	duk_put_prop_string(ctx, -2, "replay");
+	duk_push_c_function(ctx, dk_audioLoop, 4);
+	duk_put_prop_string(ctx, -2, "loop");
 	duk_push_c_function(ctx, dk_audioSound, 5);
 	duk_put_prop_string(ctx, -2, "sound");
 	duk_push_c_function(ctx, dk_audioCreateSound, DUK_VARARGS);
@@ -1859,6 +2002,7 @@ static void audio_exports(duk_context *ctx) {
 	duk_push_c_function(ctx, dk_audioMixToBuffer, 5);
 	duk_put_prop_string(ctx, -2, "mixToBuffer");
 	dk_defineReadOnlyProperty(ctx,"sampleRate", -1, dk_audioSampleRate);
+	dk_defineReadOnlyProperty(ctx,"tracks", -1, dk_audioNumTracks);
 }
 
 //--- LocalStorage -------------------------------------------------
@@ -2031,11 +2175,15 @@ static void* moduleLoad(const char* dllName) {
 	strncpy(dllNameWithSuffix, dllName, len);
 #if defined __WIN32__ || defined WIN32
 	const char* suffix = ".dll";
+	const char* sep = "\\";
 #else
 	const char* suffix = ".so";
+	const char* sep = "/";
 #endif
 	strcpy(dllNameWithSuffix+len, suffix);
 	void* libHandle = SDL_LoadObject(dllNameWithSuffix);
+	if(debug)
+		printf("(1) looking for module at %s... ", dllNameWithSuffix);
 
 	if(!libHandle) {
 		char* basePath = SDL_GetBasePath();
@@ -2043,14 +2191,37 @@ static void* moduleLoad(const char* dllName) {
 
 		char* fullPath = (char*)malloc(basePathLen + dllNameWithSuffixLen);
 		strcpy(fullPath, basePath);
-		strcat(fullPath,dllNameWithSuffix);
+		strcat(fullPath, dllNameWithSuffix);
+		if(debug)
+			printf("(2) looking for module at %s... ", fullPath);
 		libHandle = SDL_LoadObject(fullPath);
 		SDL_free(basePath);
 		free(fullPath);
 	}
+	if(!libHandle) {
+		const char* resourcePath = ResourceArchiveName();
+		size_t resourcePathLen = strlen(resourcePath);
+		if(resourcePathLen && !strlen(ResourceSuffix(resourcePath))) {
+			char* fullPath = (char*)malloc(resourcePathLen + dllNameWithSuffixLen + sizeof(ARCAJS_ARCH) + 2);
+			strcpy(fullPath, resourcePath);
+			char lastChar = resourcePath[resourcePathLen-1];
+			if(lastChar!=sep[0])
+				strcat(fullPath, sep);
+			strcat(fullPath, dllName);
+			strcat(fullPath, ".");
+			strcat(fullPath, ARCAJS_ARCH);
+			strcat(fullPath, suffix);
+			if(debug)
+				printf("(3) looking for module at %s... ", fullPath);
+			libHandle = SDL_LoadObject(fullPath);
+			free(fullPath);
+		}
+	}
+
 	free(dllNameWithSuffix);
 	if(!libHandle)
 		return 0;
+	SDL_ClearError();
 
 	const char unloadFuncNameSuffix[] = "_unload";
 	char* unloadFuncName = malloc(len+sizeof(unloadFuncNameSuffix)+1);
@@ -2101,6 +2272,8 @@ size_t jsvmInit(const char* storageFileName, const Value* args) {
 
 	duk_push_c_function(ctx, dk_setTimeout, DUK_VARARGS);
 	duk_put_global_string(ctx, "setTimeout");
+	duk_push_c_function(ctx, dk_clearTimeout, 1);
+	duk_put_global_string(ctx, "clearTimeout");
 	duk_push_object(ctx);
 	duk_put_global_string(ctx, DUK_HIDDEN_SYMBOL("timeoutCallbacks"));
 
@@ -2417,16 +2590,41 @@ char** jsonGetStringArray(size_t json, const char* key) {
 		return NULL;
 
 	char** vs=NULL;
-	if(duk_get_prop_string(ctx, -1, key) && duk_is_array(ctx, -1)) {
-		duk_idx_t arrIdx = duk_get_top_index(ctx);
-		size_t len = duk_get_length(ctx, arrIdx);
-		vs = (char**)malloc(sizeof(char*)*(len+1));
-		vs[len] = NULL;
+	if(duk_get_prop_string(ctx, -1, key)) {
+		if(duk_is_array(ctx, -1)) {
+			duk_idx_t arrIdx = duk_get_top_index(ctx);
+			size_t len = duk_get_length(ctx, arrIdx);
+			vs = (char**)malloc(sizeof(char*)*(len+1));
+			vs[len] = NULL;
 
-		for(size_t i=0; i<len; ++i) {
-			duk_get_prop_index(ctx, arrIdx, i);
-			vs[i] = strdup(duk_to_string(ctx, -1));
-			duk_pop(ctx);
+			for(size_t i=0; i<len; ++i) {
+				duk_get_prop_index(ctx, arrIdx, i);
+				vs[i] = strdup(duk_to_string(ctx, -1));
+				duk_pop(ctx);
+			}
+		}
+		else if(duk_is_object(ctx, -1)) {
+			// first count properties:
+			size_t len=0, idx=0;
+			duk_enum(ctx, -1, DUK_ENUM_OWN_PROPERTIES_ONLY);
+			duk_idx_t enumIdx = duk_get_top_index(ctx);
+			while (duk_next(ctx, enumIdx, 1 /*get_value*/)) {
+				len += 2;
+				duk_pop_2(ctx);
+			}
+			duk_pop(ctx); // pop enum obj
+
+			// now read key value pairs:
+			vs = (char**)malloc(sizeof(char*)*(len+1));
+			vs[len] = NULL;
+			duk_enum(ctx, -1, DUK_ENUM_OWN_PROPERTIES_ONLY);
+			enumIdx = duk_get_top_index(ctx);
+			while (duk_next(ctx, enumIdx, 1 /*get_value*/)) {
+				vs[idx++] = strdup(duk_to_string(ctx, -2));
+				vs[idx++] = strdup(duk_to_string(ctx, -1));
+				duk_pop_2(ctx);
+			}
+			duk_pop(ctx); // pop enum obj
 		}
 	}
 	duk_pop(ctx);

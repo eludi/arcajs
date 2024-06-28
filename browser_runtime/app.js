@@ -135,12 +135,39 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		return ((val & 0xFF) << 24) | ((val & 0xFF00) << 8) | ((val >> 8) & 0xFF00) | ((val >> 24) & 0xFF);
 	}
 
+	function urlParams() {
+		var params = {};
+		if(window.location.href.indexOf('?')>=0)
+			window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, (m,key,value)=>{
+				if(value.indexOf(',')<0)
+					value = decodeURIComponent(value);
+				else {
+					value = value.split(',');
+					for(let i=0; i<value.length; ++i)
+						value[i] = decodeURIComponent(value[i]);
+				}
+				if(!(key in params))
+					params[key] = value;
+				else {
+					if(!Array.isArray(params[key]))
+						params[key] = [ params[key] ];
+					if(Array.isArray(value))
+						params[key] = params[key].concat(value);
+					else params[key].push(value);
+				}
+			});
+		if(Object.keys(params).length == 1 && params.args)
+			params = params.args;
+		return params;
+	}
+
 	const app = {
-		version: 'v0.20231014a',
+		version: 'v0.20240502a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
 		pixelRatio: 1, // todo, consider devicePixelRatio
+		args: urlParams(),
 
 		setBackground: function(r,g,b) {
 			if(Array.isArray(r)) {
@@ -248,6 +275,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			document.getElementById(canvas_id).style.cursor = onOrOff ? '' : 'none'; },
 		httpGet: function(url, callback) { arcajs.http.get(url, null, callback) },
 		httpPost: function(url, data, callback) { arcajs.http.post(url, data, callback) },
+		openURL: function(url) { window.open(url, '_blank'); },
 		createSpriteSet: function(...args) { return arcajs.createSpriteSet(...args); },
 		include: function(url, callback) { 
 			const node = document.createElement('script');
@@ -347,6 +375,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			if(startedByUser===true && loadEmitted===false && resourcesLoading===0) {
 				app.emit('load');
 				loadEmitted = true;
+				tLastFrame = document.timeline.currentTime * 0.001;
 			}
 			if(loadEmitted)
 				setTimeout(()=>{ requestAnimationFrame(update); }, 0);

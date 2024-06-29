@@ -21,6 +21,7 @@
 #include <SDL_loadso.h>
 #include <SDL_filesystem.h>
 #include <SDL_misc.h>
+#include <SDL_events.h>
 #ifndef ARCAJS_ARCH
 #  define ARCAJS_ARCH "UNKNOWN"
 #endif
@@ -1118,7 +1119,12 @@ static duk_ret_t dk_appMessage(duk_context *ctx) {
  * closes window and application
  */
 static duk_ret_t dk_appClose(duk_context *ctx) {
-	WindowClose();
+	//WindowClose();
+	static SDL_Event ev;
+	ev.type = SDL_QUIT;
+	ev.user.code = 0;
+	ev.user.data1 = ev.user.data2 = 0;
+	SDL_PushEvent(&ev);
 	return 0;
 }
 

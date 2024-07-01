@@ -31,6 +31,8 @@ void WindowShowPointer(int visible);
 
 /// closes window
 void WindowClose();
+/// initiates a graceful shutdown by emitting a close event to the main event loop
+void WindowEmitClose();
 /// sets window title
 void WindowTitle(const char *str);
 /// returns window width

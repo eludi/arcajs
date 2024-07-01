@@ -94,6 +94,8 @@ The arcajs executable has a few command line parameters, the most relevant are
 - -f - run in fullscreen mode
 - -w - window size in pixels
 - -h - window height in pixels
+- -j - which SDL joystick API to use, value 0 means semantic Gamepad API, 1 low-
+  level Joystick API, -1 completely disables joystick input
 
 For example, you could also invoke the introductory example by typing
 `.\arcajs.exe -f hello.js` or `.\arcajs.exe -w 1280 -h 720 hello.js`.

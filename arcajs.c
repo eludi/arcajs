@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20240628a";
+const char* appVersion = "v0.20240701a";
 int debug = 0, useJoystickApi = 0;
 
 static void showError(const char* msg, ...) {
@@ -281,6 +281,8 @@ int handleEvents(void* udata) {
 	}
 	case SDL_JOYDEVICEADDED:
 	case SDL_JOYDEVICEREMOVED: {
+		if(useJoystickApi<0)
+			break;
 		if(evt.type==SDL_JOYDEVICEADDED) 
 			WindowControllerOpen(evt.jdevice.which, useJoystickApi);
 		else
@@ -399,8 +401,8 @@ int main(int argc, char **argv) {
 		}
 		else if(strcmp(argv[i],"-d")==0 || strcmp(argv[i],"--debug")==0)
 			debug = 1;
-		else if(strcmp(argv[i],"-j")==0 || strcmp(argv[i],"--joystick")==0)
-			useJoystickApi = 1;
+		else if((strcmp(argv[i],"-j")==0 || strcmp(argv[i],"--joystick")==0) && i+1<argc)
+			useJoystickApi = atoi(argv[i+1]);
 		else if(strcmp(argv[i],"-w")==0 && i+1<argc)
 			winSzX = atoi(argv[i+1]);
 		else if(strcmp(argv[i],"-h")==0 && i+1<argc)
@@ -542,8 +544,9 @@ int main(int argc, char **argv) {
 	windowTitle = NULL;
 
 	AudioOpen(audioFrequency, audioTracks);
-	for(size_t i=0, end = WindowNumControllers(); i<end; ++i)
-		WindowControllerOpen(i, useJoystickApi);
+	if(useJoystickApi>=0) // useJoystickApi < 0 disables joystick input completely
+		for(size_t i=0, end = WindowNumControllers(); i<end; ++i)
+			WindowControllerOpen(i, useJoystickApi);
 
 	size_t vm = jsvmInit(storageFileName, args);
 	free(storageFileName);

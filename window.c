@@ -178,6 +178,14 @@ void WindowClose() {
 	SDL_Quit();
 }
 
+void WindowEmitClose() {
+	static SDL_Event ev;
+	ev.type = SDL_QUIT;
+	ev.user.code = 0;
+	ev.user.data1 = ev.user.data2 = 0;
+	SDL_PushEvent(&ev);
+}
+
 static int WindowHandleEvents() {
 	if(wnd.inputTextComplete) {
 		wnd.inputText[0]=0;

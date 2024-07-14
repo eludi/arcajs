@@ -493,6 +493,8 @@ int WindowControllerOpen(size_t id, int useJoystickApi) {
 	int nAxesTotal = joysticks[id].nAxes+2*joysticks[id].nHats;
 	joysticks[id].axes = (float*)malloc(sizeof(float)*nAxesTotal);
 	joysticks[id].axesPrev = (float*)malloc(sizeof(float)*nAxesTotal);
+	memset(joysticks[id].axes, 0, sizeof(float)*nAxesTotal);
+	memset(joysticks[id].axesPrev, 0, sizeof(float)*nAxesTotal);
 
 	if(!SDL_IsGameController(id) || useJoystickApi)
 		joysticks[id].pGamepad = NULL;

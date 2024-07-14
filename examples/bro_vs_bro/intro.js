@@ -24,6 +24,7 @@ var screenIntro = (function() {
 	var frame = 0, titleTrack = -1;
 	const tileSet = app.createTileResources('bro_vs_bro64.png',40,25,0, {filtering:0});
 	const tiles = randomSequence(1000);
+	const pressedButtons = {};
 
 	return {
 		enter: function() {
@@ -57,8 +58,13 @@ var screenIntro = (function() {
 			}
 		},
 		gamepad: function(evt) {
-			if(evt.type==='button' && evt.button===0 && evt.value>0)
-				app.on(screenGame);
+			if(evt.type==='button') {
+				if(evt.button===0 && evt.value>0)
+					return app.on(screenGame);
+				pressedButtons[evt.button] = evt.value>0;
+				if(pressedButtons[6] && pressedButtons[7])
+					return app.close();
+			}
 		},
 		leave: function() {
 			audio.fadeOut(titleTrack, 1.5);

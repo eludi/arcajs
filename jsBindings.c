@@ -1425,6 +1425,12 @@ static duk_ret_t dk_appArch(duk_context *ctx) {
 	return 1;
 }
 
+/// @property {int} app.numControllers - number of currently connected game controllers
+static duk_ret_t dk_appNumControllers(duk_context *ctx) {
+	duk_push_int(ctx, WindowNumControllers());
+	return 1;
+}
+
 /// @property {number} app.width - window width in logical pixels
 static duk_ret_t dk_getWindowWidth(duk_context * ctx) {
 	duk_push_int(ctx, WindowWidth());
@@ -1537,6 +1543,7 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	dk_defineReadOnlyProperty(ctx,"width", -1, dk_getWindowWidth);
 	dk_defineReadOnlyProperty(ctx,"height", -1, dk_getWindowHeight);
 	dk_defineReadOnlyProperty(ctx,"pixelRatio", -1, dk_getWindowPixelRatio);
+	dk_defineReadOnlyProperty(ctx,"numControllers", -1, dk_appNumControllers);
 	dk_defineReadOnlyProperty(ctx,"version", -1, dk_appVersion);
 	dk_defineReadOnlyProperty(ctx,"platform", -1, dk_appPlatform);
 	dk_defineReadOnlyProperty(ctx,"arch", -1, dk_appArch);

@@ -339,5 +339,8 @@ const char font12x16[] = "\
     </g>\
     <path d='m 160,126 h 1 l 2,-2 v -3 l 1.5,-1.5 -1.5,-1.5 v -3 l -2,-2 h -1' />\
     <path d='m 140,126 h -1 l -2,-2 v -3 l -1.5,-1.5 1.5,-1.5 v -3 l 2,-2 h 1' />\
+    <path d='m 123,8 h 7 v -7' />\
+    <path style='stroke-linecap:round' d='m 125,5 -3,3 3,3' />\
+    <path d='m 106,13 v -10 h -3 l -5,5 5,5 z' />\
   </g>\
 </svg>";

@@ -162,11 +162,12 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	}
 
 	const app = {
-		version: 'v0.20240502a',
+		version: 'v0.20240713a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
 		pixelRatio: 1, // todo, consider devicePixelRatio
+		numControllers: 0,
 		args: urlParams(),
 
 		setBackground: function(r,g,b) {
@@ -480,11 +481,13 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	window.addEventListener('keyup', (evt)=>{ stopMediaKeyEventPropagation(evt); app.emit('keyboard', evt); });
 	document.addEventListener('keypress', (evt)=>{ stopMediaKeyEventPropagation(evt); });
 	window.addEventListener("gamepadconnected", (evt)=>{
+		++app.numControllers;
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:true, state:null };
 		app.emit('gamepad', { index:evt.gamepad.index, name:evt.gamepad.id, type:'connected',
 			axes:evt.gamepad.axes.length, buttons:evt.gamepad.buttons.length });
 	});
 	window.addEventListener("gamepaddisconnected", (evt)=>{
+		--app.numControllers;
 		gamepads[evt.gamepad.index] = { id:evt.gamepad.id, connected:false, state:null };
 		app.emit('gamepad', { index:evt.gamepad.index, name:evt.gamepad.id, type:'disconnected' });
 	});

@@ -98,8 +98,6 @@ function Player(id) {
 		if(this.status==='ok') {
 			this.x += this.velx * deltaT;
 			this.y += this.vely * deltaT;
-			this.x = Math.round(this.x);
-			this.y = Math.round(this.y);
 		}
 		else if(this.status==='burst') {
 			this.sc = 1/this.tAttack; 
@@ -158,6 +156,7 @@ function gameReset() {
 }
 
 var screenGame = {
+	pressedButtons:[{},{}],
 	enter: function() {
 		spriteJ = new Player(0);
 		spriteT = new Player(1);
@@ -280,13 +279,21 @@ var screenGame = {
 		if(!player)
 			return;
  		if(evt.type==='axis') {
-			if(evt.axis===0)
+			if(evt.axis===0 || evt.axis===2)
 				player.velx = evt.value*tilesz*2;
-			else if(evt.axis===1)
+			else if(evt.axis===1 || evt.axis===3)
 				player.vely = evt.value*tilesz*2;
 		}
-		else if(evt.type==='button' && evt.button===0 && evt.value>0)
-			player.attack();
+		else if(evt.type==='button') {
+			this.pressedButtons[evt.index][evt.button] = evt.value>0;
+			if(evt.button===0 && evt.value>0) {
+				if(state === 'over')
+					return app.on(screenIntro);
+				player.attack();
+			}
+			if(this.pressedButtons[evt.index][6] && this.pressedButtons[evt.index][7])
+				return app.close();
+		}
 	}
 };
 

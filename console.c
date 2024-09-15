@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
 
 /// structure for managing a console
 typedef struct {
@@ -92,10 +95,16 @@ void ConsoleLog(const char* msg) {
 }
 
 void ConsoleWarn(const char* msg) {
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_WARN, "arcajs", "%s", msg);
+#endif
 	ConsoleLog(msg);
 }
 
 void ConsoleError(const char* msg) {
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_ERROR, "arcajs", "%s", msg);
+#endif
 	ConsoleShow();
 	ConsoleLog(msg);
 }
@@ -220,8 +229,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 	while(WindowIsOpen() && !done) {
 		double now = WindowTimestamp();
 		// draw:
-		gfxColor(bgColor);
-		gfxFillRect(0,0, WindowWidth(), winSzY);
+		gfxBeginFrame(bgColor);
 		if(icon) {
 			gfxColor(0xffffffff);
 			gfxDrawImage(icon, winSzX-iconSzX-2*sz, 2*sz, 0,1,0);
@@ -265,6 +273,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 			DialogButton(button0Pos, button0, font, fgColor, bgColor, button0Selected);
 		if(button1)
 			DialogButton(button1Pos, button1, font, fgColor, bgColor, button1Selected);
+		gfxEndFrame();
 
 		if(WindowUpdate()>0) { // swap buffers
 			WindowClose();

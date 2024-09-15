@@ -162,7 +162,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	}
 
 	const app = {
-		version: 'v0.20240713a',
+		version: 'v0.20240908a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -368,6 +368,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			for(let i=0, end=arr.length; i<end; i+=stride)
 				callback(arr.slice(i, i+stride), arr.subarray(i, i+stride), ...cbArgs)
 		},
+		_getGamepad: getGamepad,
 		_run: function(byUser=false) {
 			if(loadEmitted)
 				return;

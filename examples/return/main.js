@@ -1,6 +1,6 @@
 const sc = app.width/80;
 const title = app.getResource('return.svg', {centerX:0.5, centerY:1.0});
-const iconClose = app.createTileResources('icons.svg', 4);
+const iconClose = app.createTileResources('icons.svg', 5);
 const iconOne = iconClose+1, iconTwo = iconClose+2;
 
 const audio = app.require('audio');

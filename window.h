@@ -8,6 +8,8 @@ typedef enum {
     WINDOW_GL = (1<<1),
     WINDOW_VSYNC = (1<<2),
     WINDOW_RESIZABLE = (1<<3),
+    WINDOW_LANDSCAPE = (1<<4),
+    WINDOW_PORTRAIT = (1<<5),
 } WindowFlags;
 
 /// opens an SDL window

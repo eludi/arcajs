@@ -21,6 +21,7 @@
 #include <SDL_loadso.h>
 #include <SDL_filesystem.h>
 #include <SDL_misc.h>
+#include <SDL_rwops.h>
 #ifndef ARCAJS_ARCH
 #  define ARCAJS_ARCH "UNKNOWN"
 #endif
@@ -1313,7 +1314,7 @@ static duk_ret_t dk_appExports(duk_context *ctx) {
 /**
  * @function app.queryFont
  * measures text dimensions using a specified font.
- * @param {number} font - font resource handle, use 0 for built-in default 10x16 pixel font
+ * @param {number} font - font resource handle, use 0 for built-in default 12x16 font
  * @param {string} [text] - optional text for width calculation
  * @returns {object} an object having the properties width, height, fontBoundingBoxAscent, fontBoundingBoxDescent
  */
@@ -2022,18 +2023,16 @@ enum {
 };
 
 void LocalStorageLoad(duk_context *ctx, const char* fname) {
-	FILE *f=fopen(fname, "rb");
-	if (!f) {
+	SDL_RWops *io = SDL_RWFromFile(fname, "rb");
+	if (!io || io->size(io)<=0) {
 		fprintf(stderr, "localStorage file \"%s\" not found\n", fname);
 		return;
 	}
-	fseek(f,0,SEEK_END);
-	size_t fsize = ftell(f);
-	rewind(f);
+	const size_t fsize = io->size(io);
 
 	char* buffer = (char*)malloc(fsize+1);
 	buffer[fsize] = 0;
-	if(fread(buffer, 1,fsize, f)!=fsize)
+	if(SDL_RWread(io, buffer, 1, fsize) != fsize)
 		fprintf(stderr, "localStorage file \"%s\" read error\n", fname);
 	else {
 		duk_get_global_string(ctx, "localStorage");
@@ -2044,7 +2043,7 @@ void LocalStorageLoad(duk_context *ctx, const char* fname) {
 			duk_put_prop_string(ctx, -2, DUK_HIDDEN_SYMBOL("data"));
 		duk_pop(ctx);
 	}
-	fclose(f);
+	SDL_RWclose(io);
 	free(buffer);
 }
 
@@ -2060,10 +2059,10 @@ void LocalStoragePersistChanges(duk_context *ctx) {
 
 	duk_get_prop_string(ctx, -1, DUK_HIDDEN_SYMBOL("fname"));
 	const char* fname = duk_get_string(ctx, -1);
-	FILE *f=fopen(fname, "wb");
+	SDL_RWops *io = SDL_RWFromFile(fname, "wb");
 	duk_pop(ctx);
 
-	if (!f) {
+	if (!io) {
 		duk_pop(ctx);
 		fprintf(stderr, "localStorage file not writable\n");
 		return;
@@ -2072,9 +2071,9 @@ void LocalStoragePersistChanges(duk_context *ctx) {
 	const char* json = duk_json_encode(ctx, -1);
 
 	size_t len = strlen(json);
-	if(fwrite(json, 1, len, f)!=len)
+	if(SDL_RWwrite(io, json, 1, len) != len)
 		fprintf(stderr, "localStorage file write error\n");
-	fclose(f);
+	SDL_RWclose(io);
 
 	duk_pop(ctx);
 	duk_push_int(ctx, STORAGE_UNCHANGED);
@@ -2377,7 +2376,6 @@ void jsvmDispatchDrawEvent(size_t vm) {
 		duk_bool_t isMethod = duk_is_object(ctx, -1);
 		if(!isMethod)
 			duk_pop(ctx);
-		gfxStateReset();
 		duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("gfx"));
 		callEventHandler(ctx, "draw", isMethod, 1);
 	}

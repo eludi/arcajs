@@ -49,7 +49,7 @@ endif
 SRCLIB = window.c graphicsUtils.c console.c audio.c resources.c archive.c \
   value.c httpRequest.c external/miniz.c graphics.c
 SRC = arcajs.c graphicsBindings.c jsBindings.c \
-  modules/intersects.c modules/intersectsBindings.c external/miniz.c external/duktape.c
+  modules/intersects.c modules/intersectsBindings.c external/duktape.c
 OBJ = $(SRC:.c=.o)
 EXE = arcajs$(EXESUFFIX)
 LIB = libarcajs.a

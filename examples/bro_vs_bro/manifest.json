@@ -1,8 +1,16 @@
 {
 	"name":"BRO VS BRO",
-	"display":"window",
-	"window_width": 640,
-	"window_height": 400,
-	"scripts":[ "intro.js", "main.js" ]
+	"start_url": "./",
+	"display":"fullscreen",
+	"icon": "bro_vs_bro_icon.svg",
+	"icons": [
+		{ "src":"bro_vs_bro_icon.svg", "sizes":"any", "purpose":"maskable"},
+		{"src":"bro_vs_bro_icon.png", "sizes":"512x512", "type":"image/png", "purpose":"maskable"} ],
+	"window_width": 960,
+	"window_height": 600,
+	"audio_tracks": 4,
+	"scripts":[ "intro.js", "main.js" ],
+	"orientation": "landscape",
+	"background_color": "black",
+	"theme_color": "black"
 }
-

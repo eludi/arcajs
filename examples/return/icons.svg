@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="512"
+   width="640"
    height="128"
    id="svg2"
    version="1.1"
-   inkscape:version="1.0.2 (e86c870879, 2021-01-15, custom)"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
    sodipodi:docname="icons.svg"
    inkscape:export-filename="/home/gf/Bilder/pongon.png"
    inkscape:export-xdpi="254"
-   inkscape:export-ydpi="254">
+   inkscape:export-ydpi="254"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <defs
      id="defs4" />
   <sodipodi:namedview
@@ -25,19 +25,20 @@
      borderopacity="1.0"
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.7192038"
-     inkscape:cx="232.51851"
-     inkscape:cy="69.033216"
+     inkscape:zoom="1.2156607"
+     inkscape:cx="354.12843"
+     inkscape:cy="122.9784"
      inkscape:document-units="px"
      inkscape:current-layer="text915"
      showgrid="false"
      units="mm"
-     inkscape:window-width="1842"
-     inkscape:window-height="1057"
-     inkscape:window-x="-8"
-     inkscape:window-y="-8"
+     inkscape:window-width="1920"
+     inkscape:window-height="1031"
+     inkscape:window-x="0"
+     inkscape:window-y="25"
      inkscape:window-maximized="1"
-     inkscape:document-rotation="0" />
+     inkscape:document-rotation="0"
+     inkscape:pagecheckerboard="0" />
   <metadata
      id="metadata7">
     <rdf:RDF>
@@ -46,7 +47,6 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -123,6 +123,45 @@
            sodipodi:open="true"
            sodipodi:arc-type="arc" />
       </g>
+      <rect
+         style="opacity:0.5;fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:8;stroke-linejoin:round"
+         id="rect833"
+         width="112"
+         height="112"
+         x="520"
+         y="209.96851"
+         ry="12" />
+      <rect
+         style="fill:none;fill-opacity:0.999995;stroke:#ffffff;stroke-width:5.33185;stroke-linejoin:round;stop-color:#000000"
+         id="rect1049"
+         width="45.032829"
+         height="33.238995"
+         x="572.30127"
+         y="278.06357"
+         ry="6.9336295" />
+      <path
+         style="fill:none;stroke:#ffffff;stroke-width:6;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 528,265.96851 h 96"
+         id="path1084"
+         sodipodi:nodetypes="cc" />
+      <path
+         style="fill:none;stroke:#ffffff;stroke-width:6;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 556.99997,266.41586 v -7.44735"
+         id="path1723"
+         sodipodi:nodetypes="cc" />
+      <path
+         style="fill:none;stroke:#ffffff;stroke-width:6;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 594.99997,272.96851 v -7"
+         id="path2189"
+         sodipodi:nodetypes="cc" />
+      <rect
+         style="fill:none;fill-opacity:0.999995;stroke:#ffffff;stroke-width:5.33185;stroke-linejoin:round;stop-color:#000000"
+         id="rect2729"
+         width="45.032829"
+         height="33.238995"
+         x="534.66595"
+         y="220.63445"
+         ry="6.9336295" />
     </g>
   </g>
 </svg>

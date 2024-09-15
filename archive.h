@@ -16,6 +16,12 @@ typedef struct Archive_s {
 	} ArchiveType;
 	/// stores file handle of archive
 	void* zipFile;
+#if defined(__ANDROID__)
+	/// on Android, archive file ops need to be performed via SDL_RWops, therefore archive needs tob e read into a memory buffer first
+	void* zipBuf;
+	/// size of memory buffer
+	size_t zipBufSz;
+#endif
 	/// pointer to directory structure
 	FileInfo* pDir;
 	/// number of files in current archive/directory

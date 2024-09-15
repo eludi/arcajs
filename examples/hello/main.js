@@ -33,6 +33,14 @@ app.on('keyboard', function(evt) {
     }
 });
 
+app.on('gamepad', function(evt) {
+	if(evt.type==='button' && evt.value>0) {
+		if(evt.button >= 6)
+			return app.close();
+        audio.sound('square', 50+Math.random()*1000, 0.5, 0.5);
+	}
+});
+
 app.on('textinsert', function(evt) {
     console.log(evt);
 });

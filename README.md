@@ -105,14 +105,12 @@ manifest file. This also opens up additional deployment options, for example
 packaging all assets into a zip archive and even linking everything together
 into a single executable, as described in [PACKAGING.md](doc/PACKAGING.md).
 
-If you want to deploy your application on the web, you currently have to put all
-your scripts and resources in the same folder as the web runtime and adapt the
-web runtime's index.html file's last script tag to execute your application
-logic:
+If you want to deploy your application on the web, it is sufficient to maintain
+a manifest file with the sources and put them together with all resources
+into the same folder as copy of the web runtime.
 
-```html
-	<script type="text/javascript" src="hello.js"></script>
-```
+Since September 2024 arcajs also offers experimental native Android support.
+Refer to [PACKAGING.md](doc/PACKAGING.md) for further details.
 
 ## API documentation
 

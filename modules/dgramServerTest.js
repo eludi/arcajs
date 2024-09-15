@@ -8,13 +8,10 @@ app.on('load', function() {
 });
 
 app.on('update', function() {
-    var arrBuf = socket.read(2);
-    if(arrBuf) {
-        var arr = new Uint8Array(arrBuf), s= '';
-        for(var i=0; i<arr.length; ++i)
-            if(arr[i]<128)
-                s+=String.fromCharCode(arr[i]);
-        console.log(s);
+    var msg = socket.read(0.02, 'json');
+    if(msg) {
+        console.log(msg);
+        socket.write('server received: '+JSON.stringify(msg));
     }
 });
 

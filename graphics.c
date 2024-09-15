@@ -24,8 +24,6 @@ typedef struct {
 static uint8_t dtransf = 0, dtransfMax = 7;
 static GfxState gs[8];
 
-static float windowPixelRatio;
-
 typedef struct {
 	SDL_Texture *tex;
 	SDL_Rect src;
@@ -37,22 +35,20 @@ static ImgResource* images=NULL;
 static uint32_t numImages=0, numImagesMax=0;
 static uint32_t numFonts=0, numFontsMax=0;
 
-void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float perspectivity, float pixelRatio, void *arg) {
-	gfxStateReset();
-
+void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float resScale, void *arg) {
 	(void)vpWidth;
 	(void)vpHeight;
-	(void)perspectivity;
-	windowPixelRatio = pixelRatio;
+
+	gfxStateReset();
 	renderer = (SDL_Renderer*)arg;
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
-	defaultFont = gfxSVGUpload(font12x16, sizeof(font12x16), windowPixelRatio);
-	images[defaultFont].sc = 1.0f/windowPixelRatio;
-	gfxImageTile(defaultFont, 160,0,32,32); // circle texture
+	defaultFont = gfxSVGUpload(font12x16, sizeof(font12x16), resScale);
+	images[defaultFont].sc = 1.0f/resScale;
+	gfxImageTile(defaultFont, 160*resScale,0,32*resScale,32*resScale); // circle texture
 	gfxImageSetCenter(defaultFont+1, 0.5f, 0.5f);
 	images[defaultFont+1].sc = 1.0f/32.0f;
-	gfxImageTile(defaultFont, 126,40,1,1); // square texture
+	gfxImageTile(defaultFont, 126*resScale,40*resScale,1*resScale,1*resScale); // square texture
 	gfxImageSetCenter(defaultFont+2, 0.5f, 0.5f); 
 }
 
@@ -79,8 +75,7 @@ void gfxBeginFrame(uint32_t clearColor) {
 	SDL_SetRenderDrawColor(renderer, clearColor >> 24, clearColor >> 16, clearColor >> 8, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(renderer);
 	gfxStateReset();
-	if(windowPixelRatio!=1.0f)
-		gfxTransform(0,0,0,windowPixelRatio);
+	//if(resScale!=1.0f) gfxTransform(0,0,0,resScale);
 }
 
 void gfxEndFrame() {
@@ -91,7 +86,7 @@ uint32_t gfxSVGUpload(const char* svg, size_t svgLen, float scale) {
 	if(!svg) {
 		svg = font12x16;
 		svgLen = sizeof(font12x16);
-		scale *= windowPixelRatio;
+		scale /= images[defaultFont].sc;
 	}
 	char* svgCopy = malloc(svgLen+1);
 	memcpy(svgCopy, svg, svgLen);
@@ -657,14 +652,14 @@ void gfxMeasureText(uint32_t font, const char* text, float* width, float* height
 		if(width) {
 			*width = 0;
 			for(size_t readIndex=0; text[readIndex]; utf8ToLatin1(text, &readIndex))
-				*width += wChar;
+				*width += wChar * images[img].sc;
 		}
 		if(height)
-			*height = hChar;
+			*height = hChar * images[img].sc;
 		if(ascent)
-			*ascent = wChar;
+			*ascent = wChar * images[img].sc;
 		if(descent)
-			*descent = wChar-hChar;
+			*descent = wChar-hChar * images[img].sc;
 		return;
 	}
 

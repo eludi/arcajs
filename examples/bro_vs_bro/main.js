@@ -157,6 +157,7 @@ function gameReset() {
 
 var screenGame = {
 	pressedButtons:[{},{}],
+	info:'',
 	enter: function() {
 		spriteJ = new Player(0);
 		spriteT = new Player(1);
@@ -257,7 +258,7 @@ var screenGame = {
 		gfx.color(0,0,0,85);
 		for(var y=-0.125; y<200; ++y) // scanlines
 			gfx.fillRect(0,y,320,0.25);
-
+		gfx.color(0xFFffFFff).fillText(0,0, this.info, 0, gfx.ALIGN_LEFT_TOP);
 	},
 
 	keyboard: function(evt) {
@@ -275,23 +276,22 @@ var screenGame = {
 	},
 
 	gamepad: function(evt) {
-		var player = evt.index===0 ? spriteJ : evt.index===1 ? spriteT : null;
-		if(!player)
-			return;
+		const idx = evt.index%2, player = idx===0 ? spriteJ : spriteT;
  		if(evt.type==='axis') {
 			if(evt.axis===0 || evt.axis===2)
-				player.velx = evt.value*tilesz*2;
+				player.velx = evt.value * tilesz * 2;
 			else if(evt.axis===1 || evt.axis===3)
-				player.vely = evt.value*tilesz*2;
+				player.vely = evt.value * tilesz * 2;
 		}
 		else if(evt.type==='button') {
-			this.pressedButtons[evt.index][evt.button] = evt.value>0;
+			this.pressedButtons[idx][evt.button] = evt.value>0;
 			if(evt.button===0 && evt.value>0) {
 				if(state === 'over')
 					return app.on(screenIntro);
 				player.attack();
 			}
-			if(this.pressedButtons[evt.index][6] && this.pressedButtons[evt.index][7])
+			else if((this.pressedButtons[idx][6] && this.pressedButtons[idx][7])
+				|| (this.pressedButtons[idx][8] && this.pressedButtons[idx][9]))
 				return app.close();
 		}
 	}

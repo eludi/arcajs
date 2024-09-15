@@ -51,22 +51,44 @@ typedef struct {
 
 static Window wnd;
 
+extern int debug;
+
+#define LogInfo(...) SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, __VA_ARGS__)
+#define LogWarn(...) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, __VA_ARGS__)
+#define LogError(...) SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, __VA_ARGS__)
+
 //--- window handling --------------------------------------------
 
 static float getPixelRatio(int displayIndex) {
 	const float sysDefaultDpi =
 #ifdef __APPLE__
 		72.0f;
+#elif defined(__ANDROID__)
+		160.0f;
 #else
 		96.0f;
 #endif
 	float dpi;
-	if(SDL_GetDisplayDPI(displayIndex, NULL, &dpi, NULL) != 0)
+	if(SDL_GetDisplayDPI(displayIndex, &dpi, NULL, NULL) != 0) {
+		LogWarn("arcajs.pixelRatio SDL_GetDisplayDPI failed: %s", SDL_GetError());
 		return 1.0f;
+	}
+	LogInfo("arcajs.pixelRatio dpi:%.1f", dpi);
 	return dpi/sysDefaultDpi;
 }
 
 int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
+	{
+		const SDL_bool isAndroid =
+#ifdef __ANDROID__
+			SDL_TRUE;
+#else
+			SDL_FALSE;
+#endif
+		SDL_LogSetPriority(SDL_LOG_CATEGORY_APPLICATION, (debug||isAndroid) ? 
+			SDL_LOG_PRIORITY_INFO : SDL_LOG_PRIORITY_ERROR);
+	}
+
 	wnd.szX = wnd.szY = 0;
 	wnd.renderer = 0;
 
@@ -77,20 +99,27 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 	wnd.eventHandler = NULL;
 	wnd.eventHandlerUserData = NULL;
 	wnd.vsync = (windowFlags & WINDOW_VSYNC) ? 1 : 0;
-	wnd.pixelRatio = getPixelRatio(0);
 
 	if(SDL_Init(SDL_INIT_VIDEO)!=0) {
-		fprintf(stderr,"ERROR: cannot initialize SDL video: %s\n",SDL_GetError());
+		LogError("cannot initialize SDL video: %s", SDL_GetError());
 		return 1;
 	}
+	wnd.pixelRatio = getPixelRatio(0);
+
 	int32_t sdlFlags = SDL_WINDOW_ALLOW_HIGHDPI;
 	const char* title = "arcajs";
 
 	SDL_DisplayMode dm;
 	if (SDL_GetDesktopDisplayMode(0, &dm) != 0) {
-		fprintf(stderr,"SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
+		LogError("arcajs WindowOpen SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
 		return 1;
 	}
+	LogInfo("arcajs WindowOpen screen w:%i h:%i", dm.w, dm.h);
+
+	if(windowFlags & WINDOW_LANDSCAPE)
+		SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+	else if(windowFlags & WINDOW_PORTRAIT)
+		SDL_SetHint(SDL_HINT_ORIENTATIONS, "Portrait");
 
 	if(windowFlags & WINDOW_GL) {
 		SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
@@ -113,24 +142,24 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 	if(windowFlags & WINDOW_FULLSCREEN) {
 		sdlFlags |= SDL_WINDOW_FULLSCREEN;
 		wnd.window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-			dm.w*wnd.pixelRatio, dm.h*wnd.pixelRatio, sdlFlags);
+			dm.w, dm.h, sdlFlags);
 		wnd.fullscreen = 1;
 	}
 	else {
 		if(windowFlags & WINDOW_RESIZABLE)
 			sdlFlags |= SDL_WINDOW_RESIZABLE;
 		wnd.window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-			sizeX*wnd.pixelRatio, sizeY*wnd.pixelRatio, sdlFlags);
+			sizeX, sizeY, sdlFlags);
 		wnd.fullscreen = 0;
 	}
 	if (!wnd.window) {
-		fprintf(stderr,"ERROR: could not create window: %s\n", SDL_GetError());
+		LogError("arcajs WindowOpen could not create window: %s\n", SDL_GetError());
 		return 1;
 	}
-	SDL_SetWindowDisplayMode(wnd.window, &dm);
-
-	//printf("%s ", SDL_GetCurrentVideoDriver());
+	if(SDL_SetWindowDisplayMode(wnd.window, &dm) != 0)
+		LogWarn("arcajs WindowOpen setWindowDisplayMode failed: %s", SDL_GetError());
 	SDL_GetWindowSize(wnd.window, &wnd.szX, &wnd.szY);
+
 	if(windowFlags & WINDOW_GL) {
 		wnd.context = SDL_GL_CreateContext(wnd.window);
 		wnd.renderer = NULL;
@@ -143,8 +172,12 @@ int WindowOpen(int sizeX, int sizeY, WindowFlags windowFlags) {
 		if(wnd.vsync)
 			renderFlags |= SDL_RENDERER_PRESENTVSYNC;
 		wnd.renderer = SDL_CreateRenderer(wnd.window, -1, renderFlags);
-		SDL_SetRenderDrawBlendMode(wnd.renderer, SDL_BLENDMODE_BLEND);
+		if(!wnd.renderer)
+			LogError("arcajs WindowOpen create renderer failed: %s", SDL_GetError());
+		else
+			SDL_SetRenderDrawBlendMode(wnd.renderer, SDL_BLENDMODE_BLEND);
 	}
+	LogInfo("arcajs WindowOpen dimensions w:%i h:%i sc:%.3f", wnd.szX, wnd.szY, wnd.pixelRatio);
 	SDL_StopTextInput();
 	WindowUpdateTimestamp();
 	return 0;
@@ -309,7 +342,8 @@ int WindowUpdate() {
 	const char* sdl_error = SDL_GetError();
 	if(*sdl_error) {
 		int ignore = strncmp(sdl_error, "ERROR: NumPoints = 0", 20)==0;
-		fprintf(stderr, "WindowUpdate SDL ERROR%s: %s\n", (ignore ? " ignored" : ""), sdl_error);
+		if(!ignore)
+			LogWarn("arcajs WindowUpdate SDL ERROR: %s", sdl_error);
 		SDL_ClearError();
 		if(!ignore)
 			return -1;
@@ -393,8 +427,11 @@ int WindowHeight() {
 }
 
 void WindowDimensions(int width, int height) {
+	if(wnd.szX == width && wnd.szY == height)
+		return;
 	wnd.szX = width;
 	wnd.szY = height;
+	LogInfo("arcajs WindowDimensions resize w:%i h:%i", wnd.szX, wnd.szY);
 }
 
 float WindowPixelRatio() {
@@ -457,8 +494,9 @@ static JoyData joysticks[NUM_JOYSTICKS_MAX];
 
 size_t WindowNumControllers() {
 	if(!SDL_WasInit(SDL_INIT_JOYSTICK)) {
+		SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0"); // sane default
 		if(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER)<0) {
-			fprintf(stderr, "WindowNumControllers ERROR: cannot initialize SDL joystick.\n");
+			LogError("arcajs WindowNumControllers: cannot initialize SDL joystick.");
 			SDL_ClearError();
 			return 0;
 		}
@@ -470,16 +508,11 @@ size_t WindowNumControllers() {
 }
 
 int WindowControllerOpen(size_t id, int useJoystickApi) {
-	if(id>=NUM_JOYSTICKS_MAX)
+	if(id >= WindowNumControllers())
 		return -1;
-	if(!SDL_WasInit(SDL_INIT_JOYSTICK))
-		if(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER)<0) {
-			fprintf(stderr, "WindowControllerOpen(%u) ERROR: cannot initialize SDL joystick.\n", (unsigned)id);
-			return -1;
-		}
 	SDL_Joystick* pJoy = SDL_JoystickOpen(id);
 	if(!pJoy) {
-		fprintf(stderr,"WindowControllerOpen(%u) ERROR: cannot initialize controller: %s\n", (unsigned)id, SDL_GetError());
+		LogWarn("WindowControllerOpen(%u): cannot initialize controller: %s", (unsigned)id, SDL_GetError());
 		SDL_ClearError();
 		return -1;
 	}
@@ -501,7 +534,7 @@ int WindowControllerOpen(size_t id, int useJoystickApi) {
 	else {
 		joysticks[id].pGamepad = SDL_GameControllerOpen(id);
 		if(!joysticks[id].pGamepad) {
-			fprintf(stderr,"WindowControllerOpen(%u) ERROR: cannot initialize controller: %s\n", (unsigned)id, SDL_GetError());
+			LogWarn("WindowControllerOpen(%u) ERROR: cannot initialize controller: %s", (unsigned)id, SDL_GetError());
 			SDL_ClearError();
 			return -1;
 		}
@@ -510,8 +543,8 @@ int WindowControllerOpen(size_t id, int useJoystickApi) {
 		SDL_ClearError();
 	}
 
-	//printf("open joystick %u \"%s\" axes:%i hats:%i buttons:%i\n", (unsigned)id,
-	//	SDL_JoystickName(pJoy), joysticks[id].nAxes, joysticks[id].nHats, joysticks[id].nButtons);
+	LogInfo("WindowControllerOpen(%u) \"%s\" axes:%i hats:%i buttons:%i\n", (unsigned)id,
+		SDL_JoystickName(pJoy), joysticks[id].nAxes, joysticks[id].nHats, joysticks[id].nButtons);
 	return 0;
 }
 

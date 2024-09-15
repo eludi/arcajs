@@ -62,7 +62,8 @@ var screenIntro = (function() {
 				if(evt.button===0 && evt.value>0)
 					return app.on(screenGame);
 				pressedButtons[evt.button] = evt.value>0;
-				if(pressedButtons[6] && pressedButtons[7])
+				if((pressedButtons[6] && pressedButtons[7])
+					|| (pressedButtons[8] && pressedButtons[9]))
 					return app.close();
 			}
 		},

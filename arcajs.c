@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20240713a";
+const char* appVersion = "v0.20240915a";
 int debug = 0, useJoystickApi = 0;
 
 static void showError(const char* msg, ...) {
@@ -474,14 +474,26 @@ int main(int argc, char **argv) {
 		audioTracks = jsonGetNumber(json, "audio_tracks", audioTracks);
 		scriptNames = jsonGetStringArray(json, "scripts");
 
-		char* display = jsonGetString(json, "display");
-		if(display) {
-			if(strcmp(display, "fullscreen")==0)
-				windowFlags |= WINDOW_FULLSCREEN;
-			else if(strcmp(display, "resizable")==0)
-				windowFlags |= WINDOW_RESIZABLE;
+		{
+			char* display = jsonGetString(json, "display");
+			if(display) {
+				if(strcmp(display, "fullscreen")==0)
+					windowFlags |= WINDOW_FULLSCREEN;
+				else if(strcmp(display, "resizable")==0)
+					windowFlags |= WINDOW_RESIZABLE;
+				free(display);
+			}
 		}
-		free(display);
+		{
+			char* orientation = jsonGetString(json, "orientation");
+			if(orientation) {
+				if(strncmp(orientation, "land", 4)==0)
+					windowFlags |= WINDOW_LANDSCAPE;
+				else if(strncmp(orientation, "port", 4)==0)
+					windowFlags |= WINDOW_PORTRAIT;
+				free(orientation);
+			}
+		}
 
 		jsonClose(json);
 		free(manifest);
@@ -517,10 +529,11 @@ int main(int argc, char **argv) {
 
 	Value* events = Value_new(VALUE_LIST, NULL);
 	WindowEventHandler(handleEvents, events);
+	const float pixelRatio = SDL_max(SDL_roundf(WindowPixelRatio()), 1.0f);
 #ifdef _GRAPHICS_GL
-	gfxInit(winSzX, winSzY, windowPerspectivity, WindowPixelRatio(), SDL_GL_GetProcAddress);
+	gfxInit(winSzX, winSzY, windowPerspectivity, pixelRatio, SDL_GL_GetProcAddress);
 #else
-	gfxInit(winSzX, winSzY, windowPerspectivity, WindowPixelRatio(), WindowRenderer());
+	gfxInit(winSzX, winSzY, pixelRatio, WindowRenderer());
 #endif
 	if(consoleSzY)
 		ConsoleCreate(0,0,consoleY, winSzX, consoleSzY);

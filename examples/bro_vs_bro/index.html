@@ -4,10 +4,10 @@
 	<title>arcajs</title>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="user-scalable=no, width=device-width" />
-	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 	<link rel="icon" />
-	<link rel="apple-touch-icon" />
+	<link rel="apple-touch-icon" href="bro_vs_bro_icon.png"/>
 	<link rel="manifest" href="manifest.json" />
 
 	<style type="text/css">
@@ -42,6 +42,10 @@ body {
 	grid-column:1;
 	grid-row:1;
 }
+#arcajs_load_icon {
+	width: 96px;
+	height:	96px;
+}
 .fade_in {
 	animation: fadeIn 3.0s linear infinite;
 }
@@ -61,13 +65,13 @@ body {
 	height: 100%;
 }
 	</style>
-<!--	<script type="text/javascript">
+	<script type="text/javascript">
 		if (('serviceWorker' in navigator) && (location.origin!=='file://')) {
 			navigator.serviceWorker.register('serviceworker.js', {scope:'./'})
 				.then(() => console.log('service worker installed'))
 				.catch(err => console.error('Error', err));
 		}
-	</script>-->
+	</script>
 </head>
 <body
 	><div id="arcajs_screens"
@@ -87,9 +91,22 @@ window.onerror = function(msg, url, line, col, err) {
 	alert('Error at '+url+':'+line+': '+msg+stack);
 }
 </script>
-<script type="text/javascript" src="../../browser_runtime/arcajs.min.js"></script>
+<script type="text/javascript" src="arcajs.min.js"></script>
 <script type="text/javascript">
 fetch("manifest.json").then(resp=>resp.json()).then((data)=>{
+	function iconByType(data, type) {
+		if(data.icons && Array.isArray(data.icons)) {
+			for(let i=0; i<data.icons.length; ++i) {
+				const record = data.icons[i];
+				if(record.src && record.src.toLowerCase().endsWith(type))
+					return record.src;
+			}
+		}
+		if(data.icon && data.icon.toLowerCase().endsWith(type))
+			return data.icon;
+		return null;
+	}
+
 	if(data.name) {
 		document.title = data.name;
 		document.querySelector("#arcajs_load_title").innerHTML = data.name;
@@ -99,25 +116,44 @@ fetch("manifest.json").then(resp=>resp.json()).then((data)=>{
 		const favicon = document.querySelector("link[rel~='icon']");
 		const appleTouchIcon = document.querySelector("link[rel~='apple-touch-icon']");
 		const loadicon = document.querySelector("#arcajs_load_icon");
-		if(!data.icon)
-			favicon.href = appleTouchIcon.href = loadicon.src;
-		else
-			favicon.href = appleTouchIcon.href = loadicon.src = data.icon;
+		const svgIcon = iconByType(data, 'svg'), pngIcon = iconByType(data, 'png'), anyIcon = svgIcon || pngIcon;
+		if(!anyIcon)
+			favicon.href = loadicon.src;
+		else {
+			favicon.href = loadicon.src = anyIcon;
+			if(pngIcon)
+				appleTouchIcon.href = pngIcon;
+		}
 	}
 
+	if(data.display === 'fullscreen') {
+		app.width = window.screen.width;
+		app.height = window.screen.height;
+	}
 	for(let i=0; i<data.scripts.length; ++i)
 		app.include(data.scripts[i]);
 
 	document.querySelector("#arcajs_start_icon").style.display = '';
 	document.querySelector("#arcajs_start_icon").classList.add("fade_in");
 
-	document.getElementById('arcajs_load').addEventListener("click", ()=>{
+	function launch() {
 		if(data.display === 'fullscreen')
 			app.fullscreen(true);
 		arcajs.audio.resume();
 		document.getElementById('arcajs_load').style.display = 'none';
 		app._run(true);
-	});
+	}
+	document.getElementById('arcajs_load').addEventListener("click", launch);
+
+	function pollGamepads(now) {
+		for(let i=0; i<2; ++i) {
+			const state = app._getGamepad(i);
+			if(state.connected && state.buttons.length && state.buttons[0])
+				return launch();
+		}
+		requestAnimationFrame(pollGamepads);
+	}
+	requestAnimationFrame(pollGamepads);
 }).catch(err => alert("this app needs to be provided by a web server"));
 </script
 ></body></html>

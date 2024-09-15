@@ -9,6 +9,7 @@ function httpGetResource() {
 	const imgurl = "https://eludi.net/caramboli/resource/icon.128.png";
 	const svgurl = "https://eludi.net/droned/eludi.link.svg";
 	const audiourl = "https://eludi.net/louloudia/resource/flute.mp3";
+	const jsurl = "https://eludi.net/labs/fib.js";
 	app.httpGet(imgurl, function(obj, statusCode) {
 		console.log("\tGET Image", statusCode, '->', obj.width+'x'+obj.height+'x'+obj.depth, '=', obj.data.length);
 		img = app.createImageResource(obj);
@@ -21,6 +22,12 @@ function httpGetResource() {
 		console.log("\tGET MP3", statusCode, '->', obj.samples, obj.channels);
 		sample = audio.uploadPCM(obj);
 		audio.replay(sample);
+	});
+	app.httpGet(jsurl, function(js, statusCode) {
+		console.log("\tGET JS", statusCode, '->', typeof js, js.length);
+		const fib = new Function(js);
+		const ret = fib();
+		console.log('return value:', ret);
 	});
 }
 

@@ -20,6 +20,7 @@ from their different contexts. Arcajs interprets the following parameters:
 {
 	"name":"application window title",
 	"display":"fullscreen", // either "fullscreen", "window" (default), or "resizable"
+	"orientation":"landscape", // fixates screen orientation on mobile platforms. Either "any" (default), "landscape", or "portrait"
 	"window_width": 640, // initial window width, only relevant if display is "window" or "resizable"
 	"window_height": 480, // initial window height, only relevant if display is "window" or "resizable"
 	"console_y": 0, // overlay console vertical position
@@ -72,3 +73,22 @@ and additional free command line tools ([upx](https://upx.github.io/) and
 can be automized, the arcajs source contains an exemplary package.bat file
 demonstrating this, but this process likely requires manual tweaking, which is
 clearly beyond the supported scope of arcajs and of this document.
+
+## Native Android apk packaging
+
+Since September 2024 arcajs apps can be packaged and deployed as Android APKs. As a
+limitation, the httpRequest call (requiring libcurl and openssl) is not yet ported
+to Android. The deployment and assembly process is still experimental not yet
+streamlined; manual compilation and therefore basic Android development knowledge is
+required.
+
+The development procedure widely resembles other SDL2-based C applications as
+described in the [SDL2 documentation](https://wiki.libsdl.org/SDL2/README/android)
+and requires the Android SDK and NDK to be installed on a development machine.
+
+The arcajs sources contain a respective Android.mk file that needs to be placed
+into the app/jni/src location of the generated projects alongside the arcajs .c and
+.h source files. All resources and javascript code need to be packed into an
+assets.zip file to be placed into the app/src/main/assets location of the Android
+project. Then the arcajs project may be built, either via Android Studio or via
+the command line by calling `./gradlew build` in the project's home directory.

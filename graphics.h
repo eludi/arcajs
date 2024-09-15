@@ -7,7 +7,7 @@
 #define GFX_IMG_SQUARE 2
 
 ///@{ setup and resource management:
-extern void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float perspectivity, float pixelRatio, void *arg);
+extern void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float resourceScale, void *arg);
 extern void gfxClose();
 extern void gfxTextureFiltering(int level);
 

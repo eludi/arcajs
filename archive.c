@@ -1,21 +1,19 @@
 #include "archive.h"
 
-#if defined(__GNUC__)
-	// Ensure we get the 64-bit variants of the CRT's file I/O calls
-	#ifndef _FILE_OFFSET_BITS
-		#define _FILE_OFFSET_BITS 64
-	#endif
-	#ifndef _LARGEFILE64_SOURCE
-		#define _LARGEFILE64_SOURCE 1
-	#endif
-#endif
 #include "external/miniz.h"
 
 #include <string.h>
 #include <stdlib.h>
 
-# include <sys/stat.h>
-# include <dirent.h>
+#include <sys/stat.h>
+#include <dirent.h>
+
+#ifndef _NO_SQL
+#include <SDL_rwops.h>
+#endif
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
 
 //--- functions ----------------------------------------------------
 
@@ -40,9 +38,17 @@ static char* filePath(const char* path, const char* filename) {
 Archive* ArchiveOpen(const char * url) {
 	Archive *ar=0;
 	int nFiles;
-	int isDirectory = isDir(url);
-	if(isDirectory<0)
+#ifdef __ANDROID__
+	// fixed archive name assets.zip to be placed into the assets folder
+	url = "assets.zip";
+	__android_log_print(ANDROID_LOG_INFO, "arcajs", "ArchiveOpen %s", url);
+	const int isDirectory = 0;
+#else
+	const int isDirectory = isDir(url);
+	if(isDirectory<0) {
 		return 0;
+	}
+#endif
 	ar =(Archive*)malloc(sizeof(Archive));
 	if(isDirectory) {
 		ar->type = 0;
@@ -53,7 +59,22 @@ Archive* ArchiveOpen(const char * url) {
 
 		ar->zipFile = malloc(sizeof(mz_zip_archive));
 		memset(ar->zipFile, 0, sizeof(mz_zip_archive));
+#ifdef __ANDROID__
+		SDL_RWops *io = SDL_RWFromFile(url, "rb");
+		if (!io || io->size(io)<=0)
+			return 0;
+		ar->zipBufSz = io->size(io);
+		ar->zipBuf = malloc(ar->zipBufSz);
+		const size_t numRead = SDL_RWread(io, ar->zipBuf, 1, ar->zipBufSz);
+		SDL_RWclose(io);
+
+		if (numRead != ar->zipBufSz || !mz_zip_reader_init_mem(ar->zipFile, ar->zipBuf, ar->zipBufSz, 0)) {
+			free(ar->zipBuf);
+			ar->zipBuf = 0;
+		    ar->zipBufSz = 0;
+#else
 		if (!mz_zip_reader_init_file(ar->zipFile, url, 0)) {
+#endif
 			free(ar->zipFile);
 			free(ar);
 			return 0;
@@ -64,6 +85,7 @@ Archive* ArchiveOpen(const char * url) {
 	strcpy(ar->path,url);
 	nFiles = ArchiveContent(ar,&ar->pDir);
 	if(nFiles<=0) {
+		ar->numFiles = 0;
 		ArchiveClose(ar);
 		return 0;
 	}
@@ -84,6 +106,11 @@ int ArchiveClose(Archive *ar) {
 		mz_zip_reader_end(ar->zipFile);
 		free(ar->zipFile);
 		ar->zipFile=0;
+#ifdef __ANDROID__
+		free(ar->zipBuf);
+		ar->zipBuf = 0;
+		ar->zipBufSz = 0;
+#endif
 	}
 	free(ar->path);
 	ar->path=0;
@@ -206,6 +233,10 @@ int ArchiveContent(Archive* ar, FileInfo** pFileInfo) {
 }
 
 size_t ArchiveFileLoad(Archive *ar, const char* filename, void* ptr) {
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_INFO, "arcajs", "ArchiveFileLoad %s", filename);
+#endif
+
 	unsigned int i;
 	for(i=0; i<ar->numFiles; i++)
 		if(strcmp(ar->pDir[i].filename,filename)==0)
@@ -215,14 +246,26 @@ size_t ArchiveFileLoad(Archive *ar, const char* filename, void* ptr) {
 	
 	if(ar->type==0) { // directory
 		char * url = filePath(ar->path,filename);
-		FILE *fp;
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_INFO, "arcajs", "ArchiveFileLoad  url %s", url);
+#endif
+
 		size_t ret;
-		fp = fopen(url, "rb");
+#ifdef _NO_SQL
+		FILE *fp = fopen(url, "rb");
 		free(url);
 		if (!fp)
 			return 0;
 		ret = fread(ptr, 1, ar->pDir[i].size, fp);
 		fclose(fp);
+#else
+		SDL_RWops *io = SDL_RWFromFile(url, "rb");
+		free(url);
+		if (!io || io->size(io)<=0)
+			return 0;
+		ret = SDL_RWread(io, ptr, 1, ar->pDir[i].size);
+		SDL_RWclose(io);
+#endif
 		return ret;
 	}
 

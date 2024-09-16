@@ -91,7 +91,7 @@ window.onerror = function(msg, url, line, col, err) {
 	alert('Error at '+url+':'+line+': '+msg+stack);
 }
 </script>
-<script type="text/javascript" src="arcajs.min.js"></script>
+<script type="text/javascript" src="../../browser_runtime/arcajs.min.js"></script>
 <script type="text/javascript">
 fetch("manifest.json").then(resp=>resp.json()).then((data)=>{
 	function iconByType(data, type) {

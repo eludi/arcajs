@@ -121,8 +121,8 @@ up to ECMAScript E5/E5.1, so some very modern language features should be
 avoided in order to write portable code.
 
 Beyond that, arcajs implements a few standard browser APIs (console, setTimeout,
-localStorage) and its own interfaces accessible via the global app object. For
-more detailed information take a look at the [arcajs API reference](doc/API.md)
+localStorage, Worker) and its own interfaces accessible via the global app object.
+For more detailed information take a look at the [arcajs API reference](doc/API.md)
 and [application events documentation](doc/EVENTS.md).
 
 ## Further examples

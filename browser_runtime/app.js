@@ -162,7 +162,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	}
 
 	const app = {
-		version: 'v0.20240908a',
+		version: 'v0.20240920a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -319,6 +319,15 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 			if(options && ('button1' in options))
 				return window.confirm(msg);
 			return window.alert(msg);
+		},
+		log: function(...data) {
+			console.log(...data);
+		},
+		warn: function(...data) {
+			console.warn(...data);
+		},
+		error: function(...data) {
+			console.error(...data);
 		},
 		//H 0..360, S&L 0.0..1.0
 		hsl: function(h,s,l,a) {

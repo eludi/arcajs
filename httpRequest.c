@@ -1,4 +1,5 @@
 #include "httpRequest.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -169,6 +170,7 @@ size_t writeFunction(void *ptr, size_t size, size_t nmemb, StringBuf* sb) {
 
 int httpGet(const char* url, char** resp, size_t* respsz) {
 	*resp = NULL;
+	LogInfo("httpGet(%s)", url);
 #if defined __WIN32__ || defined WIN32
 	HINTERNET session, conn, req = winInetRequest(url, "GET", &session, &conn);
 	if (!req)
@@ -204,6 +206,7 @@ int httpGet(const char* url, char** resp, size_t* respsz) {
 	int ret = curl_easy_perform(curl);
 	if(ret != CURLE_OK) {
 		StringBuf_set(sb, curl_easy_strerror(ret));
+		LogWarn("httpGet error: %s", curl_easy_strerror(ret));
 		ret = -ret;
 	}
 	else {
@@ -225,6 +228,7 @@ int httpGet(const char* url, char** resp, size_t* respsz) {
 }
 
 int httpPost(const char* url, const char* data, char** resp, size_t* respsz) {
+	LogInfo("httpPost(%s, %s)", url, data);
 	if(resp)
 		*resp = NULL;
 #if defined __WIN32__ || defined WIN32
@@ -266,6 +270,7 @@ int httpPost(const char* url, const char* data, char** resp, size_t* respsz) {
 	else {
 		long response_code;
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+		LogWarn("httpPost error: %s", curl_easy_strerror(ret));
 		ret = (int)response_code;
 	}
 	curl_easy_cleanup(curl);

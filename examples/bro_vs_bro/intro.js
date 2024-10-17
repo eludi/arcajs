@@ -59,7 +59,7 @@ var screenIntro = (function() {
 		},
 		gamepad: function(evt) {
 			if(evt.type==='button') {
-				if(evt.button===0 && evt.value>0)
+				if(evt.button<=1 && evt.value>0)
 					return app.on(screenGame);
 				pressedButtons[evt.button] = evt.value>0;
 				if((pressedButtons[6] && pressedButtons[7])

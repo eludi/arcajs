@@ -60,6 +60,8 @@ extern void gfxTransf3d(float x, float y, float z, float rotX, float rotY, float
 extern void gfxColor(uint32_t color);
 /// sets current line width
 extern void gfxLineWidth(float w);
+/// returns current line width
+extern float gfxGetLineWidth();
 /// sets viewport / clipping rectangle (in screen coordinates), use negative width/height to disable clipping
 extern void gfxClipRect(int x, int y, int w, int h);
 /// sets current blend mode

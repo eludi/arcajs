@@ -47,8 +47,8 @@ else
 endif
 
 SRCLIB = window.c graphicsUtils.c console.c audio.c resources.c archive.c \
-  value.c httpRequest.c external/miniz.c graphics.c
-SRC = arcajs.c graphicsBindings.c jsBindings.c \
+  value.c httpRequest.c external/miniz.c graphics.c log.c
+SRC = arcajs.c graphicsBindings.c jsBindings.c worker.c \
   modules/intersects.c modules/intersectsBindings.c external/duktape.c
 OBJ = $(SRC:.c=.o)
 EXE = arcajs$(EXESUFFIX)
@@ -77,20 +77,21 @@ modules/os$(DLLSUFFIX): modules/os.o external/duktape.o
 	$(CC) -o $@ $(DLLFLAGS) $^ $(LIBS)
 
 # compilation dependencies:
-arcajs.o: arcajs.c window.h graphics.h audio.h console.h resources.h archive.h jsBindings.h value.h
+arcajs.o: arcajs.c window.h graphics.h audio.h console.h resources.h archive.h jsBindings.h value.h log.h
 resources.o: resources.c resources.h archive.h graphics.h audio.h graphicsUtils.h
 archive.o: archive.c archive.h external/miniz.h
-window.o: window.c window.h
+window.o: window.c window.h log.h
 graphics.o: graphics.c graphics.h
 graphicsUtils.o: graphicsUtils.c graphicsUtils.h font12x16.h \
   external/stb_truetype.h external/stb_image.h external/nanosvg.h external/nanosvgrast.h
 audio.o: audio.c audio.h external/dr_mp3.h
 console.o: console.c console.h graphics.h
 jsBindings.o: jsBindings.c jsBindings.h jsCode.h window.h graphics.h audio.h \
-  value.h graphicsUtils.h httpRequest.h external/duktape.h external/duk_config.h
+  value.h graphicsUtils.h httpRequest.h log.h external/duktape.h external/duk_config.h
 external/duktape.o: external/duktape.c external/duktape.h 
 value.o: value.c value.h
-httpRequest.o: httpRequest.c httpRequest.h
+httpRequest.o: httpRequest.c httpRequest.h log.h
+log.o: log.c log.h
 modules/intersects.o: modules/intersects.c modules/intersects.h
 modules/intersectsBindings.o: modules/intersectsBindings.c modules/intersects.h \
   external/duktape.h external/duk_config.h

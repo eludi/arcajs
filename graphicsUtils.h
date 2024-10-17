@@ -21,7 +21,11 @@ typedef enum {
 	GFX_ALIGN_RIGHT_BOTTOM = 10,
 } GfxAlign;
 
+/// convert from hsla to rgba
+/**  the function expects values between 0.0..1.0, hue between 0.0..360.0 */
 extern uint32_t hsla2rgba(float h, float s, float l, float a);
+/// converts CSS color strings to uint32_t colors 
+extern uint32_t cssColor(const char* str);
 /// byte swap 32bit unsigned int
 extern uint32_t bswap_uint32( uint32_t val );
 

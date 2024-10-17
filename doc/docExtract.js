@@ -1,4 +1,3 @@
-
 const os = app.require('os');
 
 function docExtract(inFilename) {
@@ -90,7 +89,7 @@ var doc = ['# arcajs API','','- [app](#module-app)','- [audio](#module-audio)',
 	'- [console](#module-console)','- [graphics](#module-graphics)',
 	'- [intersects](#module-intersects)', '']
 	.concat(docExtract("../jsBindings.c")).concat(docExtract("../graphicsBindings.c"))
-	.concat(docExtract("../modules/intersectsBindings.c"));
+	.concat(docExtract("../modules/intersectsBindings.c")).concat(docExtract("../worker.c"));
 doc = doc2md(doc);
 os.writeFileSync("API.md", doc.join('\n').replace(/\n(\n)+/g, '\n\n'));
 app.close();

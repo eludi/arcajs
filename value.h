@@ -4,6 +4,7 @@
 // (c) 2019-05-27 by gerald.franz@eludi.net
 
 #include <stdio.h>
+#include <stdbool.h>
 
 //--- struct Value --------------------------------------------------
 
@@ -51,16 +52,20 @@ typedef struct Value {
 extern Value* Value_new(char type, const char* value);
 extern Value* Value_str(const char* value);
 extern Value* Value_int(signed long long value);
-extern Value* Value_bool(int value);
+extern Value* Value_bool(bool value);
 extern Value* Value_float(double value);
 extern Value* Value_err(const char* msg);
 extern Value* Value_parse(const char* text);
 extern Value* Value_parseXML(const char* xmlstr, const char** customCodes);
 
-extern void Value_delete(Value* v, int deleteChain);
+extern void Value_delete(Value* v, bool deleteChain);
 
 /// append to a list
 extern void Value_append(Value* parent, Value* child);
+/// returns and removes first element of a list, or a NULL pointer if empty
+extern Value* Value_popf(Value* parent);
+/// returns true if a list value is empty
+extern bool Value_empty(const Value* v);
 /// set a key-value pair of a map
 extern void Value_set(Value* parent, const char* key, Value* value);
 /// set a string key-value pair of a map
@@ -152,11 +157,11 @@ Value* Value_int(signed long long value) {
 	v->i = value;
 	return v;
 }
-Value* Value_bool(int value) {
+Value* Value_bool(bool value) {
 	Value* v = (Value*)malloc(sizeof(Value));
 	v->type = VALUE_BOOL;
 	v->next = NULL;
-	v->i = value;
+	v->i = value ? 1 : 0;
 	return v;
 }
 Value* Value_float(double value) {
@@ -167,7 +172,7 @@ Value* Value_float(double value) {
 	return v;
 }
 
-void Value_delete(Value* v, int deleteChain) {
+void Value_delete(Value* v, bool deleteChain) {
 	if(!v)
 		return;
 	if(deleteChain)
@@ -195,6 +200,19 @@ void Value_append(Value* parent, Value* child) {
 	while(sibling->next)
 		sibling = sibling->next;
 	sibling->next = child;
+}
+
+Value* Value_popf(Value* parent) {
+	if(parent->type != VALUE_LIST || !parent->child)
+		return 0;
+	Value* child = parent->child;
+	parent->child = child->next;
+	child->next = 0;
+	return child;
+}
+
+bool Value_empty(const Value* v) {
+	return v && v->type==VALUE_LIST && !v->child;
 }
 
 void Value_set(Value* parent, const char* key, Value* value) {

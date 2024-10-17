@@ -8,6 +8,7 @@
 #include "graphics.h"
 #include "console.h"
 #include "httpRequest.h"
+#include "log.h"
 
 #include "external/duk_config.h"
 #include "external/duktape.h"
@@ -17,6 +18,7 @@
 #include <math.h>
 #include <string.h>
 
+#include <SDL_assert.h>
 #include <SDL_thread.h>
 #include <SDL_loadso.h>
 #include <SDL_filesystem.h>
@@ -32,6 +34,8 @@ extern float randf();
 extern const char* appVersion;
 extern void intersects_exports(duk_context *ctx);
 extern void bindGraphics(duk_context *ctx);
+extern void bindWorker(duk_context *ctx);
+extern void updateWorkers(duk_context* ctx);
 extern int debug;
 
 uint32_t rgbaColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
@@ -123,10 +127,28 @@ uint32_t array2color(duk_context *ctx, duk_idx_t idx) {
 	}
 	if(duk_is_number(ctx, idx))
 		return duk_to_uint(ctx, idx);
+	else if(duk_is_string(ctx, idx))
+		return cssColor(duk_get_string(ctx, idx));
 	return 0xffffffff;
 }
 
-Value* readValue(duk_context *ctx, duk_idx_t objIdx) {
+Value* readValue(duk_context *ctx, duk_idx_t idx);
+
+static Value* readArray(duk_context *ctx, duk_idx_t objIdx) {
+	Value* arr = Value_new(VALUE_LIST, NULL);
+	const uint32_t len = duk_get_length(ctx, objIdx);
+	for(uint32_t idx=0; idx<len; ++idx) {
+		duk_get_prop_index(ctx, objIdx, idx);
+		Value_append(arr, readValue(ctx, duk_get_top_index(ctx)));
+		duk_pop(ctx);
+	}
+	return arr;
+}
+
+static Value* readObject(duk_context *ctx, duk_idx_t objIdx) {
+	SDL_assert_always(duk_get_type(ctx, objIdx) == DUK_TYPE_OBJECT);
+	if(duk_is_array(ctx,objIdx))
+		return readArray(ctx, objIdx);
 	Value* obj = Value_new(VALUE_MAP, NULL);
 	duk_enum(ctx, objIdx, DUK_ENUM_OWN_PROPERTIES_ONLY);
 	duk_idx_t enumIdx = duk_get_top_index(ctx);
@@ -164,12 +186,36 @@ Value* readValue(duk_context *ctx, duk_idx_t objIdx) {
 	return obj;
 }
 
+Value* readValue(duk_context *ctx, duk_idx_t idx) {
+	switch(duk_get_type(ctx, idx)) {
+		case DUK_TYPE_OBJECT: return readObject(ctx, idx);
+		case DUK_TYPE_STRING:
+			return Value_str(duk_get_string(ctx, idx));
+		case DUK_TYPE_NUMBER: {
+			double f = duk_get_number(ctx, idx);
+			signed long long i = f;
+			if(f==(double)i)
+				return Value_int(i);
+			else
+				return Value_float(f);
+		}
+		case DUK_TYPE_BOOLEAN:
+			return Value_bool(duk_to_boolean(ctx, idx));
+		case DUK_TYPE_NULL:
+		case DUK_TYPE_UNDEFINED:
+			return Value_new(VALUE_NONE, NULL);
+		default:
+			SDL_assert_always(duk_get_type(ctx, idx) == DUK_TYPE_OBJECT); // always false
+	}
+	return NULL;
+}
+
 static duk_ret_t tryJsonDecode(duk_context *ctx, void* udata) {
 	duk_json_decode(ctx, -1);
 	return 1;
 }
 
-static void dk_push_value(duk_context* ctx, const Value* value) {
+void pushValue(duk_context* ctx, const Value* value) {
 	if(!value) {
 		duk_push_undefined(ctx);
 		return;
@@ -189,7 +235,7 @@ static void dk_push_value(duk_context* ctx, const Value* value) {
 		duk_uarridx_t idx = 0;
 		const Value* item = value->child;
 		while(item) {
-			dk_push_value(ctx, item);
+			pushValue(ctx, item);
 			duk_put_prop_index(ctx, arr, idx++);
 			item = item->next;
 		}
@@ -198,7 +244,7 @@ static void dk_push_value(duk_context* ctx, const Value* value) {
 	case VALUE_MAP: {
 		duk_idx_t obj = duk_push_object(ctx);
 		for(Value* key = value->child; key!=NULL; key = key->next->next) {
-			dk_push_value(ctx, key->next);
+			pushValue(ctx, key->next);
 			duk_put_prop_string(ctx, obj, key->str);
 		}
 		break;
@@ -390,6 +436,11 @@ static duk_ret_t dk_consoleVisible(duk_context *ctx) {
 	return 1;
 }
 
+duk_ret_t dk_dummy(duk_context *ctx) {
+	(void)ctx;
+	return 0;
+}
+
 static void bindConsole(duk_context *ctx) {
 	duk_push_object(ctx);
 
@@ -401,6 +452,12 @@ static void bindConsole(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "warn");
 	duk_push_c_function(ctx, dk_consoleVisible, 1);
 	duk_put_prop_string(ctx, -2, "visible");
+	duk_push_c_function(ctx, dk_dummy, 0);
+	duk_put_prop_string(ctx, -2, "group");
+	duk_push_c_function(ctx, dk_dummy, 0);
+	duk_put_prop_string(ctx, -2, "groupCollapsed");
+	duk_push_c_function(ctx, dk_dummy, 0);
+	duk_put_prop_string(ctx, -2, "groupEnd");
 	duk_put_global_string(ctx, "console");
 }
 
@@ -608,7 +665,7 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 			|| (SDL_strncasecmp(suffix, "xhtml", 5)==0 && strlen(suffix) == 5))
 		{
 			Value* v = Value_parseXML(text, NULL);
-			dk_push_value(ctx, v);
+			pushValue(ctx, v);
 			free(v);
 		}
 		else
@@ -684,9 +741,9 @@ static duk_ret_t dk_createPathResource(duk_context *ctx) {
 	int argc = duk_get_top(ctx);
 	if(argc<3)
 		return duk_error(ctx, DUK_ERR_ERROR,
-			"createPathResource expects at least width, height, and path string parameters");
+			"createPathResource expects at least width, height, and path parameters");
 	int width = duk_to_int(ctx, 0), height = duk_to_int(ctx, 1);
-	const char* path = duk_to_string(ctx, 2);
+	const char* path = duk_is_array(ctx, 2) ? dk_join_array(ctx, 2, " ") : duk_to_string(ctx, 2);
 	uint32_t fillColor = argc>3 ? array2color(ctx, 3) : 0xffffffff;
 	float strokeWidth = argc>4 ? duk_to_number(ctx, 4) : 0.0f;
 	uint32_t strokeColor = argc>5 ? array2color(ctx, 5) : 0xffffffff;
@@ -926,6 +983,8 @@ static duk_ret_t dk_releaseResource(duk_context *ctx) {
 static duk_ret_t dk_appSetBackground(duk_context *ctx) {
 	if(duk_is_array(ctx, 0))
 		WindowClearColor(array2color(ctx, 0));
+	else if(duk_is_string(ctx, 0))
+		WindowClearColor(cssColor(duk_get_string(ctx, 0)));
 	else if(duk_is_undefined(ctx, 1))
 		WindowClearColor(duk_to_uint(ctx, 0));
 	else {
@@ -1257,7 +1316,7 @@ static duk_ret_t dk_appParse(duk_context *ctx) {
 			++ch0;
 		Value* v = (SDL_isdigit(*ch0) || *ch0=='[' || *ch0=='"' || *ch0=='{') ?
 			Value_parse(str) : Value_parseXML(str, NULL);
-		dk_push_value(ctx, v);
+		pushValue(ctx, v);
 		free(v);
 	}
 	return 1;
@@ -1268,7 +1327,7 @@ static duk_ret_t dk_appParse(duk_context *ctx) {
  * loads JavaScript code from one or more other javascript source files
  * @param {string} filename - file name
  */
-static duk_ret_t dk_appInclude(duk_context *ctx) {
+duk_ret_t dk_appInclude(duk_context *ctx) {
 	int argc = duk_get_top(ctx);
 	for(int i=0; i<argc; ++i) {
 		const char* fname = duk_to_string(ctx, i);
@@ -1406,7 +1465,50 @@ static duk_ret_t dk_appArrayColor(duk_context *ctx) {
 	return 1;
 }
 
-/// @property {array} app.args - script-relevant command line arguments, to be passed after a -- as separator
+static void joinStackTop(duk_context *ctx, duk_idx_t count) {
+	for(duk_idx_t i=0; i<count; ++i)
+		if(duk_is_array(ctx, -1-i) || duk_is_object(ctx, -1-i))
+			duk_json_encode(ctx, -1-i);
+
+	duk_push_string(ctx, " ");
+	duk_insert(ctx, -count);
+	duk_join(ctx, count);
+}
+
+/**
+ * @function app.log
+ * writes an info message to application log
+ * @param {any} value - one or more values to write
+ */
+static duk_ret_t dk_appLogInfo(duk_context *ctx) {
+	joinStackTop(ctx, duk_get_top(ctx));
+	LogInfo("%s", duk_get_string(ctx, -1));
+	return 0;
+}
+
+/**
+ * @function app.warn
+ * writes a warning message to application log
+ * @param {any} value - one or more values to write
+ */
+static duk_ret_t dk_appLogWarn(duk_context *ctx) {
+	joinStackTop(ctx, duk_get_top(ctx));
+	LogWarn("%s", duk_get_string(ctx, -1));
+	return 0;
+}
+
+/**
+ * @function app.error
+ * writes an error message to application log
+ * @param {any} value - one or more values to write
+ */
+static duk_ret_t dk_appLogError(duk_context *ctx) {
+	joinStackTop(ctx, duk_get_top(ctx));
+	LogError("%s", duk_get_string(ctx, -1));
+	return 0;
+}
+
+/// @property {array} app.args - script-relevant command line arguments (or URL parameters), to be passed after a -- as separator as key value pairs, keys start with a -- or -
 
 /// @property {string} app.version - arcajs version
 static duk_ret_t dk_appVersion(duk_context *ctx) {
@@ -1453,16 +1555,7 @@ static duk_ret_t dk_getWindowPixelRatio(duk_context * ctx) {
 static void bindApp(duk_context *ctx, const Value* args) {
 	duk_push_object(ctx);
 
-	duk_idx_t arr = duk_push_array(ctx);
-	if(args && args->type == VALUE_LIST) {
-		duk_uarridx_t idx = 0;
-		const Value* item = args->child;
-		while(item) {
-			dk_push_value(ctx, item);
-			duk_put_prop_index(ctx, arr, idx++);
-			item = item->next;
-		}		
-	}
+	pushValue(ctx, args);
 	duk_put_prop_literal(ctx, -2, "args");
 
 	duk_push_c_function(ctx, dk_onEvent, 2);
@@ -1536,6 +1629,12 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_string(ctx, -2, "exports");
 	duk_push_c_function(ctx, dk_appVibrate, 1);
 	duk_put_prop_string(ctx, -2, "vibrate");
+	duk_push_c_function(ctx, dk_appLogInfo, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "log");
+	duk_push_c_function(ctx, dk_appLogWarn, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "warn");
+	duk_push_c_function(ctx, dk_appLogError, DUK_VARARGS);
+	duk_put_prop_string(ctx, -2, "error");
 
 	duk_push_literal(ctx, "arcajs_builtin_js_func_emitAsGamepadEvent");
 	duk_compile_string_filename(ctx, DUK_COMPILE_FUNCTION, emitAsGamepadEvent_js);
@@ -2275,6 +2374,7 @@ size_t jsvmInit(const char* storageFileName, const Value* args) {
 	bindGraphics(ctx);
 	bindConsole(ctx);
 	bindLocalStorage(ctx, storageFileName);
+	bindWorker(ctx);
 
 	duk_push_c_function(ctx, dk_setTimeout, DUK_VARARGS);
 	duk_put_global_string(ctx, "setTimeout");
@@ -2361,7 +2461,7 @@ void jsvmDispatchEvent(size_t vm, const char* event, const Value* data) {
 		nargs = 2;
 	}
 	else for(const Value* arg=data; arg!=NULL; arg = arg->next, ++nargs)
-		dk_push_value(ctx, arg);
+		pushValue(ctx, arg);
 	callEventHandler(ctx, event, isMethod, nargs);
 	duk_pop_2(ctx); // pop result and global stash
 }
@@ -2527,6 +2627,8 @@ void jsvmAsyncCalls(size_t vm, double timestamp) {
 		free(cb);
 	}
 	duk_pop(ctx);
+
+	updateWorkers(ctx);
 }
 
 const char* jsvmLastError(size_t vm) {

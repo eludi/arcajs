@@ -1,4 +1,5 @@
 #include "graphics.h"
+#include "graphicsUtils.h"
 
 #include "./external/duk_config.h"
 #include "./external/duktape.h"
@@ -52,6 +53,8 @@ uint32_t readUint32Array(duk_context *ctx, duk_idx_t idx, uint32_t** arr, uint32
 static duk_ret_t dk_gfxColor(duk_context *ctx) {
 	if(duk_is_array(ctx, 0))
 		gfxColor(array2color(ctx, 0));
+	else if(duk_is_string(ctx, 0))
+		gfxColor(cssColor(duk_get_string(ctx, 0)));
 	else if(duk_is_undefined(ctx, 1))
 		gfxColor(duk_to_uint(ctx, 0));
 	else if(duk_is_undefined(ctx, 2)) { // color, alpha
@@ -74,13 +77,17 @@ static duk_ret_t dk_gfxColor(duk_context *ctx) {
 
 /**
  * @function gfx.lineWidth
- * sets current drawing line width in pixels.
- * @param {number} w - line width in pixels
- * @returns {object} - this gfx object
+ * sets or returns current drawing line width in pixels.
+ * @param {number} [w] - line width in pixels
+ * @returns {object|number} - this gfx object or line width in pixels if called without arguments 
  */
 static duk_ret_t dk_gfxLineWidth(duk_context *ctx) {
-	gfxLineWidth(duk_to_number(ctx, 0));
-	duk_push_this(ctx);
+	if(duk_is_undefined(ctx, 0))
+		duk_push_number(ctx, gfxGetLineWidth());
+	else {
+		gfxLineWidth(duk_to_number(ctx, 0));
+		duk_push_this(ctx);
+	}
 	return 1;
 }
 

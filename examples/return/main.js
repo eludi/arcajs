@@ -109,12 +109,12 @@ function Racket(id, autopilot) {
 			value = 1;
 		else if(value<-1)
 			value = -1;
-		if(axis===0) {
+		if(axis===0 || axis===2) {
 			if(id===0)
 				value *=-1;
 			this.width = value>0 ? (1+value)*widthDefault : (1+value/2)*widthDefault;
 		}
-		else if(axis===1) {
+		else if(axis===1 || axis===3) {
 			this.velYFactor = Math.abs(value);
 			this.velY = Math.sign(value)*velMin;
 			this.accY = Math.sign(value)*acc;

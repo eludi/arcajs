@@ -381,6 +381,9 @@ void gfxColor(uint32_t color) {
 void gfxLineWidth(float w) {
 	gs[dtransf].lineWidth = w;
 }
+float gfxGetLineWidth() {
+	return gs[dtransf].lineWidth;
+}
 
 void gfxBlend(int mode) {
 	SDL_SetRenderDrawBlendMode(renderer, mode);

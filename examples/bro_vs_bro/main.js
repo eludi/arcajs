@@ -1,5 +1,5 @@
 // BOEHM VS BOEHM REMAKE 2021-04-05 - original C64 source code (~1988) lost
-// proposed extension (non-original): meals/cherries splash up for extra score, mushrooms for increased girth, 2 make you blow up
+// extension (non-original): meals/cherries splash up for extra score, mushrooms for increased girth, 2 make you blow up
 
 const isx = app.require('intersects'), audio = app.require('audio');
 const sprites = app.createTileResources('boehms.png',2,4,0, {filtering:0, centerX:0.5, centerY:0.5});
@@ -285,7 +285,7 @@ var screenGame = {
 		}
 		else if(evt.type==='button') {
 			this.pressedButtons[idx][evt.button] = evt.value>0;
-			if(evt.button===0 && evt.value>0) {
+			if(evt.button<=1 && evt.value>0) {
 				if(state === 'over')
 					return app.on(screenIntro);
 				player.attack();

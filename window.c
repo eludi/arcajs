@@ -1,4 +1,5 @@
 #include "window.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,10 +53,6 @@ typedef struct {
 static Window wnd;
 
 extern int debug;
-
-#define LogInfo(...) SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, __VA_ARGS__)
-#define LogWarn(...) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, __VA_ARGS__)
-#define LogError(...) SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, __VA_ARGS__)
 
 //--- window handling --------------------------------------------
 
@@ -543,8 +540,8 @@ int WindowControllerOpen(size_t id, int useJoystickApi) {
 		SDL_ClearError();
 	}
 
-	LogInfo("WindowControllerOpen(%u) \"%s\" axes:%i hats:%i buttons:%i\n", (unsigned)id,
-		SDL_JoystickName(pJoy), joysticks[id].nAxes, joysticks[id].nHats, joysticks[id].nButtons);
+	LogInfo("WindowControllerOpen(%u) axes:%i hats:%i buttons:%i", (unsigned)id,
+		joysticks[id].nAxes, joysticks[id].nHats, joysticks[id].nButtons);
 	return 0;
 }
 

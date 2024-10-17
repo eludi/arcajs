@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20240915a";
+const char* appVersion = "v0.20241017a";
 int debug = 0, useJoystickApi = 0;
 
 static void showError(const char* msg, ...) {
@@ -152,6 +152,8 @@ int handleEvents(void* udata) {
 		Value_set(event, "evt", Value_str("wheel"));
 		Value_set(event, "deltaX", Value_int(evt.wheel.x));
 		Value_set(event, "deltaY", Value_int(evt.wheel.y));
+		Value_set(event, "x", Value_int(evt.wheel.mouseX));
+		Value_set(event, "y", Value_int(evt.wheel.mouseY));
 		Value_set(event, "timeStamp", Value_int(evt.common.timestamp));
 		Value_append(events, event);
 		break;
@@ -389,8 +391,16 @@ int main(int argc, char **argv) {
 	float windowPerspectivity = 0.0f;
 	int consoleY=0, consoleSzY = winSzY-32;
 	for(int i=1; i<argc; ++i) {
-		if(args)
-			Value_append(args, Value_str(argv[i]));
+		if(args) {
+			if(i+1<argc && strncmp(argv[i], "--", 2)==0) {
+				Value_set(args, argv[i]+2, Value_str(argv[i+1]));
+				++i;
+			}
+			else if(i+1<argc && argv[i][0] == '-') {
+				Value_set(args, argv[i]+1, Value_str(argv[i+1]));
+				++i;
+			}
+		}
 		else if(strcmp(argv[i],"-f")==0)
 			windowFlags |= WINDOW_FULLSCREEN;
 		else if(strcmp(argv[i],"-v")==0 && i+1<argc) {
@@ -415,7 +425,7 @@ int main(int argc, char **argv) {
 			if(i>1)
 				archiveName = argv[i-1];
 			if(i+1<argc)
-				args = Value_new(VALUE_LIST, NULL);
+				args = Value_new(VALUE_MAP, NULL);
 		}
 		else if(i+1==argc && !args) {
 			archiveName = argv[i];
@@ -561,6 +571,8 @@ int main(int argc, char **argv) {
 		for(size_t i=0, end = WindowNumControllers(); i<end; ++i)
 			WindowControllerOpen(i, useJoystickApi);
 
+	if(!args)
+		args = Value_new(VALUE_MAP, NULL);
 	size_t vm = jsvmInit(storageFileName, args);
 	free(storageFileName);
 	if(!vm) {

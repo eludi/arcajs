@@ -377,7 +377,7 @@ measures text dimensions using a specified font.
 
 #### Parameters:
 
-- {number} font - font resource handle, use 0 for built-in default 10x16 pixel font
+- {number} font - font resource handle, use 0 for built-in default 12x16 font
 - {string} [text] - optional text for width calculation
 
 #### Returns:
@@ -435,12 +435,37 @@ returns a single color number having the appropriate (reverse) byte order for co
 
 - {number} - color value in appropriate byte order for color arrays
 
+### function app.log
+
+writes an info message to application log
+
+#### Parameters:
+
+- {any} value - one or more values to write
+
+### function app.warn
+
+writes a warning message to application log
+
+#### Parameters:
+
+- {any} value - one or more values to write
+
+### function app.error
+
+writes an error message to application log
+
+#### Parameters:
+
+- {any} value - one or more values to write
+
 ### Properties:
 
-- {array} app.args - script-relevant command line arguments, to be passed after a -- as separator
+- {array} app.args - script-relevant command line arguments (or URL parameters), to be passed after a -- as separator as key value pairs, keys start with a -- or -
 - {string} app.version - arcajs version
 - {string} app.platform - arcajs platform, either 'browser' or 'standalone'
 - {string} app.arch - operating system name and architecture, for example Linux_x86_64
+- {int} app.numControllers - number of currently connected game controllers
 - {number} app.width - window width in logical pixels
 - {number} app.height - window height in logical pixels
 - {number} app.pixelRatio - ratio physical to logical pixels
@@ -683,15 +708,15 @@ sets the current drawing color
 
 ### function gfx.lineWidth
 
-sets current drawing line width in pixels.
+sets or returns current drawing line width in pixels.
 
 #### Parameters:
 
-- {number} w - line width in pixels
+- {number} [w] - line width in pixels
 
 #### Returns:
 
-- {object} - this gfx object
+- {object\|number} - this gfx object or line width in pixels if called without arguments
 
 ### function gfx.blend
 
@@ -1211,3 +1236,13 @@ axis-aligned rectangle (4), or polygon (6+).
 
 - {boolean} true if the two objects intersect
 
+## module Worker
+
+implements a minimal subset of the Web Workers API
+
+Calls supported by the main context are the Worker constructor and its postMessage and onmessage methods.
+
+The worker itself may communicate with the main context via the postMessage() function and an onmessage callback.
+In addition, it may import additional javascript sources via the importScripts() function.
+For further details pLease refer to the [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
+documentation at MDN.

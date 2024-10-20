@@ -7,7 +7,7 @@
 
 extern uint32_t readFloatArray(duk_context *ctx, duk_idx_t idx, float** arr, float** buf);
 extern uint32_t readUint8Array(duk_context *ctx, duk_idx_t idx, uint8_t** arr, uint8_t** buf);
-extern uint32_t array2color(duk_context *ctx, duk_idx_t idx);
+extern uint32_t readColor(duk_context *ctx, duk_idx_t idx);
 extern float getPropFloatDefault(duk_context *ctx, duk_idx_t idx, const char* key, float defaultValue);
 extern uint32_t getPropUint32Default(duk_context *ctx, duk_idx_t idx, const char* key, uint32_t defaultValue);
 
@@ -52,7 +52,7 @@ uint32_t readUint32Array(duk_context *ctx, duk_idx_t idx, uint32_t** arr, uint32
  */
 static duk_ret_t dk_gfxColor(duk_context *ctx) {
 	if(duk_is_array(ctx, 0))
-		gfxColor(array2color(ctx, 0));
+		gfxColor(readColor(ctx, 0));
 	else if(duk_is_string(ctx, 0))
 		gfxColor(cssColor(duk_get_string(ctx, 0)));
 	else if(duk_is_undefined(ctx, 1))

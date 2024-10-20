@@ -35,7 +35,7 @@ extern const char* appVersion;
 extern void intersects_exports(duk_context *ctx);
 extern void bindGraphics(duk_context *ctx);
 extern void bindWorker(duk_context *ctx);
-extern void updateWorkers(duk_context* ctx);
+extern void updateWorkers(duk_context* ctx, double timestamp);
 extern int debug;
 
 uint32_t rgbaColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
@@ -105,7 +105,7 @@ uint32_t readUint8Array(duk_context *ctx, duk_idx_t idx, uint8_t** arr, uint8_t*
 	return n;
 }
 
-uint32_t array2color(duk_context *ctx, duk_idx_t idx) {
+uint32_t readColor(duk_context *ctx, duk_idx_t idx) {
 	if(duk_is_buffer_data(ctx, idx)) {
 		duk_size_t sz;
 		uint8_t* arr = duk_get_buffer_data(ctx, idx, &sz);
@@ -154,30 +154,7 @@ static Value* readObject(duk_context *ctx, duk_idx_t objIdx) {
 	duk_idx_t enumIdx = duk_get_top_index(ctx);
 	while (duk_next(ctx, enumIdx, 1 /*get_value*/)) {
 		duk_idx_t keyIdx = duk_get_top_index(ctx)-1, valueIdx = keyIdx+1;
-
-		switch(duk_get_type(ctx, valueIdx)) {
-		case DUK_TYPE_STRING:
-			Value_set(obj, duk_to_string(ctx, keyIdx), Value_str(duk_to_string(ctx, valueIdx)));
-			break;
-		case DUK_TYPE_NUMBER: {
-			double f = duk_get_number(ctx, valueIdx);
-			signed long long i = f;
-			if(f==(double)i)
-				Value_set(obj, duk_to_string(ctx, keyIdx), Value_int(i));
-			else
-				Value_set(obj, duk_to_string(ctx, keyIdx), Value_float(f));
-			break;
-		}
-		case DUK_TYPE_BOOLEAN:
-			Value_set(obj, duk_to_string(ctx, keyIdx), Value_bool(duk_to_boolean(ctx, valueIdx)));
-			break;
-		case DUK_TYPE_NULL:
-			Value_set(obj, duk_to_string(ctx, keyIdx), Value_new(VALUE_NONE, NULL));
-			break;
-		default:
-			if(duk_is_array(ctx, valueIdx) || duk_is_buffer_data(ctx, valueIdx))
-				Value_set(obj, duk_to_string(ctx, keyIdx), Value_int(array2color(ctx, valueIdx)));
-		}
+		Value_set(obj, duk_to_string(ctx, keyIdx), readValue(ctx, valueIdx));
 		//printf("%s -> %s\n", duk_to_string(ctx, keyIdx), duk_to_string(ctx, valueIdx));
 		duk_pop_2(ctx);
 	}
@@ -187,7 +164,21 @@ static Value* readObject(duk_context *ctx, duk_idx_t objIdx) {
 }
 
 Value* readValue(duk_context *ctx, duk_idx_t idx) {
-	switch(duk_get_type(ctx, idx)) {
+	if(duk_is_buffer_data(ctx, idx)) { // read as int array
+		duk_size_t sz;
+		uint8_t* buf = duk_get_buffer_data(ctx, idx, &sz);
+		Value* arr = Value_new(VALUE_LIST, NULL);
+		if(sz) {
+			Value* curr = Value_int(buf[0]);
+			Value_append(arr, curr);
+			for(size_t i=1; i<sz; ++i) {
+				curr->next = Value_int(buf[i]);
+				curr = curr->next;
+			}
+		}
+		return arr;
+	}
+	else switch(duk_get_type(ctx, idx)) {
 		case DUK_TYPE_OBJECT: return readObject(ctx, idx);
 		case DUK_TYPE_STRING:
 			return Value_str(duk_get_string(ctx, idx));
@@ -304,15 +295,16 @@ char s_lastError[ERROR_MAXLEN];
 
 //--- timeouts -----------------------------------------------------
 
-static int timeoutCounter = 0;
-
 typedef struct {
 	int timeoutId;
 	double when;
 	void* next;
 } TimeoutCallback;
 
-static TimeoutCallback* timeoutCallbacks = NULL;
+typedef struct {
+	TimeoutCallback * timeouts;
+	int counter;
+} TimeoutData;
 
 static duk_ret_t dk_setTimeout(duk_context *ctx) {
 	int argc = duk_get_top(ctx);
@@ -321,14 +313,18 @@ static duk_ret_t dk_setTimeout(duk_context *ctx) {
 		return 0;
 	}
 
-	TimeoutCallback* cb = (TimeoutCallback*)malloc(sizeof(TimeoutCallback));
-	cb->timeoutId = ++timeoutCounter;
-	cb->when = WindowTimestamp() + duk_to_number(ctx, 1)*0.001;
+	TimeoutCallback* cb = (TimeoutCallback*)malloc(sizeof(TimeoutCallback));	
+	cb->when = WindowTimestamp() + duk_to_number(ctx, 1) * 0.001;
 	cb->next = NULL;
 
-	TimeoutCallback *curr = timeoutCallbacks, *prev = NULL;
+	duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("timeouts"));
+	TimeoutData* td = (TimeoutData*)duk_get_buffer(ctx, -1, NULL);
+	duk_pop(ctx);
+	cb->timeoutId = ++(td->counter);
+
+	TimeoutCallback *curr = td->timeouts, *prev = NULL;
 	if(curr == NULL)
-		timeoutCallbacks = cb;
+		td->timeouts = cb;
 	else {
 		while(curr && cb->when>curr->when) {
 			prev = curr;
@@ -338,7 +334,7 @@ static duk_ret_t dk_setTimeout(duk_context *ctx) {
 		if(prev)
 			prev->next = cb;
 		else
-			timeoutCallbacks = cb;
+			td->timeouts = cb;
 	}
 
 	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("timeoutCallbacks"));
@@ -360,8 +356,11 @@ static duk_ret_t dk_setTimeout(duk_context *ctx) {
 
 static duk_ret_t dk_clearTimeout(duk_context *ctx) {
 	const int timeoutId = duk_get_int(ctx,0);
-	TimeoutCallback *curr = timeoutCallbacks, *prev = NULL;
-
+	duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("timeouts"));
+	TimeoutData* td = (TimeoutData*)duk_get_buffer(ctx, -1, NULL);
+	duk_pop(ctx);
+	
+	TimeoutCallback *curr = td->timeouts, *prev = NULL;
 	while(curr && curr->timeoutId != timeoutId) {
 		prev = curr;
 		curr = curr->next;
@@ -373,9 +372,43 @@ static duk_ret_t dk_clearTimeout(duk_context *ctx) {
 	if(prev)
 		prev->next = curr->next;
 	else
-		timeoutCallbacks = curr->next;
+		td->timeouts = curr->next;
 	free(curr);
 	return 0;
+}
+
+void updateTimeouts(duk_context* ctx, double timestamp) {
+	duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("timeouts"));
+	TimeoutData* td = (TimeoutData*)duk_get_buffer(ctx, -1, NULL);
+	duk_pop(ctx);
+
+	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("timeoutCallbacks"));
+	for(TimeoutCallback* cb=td->timeouts; cb && cb->when < timestamp; cb=td->timeouts) {
+		duk_get_prop_index(ctx, -1, cb->timeoutId); // callback array
+		duk_idx_t cbArrIdx = duk_get_top_index(ctx);
+		duk_size_t cbArrLen = duk_get_length(ctx, -1);
+		for(duk_size_t i=0; i<cbArrLen; ++i)
+			duk_get_prop_index(ctx, cbArrIdx, i);
+		duk_pcall(ctx, cbArrLen-1);
+		duk_pop_2(ctx); // ignore cb return value and pop callback array
+		duk_del_prop_index(ctx, -1, cb->timeoutId); // delete callback array
+
+		td->timeouts = cb->next;
+		free(cb);
+	}
+	duk_pop(ctx);
+}
+
+void bindTimeout(duk_context *ctx) {
+	duk_push_c_function(ctx, dk_setTimeout, DUK_VARARGS);
+	duk_put_global_literal(ctx, "setTimeout");
+	duk_push_c_function(ctx, dk_clearTimeout, 1);
+	duk_put_global_literal(ctx, "clearTimeout");
+
+	duk_push_object(ctx);
+	duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("timeoutCallbacks"));
+	duk_push_fixed_buffer(ctx, sizeof(TimeoutData));
+	duk_put_global_literal(ctx, DUK_HIDDEN_SYMBOL("timeouts"));
 }
 
 //--- console ------------------------------------------------------
@@ -717,9 +750,9 @@ static duk_ret_t dk_getResource(duk_context *ctx) {
 static duk_ret_t dk_createCircleResource(duk_context *ctx) {
 	int argc = duk_get_top(ctx);
 	float radius = duk_to_number(ctx, 0);
-	uint32_t fillColor = argc>1 ? array2color(ctx, 1) : 0xffffffff;
+	uint32_t fillColor = argc>1 ? readColor(ctx, 1) : 0xffffffff;
 	float strokeWidth = argc>2 ? duk_to_number(ctx, 2) : 0.0f;
-	uint32_t strokeColor = argc>3 ? array2color(ctx, 3) : 0xffffffff;
+	uint32_t strokeColor = argc>3 ? readColor(ctx, 3) : 0xffffffff;
 	size_t img = ResourceCreateCircleImage(radius, fillColor, strokeWidth, strokeColor);
 	gfxImageSetCenter(img, 0.5f, 0.5f);
 	duk_push_uint(ctx, img);
@@ -744,9 +777,9 @@ static duk_ret_t dk_createPathResource(duk_context *ctx) {
 			"createPathResource expects at least width, height, and path parameters");
 	int width = duk_to_int(ctx, 0), height = duk_to_int(ctx, 1);
 	const char* path = duk_is_array(ctx, 2) ? dk_join_array(ctx, 2, " ") : duk_to_string(ctx, 2);
-	uint32_t fillColor = argc>3 ? array2color(ctx, 3) : 0xffffffff;
+	uint32_t fillColor = argc>3 ? readColor(ctx, 3) : 0xffffffff;
 	float strokeWidth = argc>4 ? duk_to_number(ctx, 4) : 0.0f;
-	uint32_t strokeColor = argc>5 ? array2color(ctx, 5) : 0xffffffff;
+	uint32_t strokeColor = argc>5 ? readColor(ctx, 5) : 0xffffffff;
 	size_t img = ResourceCreatePathImage(width, height, path, fillColor, strokeWidth, strokeColor);
 	duk_push_uint(ctx, img);
 	return 1;
@@ -982,7 +1015,7 @@ static duk_ret_t dk_releaseResource(duk_context *ctx) {
  */
 static duk_ret_t dk_appSetBackground(duk_context *ctx) {
 	if(duk_is_array(ctx, 0))
-		WindowClearColor(array2color(ctx, 0));
+		WindowClearColor(readColor(ctx, 0));
 	else if(duk_is_string(ctx, 0))
 		WindowClearColor(cssColor(duk_get_string(ctx, 0)));
 	else if(duk_is_undefined(ctx, 1))
@@ -1331,7 +1364,8 @@ duk_ret_t dk_appInclude(duk_context *ctx) {
 	int argc = duk_get_top(ctx);
 	for(int i=0; i<argc; ++i) {
 		const char* fname = duk_to_string(ctx, i);
-		jsvmEvalScript((size_t)ctx, fname);
+		if(jsvmEvalScript((size_t)ctx, fname)!=0)
+			return duk_error(ctx, DUK_ERR_ERROR, s_lastError);
 	}
 	return 0;
 }
@@ -2375,13 +2409,7 @@ size_t jsvmInit(const char* storageFileName, const Value* args) {
 	bindConsole(ctx);
 	bindLocalStorage(ctx, storageFileName);
 	bindWorker(ctx);
-
-	duk_push_c_function(ctx, dk_setTimeout, DUK_VARARGS);
-	duk_put_global_string(ctx, "setTimeout");
-	duk_push_c_function(ctx, dk_clearTimeout, 1);
-	duk_put_global_string(ctx, "clearTimeout");
-	duk_push_object(ctx);
-	duk_put_global_string(ctx, DUK_HIDDEN_SYMBOL("timeoutCallbacks"));
+	bindTimeout(ctx);
 
 	// built-in modules:
 	duk_push_object(ctx);
@@ -2612,23 +2640,8 @@ void jsvmAsyncCalls(size_t vm, double timestamp) {
 			req->mediaType = RESOURCE_NONE;
 		}
 	}
-	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("timeoutCallbacks"));
-	for(TimeoutCallback* cb=timeoutCallbacks; cb && cb->when < timestamp; cb=timeoutCallbacks) {
-		duk_get_prop_index(ctx, -1, cb->timeoutId); // callback array
-		duk_idx_t cbArrIdx = duk_get_top_index(ctx);
-		duk_size_t cbArrLen = duk_get_length(ctx, -1);
-		for(duk_size_t i=0; i<cbArrLen; ++i)
-			duk_get_prop_index(ctx, cbArrIdx, i);
-		duk_pcall(ctx, cbArrLen-1);
-		duk_pop_2(ctx); // ignore cb return value and pop callback array
-		duk_del_prop_index(ctx, -1, cb->timeoutId); // delete callback array
-
-		timeoutCallbacks = cb->next;
-		free(cb);
-	}
-	duk_pop(ctx);
-
-	updateWorkers(ctx);
+	updateTimeouts(ctx, timestamp);
+	updateWorkers(ctx, timestamp);
 }
 
 const char* jsvmLastError(size_t vm) {

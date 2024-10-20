@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+typedef struct Value Value;
+
 #define GFX_FLIP_NONE 0
 #define GFX_FLIP_X 1
 #define GFX_FLIP_Y 2
@@ -26,6 +28,8 @@ typedef enum {
 extern uint32_t hsla2rgba(float h, float s, float l, float a);
 /// converts CSS color strings to uint32_t colors 
 extern uint32_t cssColor(const char* str);
+/// @brief  converts a color value to an uint32_color
+extern uint32_t value2color(const Value* v);
 /// byte swap 32bit unsigned int
 extern uint32_t bswap_uint32( uint32_t val );
 

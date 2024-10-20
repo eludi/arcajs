@@ -1244,5 +1244,7 @@ Calls supported by the main context are the Worker constructor and its postMessa
 
 The worker itself may communicate with the main context via the postMessage() function and an onmessage callback.
 In addition, it may import additional javascript sources via the importScripts() function.
-For further details pLease refer to the [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
+Apart from that, only few selected APIs are accessible by arcajs workers: console, setTimeout, clearTimeout.
+
+For further details please refer to the [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
 documentation at MDN.

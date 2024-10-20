@@ -1,5 +1,6 @@
 #include "value.h"
 #include "jsBindings.h"
+#include "log.h"
 #include "external/duk_config.h"
 #include "external/duktape.h"
 #include <SDL_assert.h>
@@ -10,6 +11,8 @@
 
 extern Value* readValue(duk_context *ctx, duk_idx_t objIdx);
 extern void pushValue(duk_context* ctx, const Value* value);
+extern void bindTimeout(duk_context* ctx);
+extern void updateTimeouts(duk_context* ctx, double timestamp);
 extern duk_ret_t dk_appInclude(duk_context *ctx);
 extern duk_ret_t dk_dummy(duk_context *ctx);
 
@@ -21,7 +24,9 @@ extern duk_ret_t dk_dummy(duk_context *ctx);
  * 
  * The worker itself may communicate with the main context via the postMessage() function and an onmessage callback.
  * In addition, it may import additional javascript sources via the importScripts() function. 
- * For further details pLease refer to the [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
+ * Apart from that, only few selected APIs are accessible by arcajs workers: console, setTimeout, clearTimeout.
+ * 
+ * For further details please refer to the [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
  * documentation at MDN.
  */
 
@@ -34,6 +39,7 @@ typedef enum {
 
 typedef struct Worker_s {
 	int state, shutdown;
+	double timestamp;
 	char* fname;
 	SDL_Thread *thread;
 	duk_context *ctx, *parentCtx;
@@ -77,6 +83,7 @@ static int WorkerThread(void* udata) {
 		worker->state = WORKER_STATE_READY;
 
 	while(worker->state > WORKER_STATE_ERROR && !worker->shutdown) { // worker main loop
+		updateTimeouts(worker->ctx, worker->timestamp);
 		switch(worker->state) {
 			case WORKER_STATE_READY:
 				SDL_Delay(50);
@@ -93,7 +100,9 @@ static int WorkerThread(void* udata) {
 
 				duk_get_global_literal(worker->ctx, "onmessage");
 				if(duk_is_function(worker->ctx, -1)) {
+					duk_push_object(worker->ctx);
 					pushValue(worker->ctx, msg);
+					duk_put_prop_literal(worker->ctx, -2, "data");
 					duk_pcall(worker->ctx, 1);
 				}
 				duk_pop(worker->ctx); // pop undefined value or return code
@@ -135,7 +144,7 @@ void WorkerDelete(Worker* worker) {
 			duk_push_uint(ctx, idx);
 			duk_push_uint(ctx, 1);
 			if(duk_pcall_prop(ctx, arrIdx, 2)!=0)
-				fprintf(stderr, "workers.splice(%u, 1) failed: %s\n", (uint32_t)idx, duk_safe_to_string(ctx, -1));
+				LogWarn("workers.splice(%u, 1) failed: %s", (uint32_t)idx, duk_safe_to_string(ctx, -1));
 			duk_pop(ctx);
 			break;
 		}
@@ -187,6 +196,7 @@ size_t WorkerCreate(const char* fname) {
 	duk_push_c_function(ctx, dk_dummy, 0);
 	duk_put_prop_string(ctx, -2, "groupEnd");
 	duk_put_global_literal(ctx, "console");
+	bindTimeout(ctx);
 
 	worker->thread = SDL_CreateThread(WorkerThread, "worker", (void*)worker);
 	return (size_t)worker;
@@ -202,7 +212,7 @@ int WorkerPostMessage(Worker* worker, Value* msg) {
 	return 0;
 }
 
-Value* WorkerUpdate(Worker* worker) {
+Value* WorkerUpdate(Worker* worker, double timestamp) {
 	const int state = worker->state;
 	//printf("worker state:%i\n", state);
 
@@ -215,6 +225,7 @@ Value* WorkerUpdate(Worker* worker) {
 		worker->msgOut->child  = NULL;
 		SDL_UnlockMutex(worker->mutexMsgOut);
 	}
+	worker->timestamp = timestamp;
 	if(state == WORKER_STATE_READY && !Value_empty(worker->msgIn))
 		worker->state = WORKER_STATE_BUSY; // initiate inbound message processing
 	return messages;
@@ -270,24 +281,12 @@ static duk_ret_t dk_WorkerPostMessageIn(duk_context *ctx) {
 	return 0;
 }
 
-static duk_ret_t dk_WorkerOnMessage(duk_context *ctx) {
-	if(!duk_is_function(ctx, 0))
-		return duk_error(ctx, DUK_ERR_ERROR, "Worker.onmessage() expects callback function as argument");
-
-	duk_push_this(ctx);
-	duk_dup(ctx, 0);
-	duk_put_prop_string(ctx, -2, DUK_HIDDEN_SYMBOL("callback"));
-	return 0;
-}
-
 void bindWorker(duk_context *ctx) {
 	duk_push_c_function(ctx, dk_WorkerConstructor, 1);
 
 	duk_push_object(ctx); // prototype
 	duk_push_c_function(ctx, dk_WorkerPostMessageIn, 1);
 	duk_put_prop_string(ctx, -2, "postMessage");
-	duk_push_c_function(ctx, dk_WorkerOnMessage, 1);
-	duk_put_prop_string(ctx, -2, "onmessage");
 
  	duk_put_prop_string(ctx, -2, "prototype");
  	duk_put_global_literal(ctx, "Worker");
@@ -296,29 +295,34 @@ void bindWorker(duk_context *ctx) {
 	duk_put_global_string(ctx, DUK_HIDDEN_SYMBOL("workers"));
 }
 
-void updateWorkers(duk_context *ctx) {
+void updateWorkers(duk_context *ctx, double timestamp) {
 	duk_get_global_string(ctx, DUK_HIDDEN_SYMBOL("workers"));
 	const duk_idx_t arrIdx = duk_get_top_index(ctx);
 	const duk_size_t nWorkers = duk_get_length(ctx, arrIdx);
 
 	for(duk_size_t idx=0; idx<nWorkers; ++idx) {
 		duk_get_prop_index(ctx, arrIdx, idx);
+		const duk_idx_t workerIdx = duk_get_top_index(ctx);
 		duk_get_prop_literal(ctx, -1, DUK_HIDDEN_SYMBOL("worker"));
 		Worker* worker = (Worker*)duk_get_pointer(ctx, -1);
 		duk_pop(ctx); // worker pointer
 		SDL_assert(worker);
-		Value *msg, *messages = WorkerUpdate(worker);
+		Value *msg, *messages = WorkerUpdate(worker, timestamp);
+
 		if(messages) {
-			duk_get_prop_literal(ctx, -1, DUK_HIDDEN_SYMBOL("callback"));
+			duk_get_prop_literal(ctx, workerIdx, "onmessage");
 			if(duk_is_function(ctx,-1)) {
 				while((msg = Value_popf(messages)) != NULL) {
 					duk_dup_top(ctx);
+					duk_push_object(ctx);
 					pushValue(ctx, msg);
+					duk_put_prop_literal(ctx, -2, "data");
 					Value_delete(msg, false);
 					duk_pcall(ctx, 1);
 					duk_pop(ctx); // return value
 				}
 			}
+			else LogWarn("updateWorkers: messages but no onmessage callback");
 			duk_pop(ctx); // callback
 		}
 		Value_delete(messages, false);

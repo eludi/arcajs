@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20241017a";
+const char* appVersion = "v0.20241020a";
 int debug = 0, useJoystickApi = 0;
 
 static void showError(const char* msg, ...) {

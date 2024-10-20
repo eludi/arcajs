@@ -1,12 +1,12 @@
 var worker = null, now=0, info = 'hello, arcajs workers!';
 app.on('load', function() {
 	worker = new Worker('fibWorker.js');
-	worker.onmessage(function(msg) {
+	worker.onmessage = function(msg) {
 		console.log('message by worker:', msg);
-		info = JSON.stringify(msg);
-        if(msg.result)
+		info = JSON.stringify(msg.data);
+        if(msg.data.result)
             setTimeout(function() { app.close() }, 4000);
-	})
+	}
 	worker.postMessage({call:'fib', n:35});
 })
 

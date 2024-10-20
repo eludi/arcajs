@@ -4,6 +4,7 @@ function fib(n) {
 
 onmessage = function(msg) {
     console.log('onmessage(', msg, ')')
+    msg = msg.data;
     if(msg.call=='fib') {
         postMessage("fibonacci("+msg.n+") calculation started");
         console.log('calculating fib('+msg.n+')...')

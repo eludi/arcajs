@@ -1,4 +1,5 @@
 #include "graphicsUtils.h"
+#include "value.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "external/stb_truetype.h"
@@ -267,6 +268,36 @@ uint32_t cssColor(const char* str) {
 		if(strcmp(str, namedColor->name) == 0) // todo binary search
 			return namedColor->value;
 	return color;
+}
+
+uint32_t value2color(const Value* v) {
+	if(!v)
+		return 0x00;
+	switch(v->type) {
+	case VALUE_LIST: {
+		uint32_t c=0;
+		for(uint32_t i=0; i<4; ++i) {
+			Value* elem = Value_at(v, i);
+			if(!elem)
+				return (i<3) ? 0x100 : c + 0xFF;
+			if(elem->type != VALUE_INT)
+				return 0x200;
+			uint32_t comp = ((uint64_t)elem->i) & 0xFF;
+			c += comp << (8*(3-i));
+		}
+		return c;
+	}
+	case VALUE_STRING:
+		return cssColor(v->str);
+	case VALUE_INT:
+		return v->i;
+	case VALUE_FLOAT:
+		return v->f;
+	case VALUE_BOOL:
+		return v->i ? 0xFFffFFff : 0xFF;
+	default:
+		return 0x300;
+	}
 }
 
 uint32_t bswap_uint32( uint32_t val ) {

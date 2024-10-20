@@ -181,12 +181,12 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		}
 
 		v = Value_get(options, "color");
-		if(v && v->type==VALUE_INT)
-			fgColor = v->i;
+		if(v)
+			fgColor = value2color(v);
 
 		v = Value_get(options, "background");
-		if(v && v->type==VALUE_INT)
-			bgColor = v->i;
+		if(v)
+			bgColor = value2color(v);
 
 		v = Value_get(options, "lineBreakAt");
 		if(v && v->type==VALUE_INT)

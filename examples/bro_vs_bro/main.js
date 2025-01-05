@@ -163,16 +163,17 @@ var screenGame = {
 		spriteT = new Player(1);
 		state = 'running';
 		numKnockOuts = 0;
+		now = 0;
 	},
 	update: function(deltaT) {
+		const tBefore = now;
+		now += deltaT;
+
 		if(state=='over') {
 			spriteJ.update(deltaT);
 			spriteT.update(deltaT);
 			return;
 		}
-
-		const tBefore = now;
-		now += deltaT;
 
 		if(tBefore%8 > now%8) {
 			if(Math.floor(now/8)%2)
@@ -215,6 +216,7 @@ var screenGame = {
 		if(numKnockOuts>4 && state==='running') {
 			state = 'over';
 			powerup = null;
+			now = 0;
 			[spriteJ, spriteT].forEach(function(s) { s.over(); });
 			// todo: play happy tune
 		}
@@ -286,9 +288,11 @@ var screenGame = {
 		else if(evt.type==='button') {
 			this.pressedButtons[idx][evt.button] = evt.value>0;
 			if(evt.button<=1 && evt.value>0) {
-				if(state === 'over')
-					return app.on(screenIntro);
-				player.attack();
+				if(state === 'over') {
+					if(now > 2.5)
+						return app.on(screenIntro);
+				}
+				else player.attack();
 			}
 			else if((this.pressedButtons[idx][6] && this.pressedButtons[idx][7])
 				|| (this.pressedButtons[idx][8] && this.pressedButtons[idx][9]))

@@ -53,12 +53,10 @@ uint32_t readUint32Array(duk_context *ctx, duk_idx_t idx, uint32_t** arr, uint32
 static duk_ret_t dk_gfxColor(duk_context *ctx) {
 	if(duk_is_array(ctx, 0))
 		gfxColor(readColor(ctx, 0));
-	else if(duk_is_string(ctx, 0))
-		gfxColor(cssColor(duk_get_string(ctx, 0)));
 	else if(duk_is_undefined(ctx, 1))
-		gfxColor(duk_to_uint(ctx, 0));
+		gfxColor(duk_is_string(ctx, 0) ? cssColor(duk_get_string(ctx, 0)) : duk_to_uint(ctx, 0));
 	else if(duk_is_undefined(ctx, 2)) { // color, alpha
-		uint32_t color = (duk_to_uint(ctx, 0) | 0xff);
+		uint32_t color = ((duk_is_string(ctx, 0) ? cssColor(duk_get_string(ctx, 0)) : duk_to_uint(ctx, 0)) | 0xff);
 		uint32_t alpha =  duk_to_uint32(ctx, 1);
 		if(alpha>255)
 			alpha = 255;

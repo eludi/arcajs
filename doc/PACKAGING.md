@@ -29,7 +29,8 @@ from their different contexts. Arcajs interprets the following parameters:
 	"icon": "icon.svg", // window icon displayed during startup
 	"scripts":[ "main.js" ], // the script files containing the application logic
 	"audio_frequency": 44100, // sample rate of the audio device
-	"audio_tracks": 8 // number of parallel audio tracks
+	"audio_tracks": 8, // number of parallel audio tracks
+	"max_fps": 60 // cap number of frames per second
 }
 ```
 

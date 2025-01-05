@@ -27,7 +27,7 @@ static GfxState gs[8];
 typedef struct {
 	SDL_Texture *tex;
 	SDL_Rect src;
-	SDL_bool ownsTexture;
+	bool ownsTexture;
 	float cx, cy, sc;
 } ImgResource;
 
@@ -47,9 +47,10 @@ void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float resScale, void *arg) {
 	images[defaultFont].sc = 1.0f/resScale;
 	gfxImageTile(defaultFont, 160*resScale,0,32*resScale,32*resScale); // circle texture
 	gfxImageSetCenter(defaultFont+1, 0.5f, 0.5f);
-	images[defaultFont+1].sc = 1.0f/32.0f;
+	images[defaultFont+1].sc = 1.0f/32.0f/resScale;
 	gfxImageTile(defaultFont, 126*resScale,40*resScale,1*resScale,1*resScale); // square texture
 	gfxImageSetCenter(defaultFont+2, 0.5f, 0.5f); 
+	images[defaultFont+2].sc = 1.0f/resScale;
 }
 
 void gfxClose() {
@@ -104,7 +105,7 @@ uint32_t gfxSVGUpload(const char* svg, size_t svgLen, float scale) {
 	return img;
 }
 
-uint32_t storeTexture(SDL_Texture* texture, int w, int h, SDL_bool ownsTexture) {
+uint32_t storeTexture(SDL_Texture* texture, int w, int h, bool ownsTexture) {
 	if(numImagesMax==0) {
 		numImagesMax=4;
 		images = (ImgResource*)malloc(numImagesMax*sizeof(ImgResource));
@@ -154,7 +155,7 @@ uint32_t gfxImageUpload(const unsigned char* data, int w, int h, int d, uint32_t
 		if(d==2 || d==4)
 			SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
 		SDL_ClearError();
-		return storeTexture(texture, w, h, SDL_TRUE);
+		return storeTexture(texture, w, h, true);
 	}
 	return 0;
 }
@@ -172,7 +173,7 @@ void gfxImageRelease(uint32_t img) {
 		//printf("%u %i %i %lu\n", img, images[img].src.w, images[img].src.h, (size_t)images[img].tex);
 		if(images[img].ownsTexture && images[img].tex) {
 			SDL_DestroyTexture(images[img].tex);
-			images[img].ownsTexture = SDL_FALSE;
+			images[img].ownsTexture = false;
 		}
 		images[img].tex = NULL;
 		images[img].src.x = images[img].src.y = images[img].src.w = images[img].src.h = 0;
@@ -181,11 +182,13 @@ void gfxImageRelease(uint32_t img) {
 		--numImages;
 }
 
-size_t gfxCanvasCreate(int w, int h) {
+size_t gfxCanvasCreate(int w, int h, uint32_t color) {
 	SDL_Texture * texture = SDL_CreateTexture(renderer,
 		SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET, w, h);
 	SDL_SetRenderTarget(renderer, texture);
 	SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+	SDL_SetRenderDrawColor(renderer, color >> 24, color >> 16, color >> 8, color & 0xff);
+	SDL_RenderClear(renderer);
 	return (size_t)texture;
 }
 
@@ -225,7 +228,7 @@ uint32_t gfxImageTile(uint32_t parent, int x, int y, int w, int h) {
 
 	images[numImages].tex = images[parent].tex;
 	images[numImages].src = (SDL_Rect){x, y, w, h};
-	images[numImages].ownsTexture = SDL_FALSE;
+	images[numImages].ownsTexture = false;
 	const float parentW = images[parent].src.w, parentH = images[parent].src.h;
 	images[numImages].cx = images[parent].cx * w/parentW;
 	images[numImages].cy = images[parent].cy * h/parentH;
@@ -276,7 +279,7 @@ static FontResource* pushNewFont() {
 	}
 	else if(numFonts == numFontsMax) {
 		numFontsMax *= 2;
-		fonts = (FontResource*)malloc(numFontsMax*sizeof(FontResource));
+		fonts = (FontResource*)realloc(fonts, numFontsMax*sizeof(FontResource));
 	}
 	return &fonts[numFonts];
 }
@@ -369,6 +372,8 @@ void gfxStateSave() {
 void gfxStateRestore() {
 	if(dtransf < 1)
 		return;
+	if(gs[dtransf].blendMode != gs[dtransf-1].blendMode)
+		SDL_SetRenderDrawBlendMode(renderer, gs[dtransf-1].blendMode);
 	setMat(gs[--dtransf].transf);
 }
 

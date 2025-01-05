@@ -191,8 +191,8 @@ creates an image resource from a buffer or from a callback function
 
 - {number\|object} width - image width or an object having width, height, depth, and data properties
 - {number} [height] - image height
-- {buffer\|array\|function} [data\|cb] - RGBA 4-byte per pixel image data or callback function having a graphics context as parameter
-- {object} [params] - optional additional parameters as key-value pairs such as filtering
+- {buffer\|array\|number\|string} [data\|cb] - RGBA 4-byte per pixel image data or background color if image shall be created via a callback function
+- {object\|function} [params] - optional additional parameters as key-value pairs such as filtering  or callback function having a graphics context as parameter
 
 #### Returns:
 
@@ -200,7 +200,7 @@ creates an image resource from a buffer or from a callback function
 
 ### function app.releaseResource
 
-releases a previously uploade image, audio, or font resource
+releases a previously uploaded image, audio, or font resource
 
 #### Parameters:
 
@@ -302,6 +302,10 @@ displays a modal message window or popup overlay
 
 - {string\|array} message - (multi-line) message to be displayed
 - {string} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
+
+#### Returns:
+
+- {number} index of pressed button
 
 ### function app.close
 
@@ -406,6 +410,18 @@ converts a HSL color defined by hue, saturation, lightness, and optionally opaci
 - {number} s - saturation, value range 0.0..1.0
 - {number} l - lightness, value range 0.0..1.0
 - {number} [a=1.0] - opacity, value between 0.0 (invisible) and 1.0 (opaque)
+
+#### Returns:
+
+- {number} - RGBA color value
+
+### function app.cssColor
+
+converts any CSS color string to a single RGB(A) color number.
+
+#### Parameters:
+
+- {number\|string} color - color string or number
 
 #### Returns:
 

@@ -35,6 +35,8 @@ extern size_t ResourceGetAudio(const char* name);
 extern size_t ResourceGetFont(const char* name, unsigned fontSize);
 /// returns text resource, to be freed by caller
 extern char* ResourceGetText(const char* name);
+/// returns pointer to binary resource, mainly for plugins, to be freed by caller
+extern void* ResourceGetBinary(const char* name, size_t* numBytes);
 
 /// returns handle to an image resource created from circle parameters
 extern size_t ResourceCreateCircleImage(

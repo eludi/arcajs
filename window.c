@@ -352,7 +352,7 @@ int WindowUpdate() {
 	double tPrev = wnd.timestamp;
 	if(wnd.vsync)
 		SDL_Delay(1);
-	wnd.timestamp = (double)SDL_GetTicks()/1000.0;
+	wnd.timestamp = (double)SDL_GetTicks64()/1000.0;
 	wnd.deltaT = wnd.timestamp-tPrev;
 	return 0;
 }
@@ -449,7 +449,7 @@ double WindowTimestamp() {
 
 void WindowUpdateTimestamp() {
 	double tPrev = wnd.timestamp;
-	wnd.timestamp = (double)SDL_GetTicks()/1000.0;
+	wnd.timestamp = (double)SDL_GetTicks64()/1000.0;
 	wnd.deltaT = wnd.timestamp-tPrev;
 }
 

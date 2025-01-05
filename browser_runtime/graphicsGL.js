@@ -511,7 +511,7 @@ return function (canvas, capacity=500) {
 		1.0, 0.0, 0.0,
 		0.0, 1.0, 0.0,
 		0.0, 0.0, 1.0 ]);
-	let gs = [ new Float32Array([/* transf*/0.0, 0.0, 0.0, 1.0, /*color*/fpack.rgba(255,255,255), /*lineWidth*/1.0]) ];
+	let gs = [ new Float32Array([/* transf*/0.0, 0.0, 0.0, 1.0, /*color*/fpack.rgba(255,255,255), /*lineWidth*/1.0]) ]; // TODO add blendMode
 	const transfMax = 8;
 	function setMat(transf, mat) {
 		mat[0] = Math.cos(transf[2])*transf[3]; mat[3] = -Math.sin(transf[2])*transf[3]; mat[6] = transf[0];
@@ -666,6 +666,8 @@ return function (canvas, capacity=500) {
 
 	/// creates a new texture from an RGBA uint8 array
 	this.createTexture = function(width, height, data, params={}) {
+		if(typeof params === 'function')
+			throw "app.createImageResource with callback drawing function not supported by browser runtime";
 		if(typeof(width) === 'object') {
 			const obj = width;
 			width = obj.width;
@@ -860,7 +862,7 @@ return function (canvas, capacity=500) {
 		if(Array.isArray(r))
 			gs[gs.length-1][4] = fpack.rgba(r[0],r[1], r[2], r[3]);
 		else if(g===undefined) {
-			const v = r;
+			const v = (typeof r === 'string') ? app.cssColor(r) : r;
 			r = (v & 0xff000000) >>> 24;
 			g = (v & 0x00ff0000) >>> 16;
 			b = (v & 0x0000ff00) >>> 8;
@@ -944,6 +946,7 @@ return function (canvas, capacity=500) {
 			return this;
 		this.flush();
 		gs.pop();
+		// todo restore blendFunc
 		setMat(gs[stacksz-2], mat);
 		return this;
 	}
@@ -954,6 +957,8 @@ return function (canvas, capacity=500) {
 		gs[0][3] = gs[0][5] = 1.0;
 		gs[0][4] = fpack.rgba(255,255,255);
 		setMat(gs[0], mat);
+		blendFunc = 1;
+		setBlendFunc();
 		return this;
 	}
 

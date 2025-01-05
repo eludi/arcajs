@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* appVersion = "v0.20241020a";
+const char* appVersion = "v0.20250105a";
 int debug = 0, useJoystickApi = 0;
 
 static void showError(const char* msg, ...) {
@@ -385,6 +385,7 @@ int main(int argc, char **argv) {
 	char* storageFileName = NULL;
 	char* iconName = NULL;
 	int isCalledWithScript = 0;
+	double maxFps = 0.0;
 	Value* args = NULL;
 
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
@@ -483,6 +484,7 @@ int main(int argc, char **argv) {
 		audioFrequency = jsonGetNumber(json, "audio_frequency", audioFrequency);
 		audioTracks = jsonGetNumber(json, "audio_tracks", audioTracks);
 		scriptNames = jsonGetStringArray(json, "scripts");
+		maxFps = jsonGetNumber(json, "max_fps", maxFps);
 
 		{
 			char* display = jsonGetString(json, "display");
@@ -607,7 +609,7 @@ int main(int argc, char **argv) {
 	Value* argUpdate = Value_float(0.0);
 	argUpdate->next = Value_float(0.0);
 	while(WindowIsOpen()) {
-		double now = WindowTimestamp();
+		const double now = WindowTimestamp();
 		jsvmUpdateEventListeners(vm);
 		jsvmAsyncCalls(vm, now);
 		argUpdate->f = WindowDeltaT();
@@ -627,6 +629,12 @@ int main(int argc, char **argv) {
 		if(jsvmLastError(vm)) {
 			showError("JavaScript ERROR: %s\n", jsvmLastError(vm));
 			break;
+		}
+		if(maxFps) {
+			const double deltaT = WindowTimestamp() - now;
+			const double delay = 1000.0/maxFps - 1000.0*deltaT;
+			if(delay>1.0)
+				SDL_Delay(delay);
 		}
 	}
 

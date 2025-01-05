@@ -147,6 +147,33 @@ static int isInside(float pos[4], float x, float y) {
 	return x>=pos[0] && y>=pos[1] && x<pos[0]+pos[2] && y<pos[1]+pos[3];
 }
 
+static void DialogAxisEvent(size_t id, uint8_t axis, float value, void* udata) {
+	value = round(value);
+	Value* event = Value_new(VALUE_MAP, NULL);
+	Value_set(event, "evt", Value_str("gamepad"));
+	Value_set(event, "index", Value_int(id));
+	Value_set(event, "type", Value_str("axis"));
+	Value_set(event, "axis", Value_int(axis));
+	Value_set(event, "value", Value_float(value));
+	Value* events = (Value*)udata;
+	Value_append(events, event);
+	//Value_print(event, stdout);
+	//Value_delete(event, 1);
+}
+
+static void DialogButtonEvent(size_t id, uint8_t button, float value, void* udata) {
+	Value* event = Value_new(VALUE_MAP, NULL);
+	Value_set(event, "evt", Value_str("gamepad"));
+	Value_set(event, "index", Value_int(id));
+	Value_set(event, "type", Value_str("button"));
+	Value_set(event, "button", Value_int(button));
+	Value_set(event, "value", Value_float(value));
+	Value* events = (Value*)udata;
+	Value_append(events, event);
+	//Value_print(event, stdout);
+	//Value_delete(event, 1);
+}
+
 int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 	Value* events = (Value*)WindowEventData();
 	Value* savedEvents = Value_new(VALUE_LIST, NULL);
@@ -281,6 +308,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 		}
 
 		// handle events:
+		WindowControllerEvents(1.0, events, DialogAxisEvent, DialogButtonEvent);
 		for(Value* evt = events->child; evt!=NULL; evt = evt->next) {
 			if(prompt && strcmp(Value_get(evt, "evt")->str, "textinput")==0) {
 				//Value_print(evt, stdout);
@@ -325,6 +353,31 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 				if((button0Selected || button1Selected) && (strcmp(Value_get(evt, "type")->str, "start")==0)) {
 					done = 1;
 					ret = button1Selected;
+				}
+			}
+			else if(strcmp(Value_get(evt, "evt")->str, "gamepad")==0) {
+				//Value_print(evt, stdout);
+				if(strcmp(Value_get(evt, "type")->str, "axis")==0) {
+					int axis = Value_geti(evt, "axis", -1);
+					float value = Value_getf(evt, "value", 0.0);
+					if(value && (axis < 4)) {
+						if(value<0.0f && button1) {
+							button0Selected = 0;
+							button1Selected = 1;
+						}
+						else {
+							button0Selected = 1;
+							button1Selected = 0;
+						}
+					} 
+				}
+				else if(strcmp(Value_get(evt, "type")->str, "button")==0) {
+					int button = Value_geti(evt, "button", -1);
+					float value = Value_getf(evt, "value", 0.0);
+					if(value && button == 0 && (button0Selected || button1Selected || !button1)) {
+						done = 1;
+						ret = button1Selected;
+					}
 				}
 			}
 		}

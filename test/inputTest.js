@@ -1,6 +1,9 @@
 
 var gamepads=[], log=[], pointers={};
-const vpSc = Math.max(1, Math.round(app.pixelRatio));
+var vpSc = (app.width<960 || app.height<540) ? 1 : Math.max(1, Math.round(app.pixelRatio));
+while(vpSc>1 && app.width/vpSc < 640)
+    --vpSc;
+var tLastFps = 0, frameCounter = 0, fps='  ';
 
 function logout(msg) {
     log.push((typeof msg === 'object') ? JSON.stringify(msg) : msg);
@@ -43,13 +46,24 @@ app.on('gamepad', function(evt) {
         gamepads[evt.index].axes[evt.axis] = evt.value;
     else if(evt.type=='button' && gamepads[evt.index]) {
         gamepads[evt.index].buttons[evt.button] = evt.value;
-		if(gamepads[evt.index].buttons[6] && gamepads[evt.index].buttons[7]) // select and start
+		if((gamepads[evt.index].buttons[6] && gamepads[evt.index].buttons[7]) // select and start
+            || (gamepads[evt.index].buttons[7] && gamepads[evt.index].buttons[8])) // menu and start
 			app.close();
 	}
     delete evt.evt;
     evt.idx = evt.index;
     delete evt.index;
     logout(evt);
+});
+
+app.on('update', function(deltaT, tNow) {
+	if(tNow-tLastFps<1.0)
+		++frameCounter;
+	else {
+		fps = frameCounter;
+		frameCounter = 0;
+		tLastFps = tNow;
+	}
 });
 
 app.on('draw', function(gfx) {
@@ -98,6 +112,6 @@ app.on('draw', function(gfx) {
         gfx.color(0x00FF).fillText(evt.x/vpSc, evt.y/vpSc, id, 0, gfx.ALIGN_CENTER_MIDDLE);
     }
 
-    gfx.color(0xFFff55FF).fillText(0,vpSzY, "window w:" + app.width + " h:" + app.height + " sc:" + app.pixelRatio.toFixed(3)
-        + "   vp w:"+vpSzX + " h:" + vpSzY + " sc:" + vpSc, 0, gfx.ALIGN_LEFT_BOTTOM);
+    gfx.color(0xFFff55FF).fillText(0,vpSzY, "fps:" + fps + " wnd w:" + app.width + " h:" + app.height + " sc:" + app.pixelRatio.toFixed(3)
+        + " vp w:"+vpSzX + " h:" + vpSzY + " sc:" + vpSc, 0, gfx.ALIGN_LEFT_BOTTOM);
 });

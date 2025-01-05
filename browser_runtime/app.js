@@ -162,7 +162,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	}
 
 	const app = {
-		version: 'v0.20240920a',
+		version: 'v0.20250105a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -360,6 +360,11 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				Math.floor(hue2rgb( v1, v2, h/360 - ( 1 / 3 ) )*255),
 				a
 			];
+		},
+		cssColor: function(col) {
+			const d = document.getElementById("arcajs_start_icon");
+			d.style.color = col;
+			return window.getComputedStyle(d).color;
 		},
 		createColorArray: function(/*arguments*/) {
 			let arr = new Uint32Array(arguments.length);

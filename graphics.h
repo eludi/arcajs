@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #define GFX_IMG_CIRCLE 1
 #define GFX_IMG_SQUARE 2
@@ -34,7 +35,7 @@ extern uint32_t gfxFontFromImage(uint32_t img, int margin);
 /// releases a font from graphics memory
 extern void gfxFontRelease(uint32_t font);
 
-extern size_t gfxCanvasCreate(int w, int h);
+extern size_t gfxCanvasCreate(int w, int h, uint32_t color);
 extern uint32_t gfxCanvasUpload(size_t canvas);
 extern uint32_t gfxVideoCanvasCreate(int w, int h);
 extern int gfxVideoCanvasUpdate(uint32_t img,

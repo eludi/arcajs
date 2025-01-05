@@ -481,7 +481,7 @@ static void bindConsole(duk_context *ctx) {
 	duk_put_prop_string(ctx, -2, "log");
 	duk_push_c_function(ctx, dk_consoleErr, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "error");
-	duk_push_c_function(ctx, dk_consoleErr, DUK_VARARGS);
+	duk_push_c_function(ctx, dk_consoleLog, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "warn");
 	duk_push_c_function(ctx, dk_consoleVisible, 1);
 	duk_put_prop_string(ctx, -2, "visible");
@@ -916,8 +916,8 @@ static duk_ret_t dk_createSVGResource(duk_context *ctx) {
  * creates an image resource from a buffer or from a callback function
  * @param {number|object} width - image width or an object having width, height, depth, and data properties
  * @param {number} [height] - image height
- * @param {buffer|array|function} [data|cb] - RGBA 4-byte per pixel image data or callback function having a graphics context as parameter
- * @param {object} [params] - optional additional parameters as key-value pairs such as filtering
+ * @param {buffer|array|number|string} [data|cb] - RGBA 4-byte per pixel image data or background color if image shall be created via a callback function
+ * @param {object|function} [params] - optional additional parameters as key-value pairs such as filtering  or callback function having a graphics context as parameter
  * @returns {number} handle of the created image resource
  */
 static duk_ret_t dk_createImageResource(duk_context *ctx) {
@@ -945,9 +945,9 @@ static duk_ret_t dk_createImageResource(duk_context *ctx) {
 	else {
 		width = duk_to_int(ctx, 0);
 		height = duk_to_int(ctx, 1);
-		readImageResourceParams(ctx, 3, NULL, &filtering, &cx, &cy);
 
 		if(duk_is_buffer_data(ctx, 2)) {
+			readImageResourceParams(ctx, 3, NULL, &filtering, &cx, &cy);
 			duk_size_t nBytes;
 			unsigned char* data = duk_get_buffer_data(ctx, 2, &nBytes);
 			if(nBytes!=width*height*depth)
@@ -956,6 +956,7 @@ static duk_ret_t dk_createImageResource(duk_context *ctx) {
 			img = ResourceCreateImage(width, height, data, filtering);
 		}
 		else if(duk_is_array(ctx, 2)) {
+			readImageResourceParams(ctx, 3, NULL, &filtering, &cx, &cy);
 			duk_size_t nBytes = duk_get_length(ctx, 2);
 			if(nBytes!=width*height*depth)
 				return duk_error(ctx, DUK_ERR_ERROR,
@@ -974,12 +975,16 @@ static duk_ret_t dk_createImageResource(duk_context *ctx) {
 			img = ResourceCreateImage(width, height, data, filtering);
 			free(data);
 		}
-		else if(duk_is_function(ctx, 2)) {
-			size_t canvas = gfxCanvasCreate(width, height);
-			duk_dup(ctx, 2); // push callback function onto stack
+		else if(duk_is_function(ctx, 3)) {
+			readImageResourceParams(ctx, 4, NULL, &filtering, &cx, &cy);
+			const uint32_t color = readColor(ctx, 2);
+			size_t canvas = gfxCanvasCreate(width, height, color);
+			duk_dup(ctx, 3); // push callback function onto stack
 			gfxStateReset();
 			duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("gfx")); // push graphics context
-			duk_call(ctx, 1);
+			duk_push_int(ctx, width);
+			duk_push_int(ctx, height);
+			duk_call(ctx, 3);
 			img = gfxCanvasUpload(canvas);
 		}
 	}
@@ -990,7 +995,7 @@ static duk_ret_t dk_createImageResource(duk_context *ctx) {
 
 /**
  * @function app.releaseResource
- * releases a previously uploade image, audio, or font resource
+ * releases a previously uploaded image, audio, or font resource
  * @param {number} handle - resource handle
  * @param {string} mediaType - mediaType, either 'image', 'audio', or 'font'
  */
@@ -1192,6 +1197,7 @@ static duk_ret_t dk_appPrompt(duk_context *ctx) {
  *
  * @param {string|array} message - (multi-line) message to be displayed
  * @param {string} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
+ * @returns {number} index of pressed button
  */
 static duk_ret_t dk_appMessage(duk_context *ctx) {
 	const char *msg = duk_is_array(ctx, 0) ? dk_join_array(ctx, 0, "\n") : duk_to_string(ctx, 0);
@@ -1199,11 +1205,12 @@ static duk_ret_t dk_appMessage(duk_context *ctx) {
 	if(duk_is_object(ctx, 1))
 		options = readValue(ctx, 1);
 
-	DialogMessageBox(msg, NULL, options);
+	int ret = DialogMessageBox(msg, NULL, options);
 
 	if(options)
 		Value_delete(options, 1);
-	return 0;
+	duk_push_int(ctx, ret);
+	return 1;
 }
 
 /**
@@ -1473,6 +1480,18 @@ static duk_ret_t dk_appHSL(duk_context *ctx) {
 }
 
 /**
+ * @function app.cssColor
+ * converts any CSS color string to a single RGB(A) color number.
+ * @param {number|string} color - color string or number
+ * @returns {number} - RGBA color value
+ */
+static duk_ret_t dk_appCssColor(duk_context *ctx) {
+	const uint32_t color = duk_is_number(ctx, 0) ? duk_get_uint_default(ctx, 0, 0) : cssColor(duk_to_string(ctx, 0));
+	duk_push_uint(ctx, color);
+	return 1;
+}
+
+/**
  * @function app.createColorArray
  * creates an Uint32Array of colors having an appropriate native format for color arrays
  * @param {number}[, {number}...] colors - color values as numbers in format #RRGGBBAA (e.g., #00FF00FF for opaque green)
@@ -1608,7 +1627,7 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_literal(ctx, -2, "createTileResource");
 	duk_push_c_function(ctx, dk_createSVGResource, 2);
 	duk_put_prop_string(ctx, -2, "createSVGResource");
-	duk_push_c_function(ctx, dk_createImageResource, 4);
+	duk_push_c_function(ctx, dk_createImageResource, 5);
 	duk_put_prop_string(ctx, -2, "createImageResource");
 	duk_push_c_function(ctx, dk_createImageFontResource, 2);
 	duk_put_prop_string(ctx, -2, "createImageFontResource");
@@ -1622,6 +1641,8 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_string(ctx, -2, "queryFont");
 	duk_push_c_function(ctx, dk_appHSL, 4);
 	duk_put_prop_string(ctx, -2, "hsl");
+	duk_push_c_function(ctx, dk_appCssColor, 1);
+	duk_put_prop_string(ctx, -2, "cssColor");
 	duk_push_c_function(ctx, dk_appColorArray, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "createColorArray");
 	duk_push_c_function(ctx, dk_appArrayColor, 1);

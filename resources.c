@@ -284,14 +284,30 @@ char* ResourceGetText(const char* name) {
 	if(!ra)
 		return 0;
 
-	size_t fsize = ArchiveFileSize(ra->ar, name);
+	const size_t fsize = ArchiveFileSize(ra->ar, name);
 	if(!fsize)
 		return 0;
 
 	char* buf =(char*)malloc(fsize+1);
 	buf[fsize] = 0;
-	size_t numBytesRead = ArchiveFileLoad(ra->ar, name, buf);
+	const size_t numBytesRead = ArchiveFileLoad(ra->ar, name, buf);
 	if(numBytesRead != fsize) {
+		free(buf);
+		return 0;
+	}
+	return buf;
+}
+
+void* ResourceGetBinary(const char* name, size_t* numBytes) {
+	if(!numBytes || !ra)
+		return 0;
+	*numBytes = ArchiveFileSize(ra->ar, name);
+	if(!*numBytes)
+		return 0;
+
+	void* buf = malloc(*numBytes);
+	const size_t numBytesRead = ArchiveFileLoad(ra->ar, name, buf);
+	if(numBytesRead != *numBytes) {
 		free(buf);
 		return 0;
 	}

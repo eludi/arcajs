@@ -162,13 +162,14 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	}
 
 	const app = {
-		version: 'v0.20250105a',
+		version: 'v0.20250119a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
 		pixelRatio: 1, // todo, consider devicePixelRatio
 		numControllers: 0,
 		args: urlParams(),
+		debug: 0,
 
 		setBackground: function(r,g,b) {
 			if(Array.isArray(r)) {
@@ -401,6 +402,8 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	const userAgent = navigator.userAgent;
 	if(userAgent.match(/AFT/) || userAgent.match(/smart\-tv/i) || userAgent.match(/smarttv/i)) // Fire OS TV, other Smart TVs
 		app.platform = 'tv';
+	if(app.args.debug)
+		app.debug = 1;
 
 	function emitTextInput(evt) {
 		if(!('textinput'in eventListeners))

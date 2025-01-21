@@ -13,8 +13,9 @@
 #include <math.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
-const char* appVersion = "v0.20250105a";
+const char* appVersion = "v0.20250121a";
 int debug = 0, useJoystickApi = 0;
 
 static void showError(const char* msg, ...) {
@@ -384,7 +385,7 @@ int main(int argc, char **argv) {
 	char* windowTitle = NULL;
 	char* storageFileName = NULL;
 	char* iconName = NULL;
-	int isCalledWithScript = 0;
+	bool isCalledWithScript = false, hasWindow = true;
 	double maxFps = 0.0;
 	Value* args = NULL;
 
@@ -418,6 +419,8 @@ int main(int argc, char **argv) {
 			winSzX = atoi(argv[i+1]);
 		else if(strcmp(argv[i],"-h")==0 && i+1<argc)
 			winSzY = atoi(argv[i+1]);
+		else if(strcmp(argv[i],"-m")==0 && i+1<argc)
+			maxFps = atof(argv[i+1]);
 		else if(strcmp(argv[i],"--version")==0) {
 			printf("%s\n", appVersion);
 			return 0;
@@ -445,7 +448,7 @@ int main(int argc, char **argv) {
 	else if(archiveName[strlen(archiveName)-1]=='\\')
 		archiveName[strlen(archiveName)-1]=0;
 	else if(strcmp(ResourceSuffix(archiveName), "js")==0) {
-		isCalledWithScript = 1;
+		isCalledWithScript = true;
 		scriptName = archiveName;
 		size_t pos = strlen(scriptName)-1;
 		while(pos>0) {
@@ -513,15 +516,19 @@ int main(int argc, char **argv) {
 	}
 
 	// initialize window and video:
-	if(WindowOpen(winSzX, winSzY, windowFlags)!=0) {
-		showError("Setting video mode failed.\n");
-		ResourceArchiveClose();
-		return -2;
+	hasWindow = winSzX>0 && winSzY>0;
+	if(hasWindow) {
+		if(WindowOpen(winSzX, winSzY, windowFlags)!=0) {
+			showError("Setting video mode failed.\n");
+			ResourceArchiveClose();
+			return -2;
+		}
+		winSzX = WindowWidth(), winSzY = WindowHeight();
 	}
-	winSzX = WindowWidth(), winSzY = WindowHeight();
+
 	if(!windowTitle)
 		windowTitle = ResourceBaseName(archiveName);
-	if(windowTitle && strlen(windowTitle) && windowTitle[0]!='.')
+	if(hasWindow && windowTitle && strlen(windowTitle) && windowTitle[0]!='.')
 		WindowTitle(windowTitle);
 
 	const char* storagePath = SDL_GetPrefPath("eludi", "arcajs");
@@ -540,38 +547,42 @@ int main(int argc, char **argv) {
 	SDL_free((void*)storagePath);
 
 	Value* events = Value_new(VALUE_LIST, NULL);
-	WindowEventHandler(handleEvents, events);
-	const float pixelRatio = SDL_max(SDL_roundf(WindowPixelRatio()), 1.0f);
+	if(hasWindow) {
+		WindowEventHandler(handleEvents, events);
+		const float pixelRatio = SDL_max(SDL_roundf(WindowPixelRatio()), 1.0f);
 #ifdef _GRAPHICS_GL
-	gfxInit(winSzX, winSzY, windowPerspectivity, pixelRatio, SDL_GL_GetProcAddress);
+		gfxInit(winSzX, winSzY, windowPerspectivity, pixelRatio, SDL_GL_GetProcAddress);
 #else
-	gfxInit(winSzX, winSzY, pixelRatio, WindowRenderer());
+		gfxInit(winSzX, winSzY, pixelRatio, WindowRenderer());
 #endif
-	if(consoleSzY)
-		ConsoleCreate(0,0,consoleY, winSzX, consoleSzY);
+		if(consoleSzY)
+			ConsoleCreate(0,0,consoleY, winSzX, consoleSzY);
 
-	if(iconName) { // show splash screen:
-		size_t icon = ResourceGetImage(iconName, 1.0f, 1);
-		if(icon) {
-			WindowShowPointer(0);
-			int iconW, iconH;
-			float textW;
-			gfxColor(0xffFFffFF);
-			gfxImageDimensions(icon, &iconW, &iconH);
-			gfxDrawImage(icon, (winSzX-iconW)/2.0f, (winSzY-iconH)/2.0f, 0,1,0);
-			gfxMeasureText(0, windowTitle, &textW, NULL, NULL, NULL);
-			gfxFillText(0, (winSzX-textW)/2.0f, (winSzY+iconH)/2.0f+8, windowTitle);
+		if(iconName) { // show splash screen:
+			size_t icon = ResourceGetImage(iconName, 1.0f, 1);
+			if(icon) {
+				WindowShowPointer(0);
+				int iconW, iconH;
+				float textW;
+				gfxColor(0xffFFffFF);
+				gfxImageDimensions(icon, &iconW, &iconH);
+				gfxDrawImage(icon, (winSzX-iconW)/2.0f, (winSzY-iconH)/2.0f, 0,1,0);
+				gfxMeasureText(0, windowTitle, &textW, NULL, NULL, NULL);
+				gfxFillText(0, (winSzX-textW)/2.0f, (winSzY+iconH)/2.0f+8, windowTitle);
+			}
 		}
-	}
 
-	WindowUpdate();
+		WindowUpdate();
+	}
 	free(windowTitle);
 	windowTitle = NULL;
 
-	AudioOpen(audioFrequency, audioTracks);
-	if(useJoystickApi>=0) // useJoystickApi < 0 disables joystick input completely
-		for(size_t i=0, end = WindowNumControllers(); i<end; ++i)
-			WindowControllerOpen(i, useJoystickApi);
+	if(hasWindow) {
+		AudioOpen(audioFrequency, audioTracks);
+		if(useJoystickApi>=0) // useJoystickApi < 0 disables joystick input completely
+			for(size_t i=0, end = WindowNumControllers(); i<end; ++i)
+				WindowControllerOpen(i, useJoystickApi);
+	}
 
 	if(!args)
 		args = Value_new(VALUE_MAP, NULL);
@@ -608,52 +619,88 @@ int main(int argc, char **argv) {
 	// main loop:
 	Value* argUpdate = Value_float(0.0);
 	argUpdate->next = Value_float(0.0);
-	while(WindowIsOpen()) {
-		const double now = WindowTimestamp();
-		jsvmUpdateEventListeners(vm);
-		jsvmAsyncCalls(vm, now);
-		argUpdate->f = WindowDeltaT();
-		argUpdate->next->f = now;
-		jsvmDispatchGamepadEvents(vm);
-		jsvmDispatchEvent(vm, "update", argUpdate);
-		gfxBeginFrame(WindowGetClearColor());
-		jsvmDispatchDrawEvent(vm);
-		if(consoleSzY)
-			ConsoleDraw();
-		gfxEndFrame();
-		if(WindowUpdate()!=0) // swap buffers
-			break;
+	if(hasWindow) {
+		while(WindowIsOpen()) {
+			const double now = WindowTimestamp();
+			jsvmUpdateEventListeners(vm);
+			jsvmAsyncCalls(vm, now);
+			argUpdate->f = WindowDeltaT();
+			argUpdate->next->f = now;
+			jsvmDispatchGamepadEvents(vm);
+			jsvmDispatchEvent(vm, "update", argUpdate);
+			gfxBeginFrame(WindowGetClearColor());
+			jsvmDispatchDrawEvent(vm);
+			if(consoleSzY)
+				ConsoleDraw();
+			gfxEndFrame();
+			if(WindowUpdate()!=0) // swap buffers
+				break;
 
-		for(Value* evt = events->child; evt!=NULL; evt = evt->next)
-			jsvmDispatchEvent(vm, Value_get(evt, "evt")->str, evt);
-		if(jsvmLastError(vm)) {
-			showError("JavaScript ERROR: %s\n", jsvmLastError(vm));
-			break;
+			for(Value* evt = events->child; evt!=NULL; evt = evt->next)
+				jsvmDispatchEvent(vm, Value_get(evt, "evt")->str, evt);
+			if(jsvmLastError(vm)) {
+				showError("JavaScript ERROR: %s\n", jsvmLastError(vm));
+				break;
+			}
+			if(maxFps) {
+				const double deltaT = (double)SDL_GetTicks64()/1000.0 - now;
+				const double delay = 1000.0/maxFps - 1000.0*deltaT;
+				if(delay>1.0)
+					SDL_Delay(delay);
+			}
 		}
-		if(maxFps) {
-			const double deltaT = WindowTimestamp() - now;
-			const double delay = 1000.0/maxFps - 1000.0*deltaT;
-			if(delay>1.0)
-				SDL_Delay(delay);
+	}
+	else {
+		SDL_InitSubSystem(SDL_INIT_EVENTS|SDL_INIT_TIMER);
+		bool running = true;
+		while(running) {
+			WindowUpdateTimestamp();
+			const double now = WindowTimestamp();
+			jsvmUpdateEventListeners(vm);
+			jsvmAsyncCalls(vm, now);
+			argUpdate->f = WindowDeltaT();
+			argUpdate->next->f = now;
+			jsvmDispatchEvent(vm, "update", argUpdate);
+			SDL_Event evt;
+			while( SDL_PollEvent( &evt ) ) switch(evt.type) {
+			case SDL_QUIT:
+				running = false;
+				break;
+			}
+			if(jsvmLastError(vm)) {
+				showError("JavaScript ERROR: %s\n", jsvmLastError(vm));
+				break;
+			}
+			if(maxFps) {
+				const double deltaT = (double)SDL_GetTicks64()/1000.0 - now;
+				const double delay = 1000.0/maxFps - 1000.0*deltaT;
+				if(delay>1.0)
+					SDL_Delay(delay);
+			}
 		}
 	}
 
 	// cleanup:
 	jsvmDispatchEvent(vm, "close", NULL);
 	if(debug) {
-		printf("Cleaning up... audio..."); fflush(stdout);
+		printf("Cleaning up...");
 	}
-	AudioClose();
-	if(debug) {
-		printf(" graphics..."); fflush(stdout);
+	if(hasWindow) {
+		if(debug) {
+			printf(" audio..."); fflush(stdout);
+		}
+		AudioClose();
+		if(debug) {
+			printf(" graphics..."); fflush(stdout);
+		}
+		gfxClose();
+		ConsoleDelete();
+		if(debug) {
+			printf(" window..."); fflush(stdout);
+		}
+		if(WindowIsOpen())
+			WindowClose();
 	}
-	gfxClose();
-	ConsoleDelete();
-	if(debug) {
-		printf(" window..."); fflush(stdout);
-	}
-	if(WindowIsOpen())
-		WindowClose();
 	if(debug) {
 		printf(" scripting..."); fflush(stdout);
 	}

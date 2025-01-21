@@ -481,6 +481,7 @@ writes an error message to application log
 - {string} app.version - arcajs version
 - {string} app.platform - arcajs platform, either 'browser' or 'standalone'
 - {string} app.arch - operating system name and architecture, for example Linux_x86_64
+- {string} app.debug - application debug level, currently 0 or 1
 - {int} app.numControllers - number of currently connected game controllers
 - {number} app.width - window width in logical pixels
 - {number} app.height - window height in logical pixels

@@ -1581,6 +1581,12 @@ static duk_ret_t dk_appArch(duk_context *ctx) {
 	return 1;
 }
 
+/// @property {string} app.debug - application debug level, currently 0 or 1
+static duk_ret_t dk_appDebug(duk_context *ctx) {
+	extern int debug;
+	duk_push_int(ctx, debug);
+	return 1;
+}
 /// @property {int} app.numControllers - number of currently connected game controllers
 static duk_ret_t dk_appNumControllers(duk_context *ctx) {
 	duk_push_int(ctx, WindowNumControllers());
@@ -1702,6 +1708,7 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	dk_defineReadOnlyProperty(ctx,"version", -1, dk_appVersion);
 	dk_defineReadOnlyProperty(ctx,"platform", -1, dk_appPlatform);
 	dk_defineReadOnlyProperty(ctx,"arch", -1, dk_appArch);
+	dk_defineReadOnlyProperty(ctx,"debug", -1, dk_appDebug);
 
 	duk_put_global_string(ctx, "app");
 
@@ -2379,9 +2386,14 @@ static void* moduleLoad(const char* dllName) {
 	}
 
 	free(dllNameWithSuffix);
-	if(!libHandle)
+	if(!libHandle) {
+		if(debug)
+			printf("NOT FOUND.\n");
 		return 0;
+	}
 	SDL_ClearError();
+	if(debug)
+		printf("found.\n");
 
 	const char unloadFuncNameSuffix[] = "_unload";
 	char* unloadFuncName = malloc(len+sizeof(unloadFuncNameSuffix)+1);

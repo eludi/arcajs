@@ -92,4 +92,5 @@ var doc = ['# arcajs API','','- [app](#module-app)','- [audio](#module-audio)',
 	.concat(docExtract("../modules/intersectsBindings.c")).concat(docExtract("../worker.c"));
 doc = doc2md(doc);
 os.writeFileSync("API.md", doc.join('\n').replace(/\n(\n)+/g, '\n\n'));
-app.close();
+
+app.on('update', function() { app.close(); })

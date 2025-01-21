@@ -82,8 +82,7 @@ int ConsoleVisible() {
 
 void ConsoleLog(const char* msg) {
 	if(!console) {
-		printf("%s\n", msg);
-		fflush(stdout);
+		//printf("%s\n", msg); fflush(stdout);
 		return;
 	}
 	size_t len = strlen(msg);
@@ -158,7 +157,6 @@ static void DialogAxisEvent(size_t id, uint8_t axis, float value, void* udata) {
 	Value* events = (Value*)udata;
 	Value_append(events, event);
 	//Value_print(event, stdout);
-	//Value_delete(event, 1);
 }
 
 static void DialogButtonEvent(size_t id, uint8_t button, float value, void* udata) {
@@ -171,7 +169,6 @@ static void DialogButtonEvent(size_t id, uint8_t button, float value, void* udat
 	Value* events = (Value*)udata;
 	Value_append(events, event);
 	//Value_print(event, stdout);
-	//Value_delete(event, 1);
 }
 
 int DialogMessageBox(const char* msg, char* prompt, Value* options) {
@@ -252,7 +249,7 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 	gfxStateReset();
 	gfxClipRect(0,0,-1,-1);
 
-	int done = 0;
+	int done = 0, firstFrame = 1;
 	while(WindowIsOpen() && !done) {
 		double now = WindowTimestamp();
 		// draw:
@@ -309,7 +306,9 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 
 		// handle events:
 		WindowControllerEvents(1.0, events, DialogAxisEvent, DialogButtonEvent);
-		for(Value* evt = events->child; evt!=NULL; evt = evt->next) {
+		if(firstFrame)
+			firstFrame = 0;
+		else for(Value* evt = events->child; evt!=NULL; evt = evt->next) {
 			if(prompt && strcmp(Value_get(evt, "evt")->str, "textinput")==0) {
 				//Value_print(evt, stdout);
 				const Value* v = Value_get(evt, "key");
@@ -344,9 +343,18 @@ int DialogMessageBox(const char* msg, char* prompt, Value* options) {
 					}
 					else if(strcmp(v->str, "Escape")==0)
 						ret = done = 1;
+					else if (strcmp(v->str, "ArrowRight")==0) {
+						button0Selected = 1;
+						button1Selected = 0;
+					}
+					else if (strcmp(v->str, "ArrowLeft")==0 && button1) {
+						button0Selected = 0;
+						button1Selected = 1;
+					}
 				}
 			}
 			else if(strcmp(Value_get(evt, "evt")->str, "pointer")==0) {
+				WindowShowPointer(1);
 				int x = Value_get(evt, "x")->i, y = Value_get(evt, "y")->i;
 				button0Selected = isInside(button0Pos, x, y);
 				button1Selected = button0Selected ? 0 : isInside(button1Pos, x, y);

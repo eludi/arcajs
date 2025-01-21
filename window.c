@@ -509,7 +509,7 @@ int WindowControllerOpen(size_t id, int useJoystickApi) {
 		return -1;
 	SDL_Joystick* pJoy = SDL_JoystickOpen(id);
 	if(!pJoy) {
-		LogWarn("WindowControllerOpen(%u): cannot initialize controller: %s", (unsigned)id, SDL_GetError());
+		LogWarn("WindowControllerOpen(%zu): cannot initialize controller: %s", id, SDL_GetError());
 		SDL_ClearError();
 		return -1;
 	}
@@ -531,7 +531,7 @@ int WindowControllerOpen(size_t id, int useJoystickApi) {
 	else {
 		joysticks[id].pGamepad = SDL_GameControllerOpen(id);
 		if(!joysticks[id].pGamepad) {
-			LogWarn("WindowControllerOpen(%u) ERROR: cannot initialize controller: %s", (unsigned)id, SDL_GetError());
+			LogWarn("WindowControllerOpen(%zu) ERROR: cannot initialize controller: %s", id, SDL_GetError());
 			SDL_ClearError();
 			return -1;
 		}
@@ -540,7 +540,7 @@ int WindowControllerOpen(size_t id, int useJoystickApi) {
 		SDL_ClearError();
 	}
 
-	LogInfo("WindowControllerOpen(%u) axes:%i hats:%i buttons:%i", (unsigned)id,
+	LogInfo("WindowControllerOpen(%zu, %i) axes:%i hats:%i buttons:%i", id, useJoystickApi,
 		joysticks[id].nAxes, joysticks[id].nHats, joysticks[id].nButtons);
 	return 0;
 }

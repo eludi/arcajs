@@ -1,5 +1,5 @@
 CC     = gcc
-CFLAGS = -Wall -Wpedantic -Wno-overlength-strings -Os
+CFLAGS = -Wall -Wpedantic -Wno-overlength-strings -O3
 
 SDL = ../SDL2
 

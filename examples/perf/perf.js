@@ -1,6 +1,6 @@
 app.setBackground(0x22,0x44,0x66);
 var numObj = 200;
-const objCounts = [ 100, 200, 400, 500, 1000, 2000, 4000, 8000, 16000 ];
+const objCounts = [ 100, 200, 400, 500, 1000, 2000, 4000, 8000, 16000, 32000 ];
 const numComponents = 12;
 
 function randi(lo, hi) {

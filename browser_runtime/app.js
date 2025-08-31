@@ -162,7 +162,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 	}
 
 	const app = {
-		version: 'v0.20250119a',
+		version: 'v0.20250329a',
 		platform: 'browser',
 		width: window.innerWidth,
 		height: window.innerHeight,
@@ -188,7 +188,9 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 				clearColor[2] = b/255;
 			}
 		},
-		close: function() {
+		close: function(errMsg) {
+			if(errMsg)
+				console.error(errMsg);
 			if(history.length>1)
 				history.back();
 			else if(this.platform === 'tv')
@@ -291,6 +293,7 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		require: function(name) { return modules[name]; },
 		exports: function(name, module) { modules[name] = module; },
 		resizable: function(isResizable) { /* browser windows always resizable */ },
+		resize: function(width, height) { console.warn('app.resize not supported in browser'); return false; },
 		fullscreen: function(fullscreen) {
 			if(fullscreen) {
 				if(document.fullscreenEnabled && !document.fullscreenElement)
@@ -329,6 +332,10 @@ let app = arcajs.app = (function(canvas_id='arcajs_canvas') {
 		},
 		error: function(...data) {
 			console.error(...data);
+		},
+		setError: function(errMsg) {
+			if(errMsg)
+				throw new Error(errMsg);
 		},
 		//H 0..360, S&L 0.0..1.0
 		hsl: function(h,s,l,a) {

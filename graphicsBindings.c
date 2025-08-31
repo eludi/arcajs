@@ -414,7 +414,7 @@ static duk_ret_t dk_gfxFillText(duk_context *ctx) {
  * @param {number} imgBase - base image handle
  * @param {number} tilesX - number of tiles in horizontal direction
  * @param {number} tilesY - number of tiles in vertical direction
- * @param {Uint32Array} imgOffsets - array of image handle offsets
+ * @param {Uint32Array} [imgOffsets] - array of image handle offsets
  * @param {Uint32Array} [colors] - optional tile color array
  * @param {number} [stride=tilesX] - number of array elements to proceed to next row
  */
@@ -422,9 +422,10 @@ static duk_ret_t dk_gfxDrawTiles(duk_context *ctx) {
 	uint32_t imgBase = duk_get_uint(ctx, 0);
 	uint16_t tilesX = duk_to_uint16(ctx, 1);
 	uint16_t tilesY = duk_to_uint16(ctx, 2);
-	uint32_t *imgOffsets, *imgOffsetsBuf = NULL;
+	uint32_t *imgOffsets = NULL, *imgOffsetsBuf = NULL;
 	uint32_t *colors = NULL, *colorBuf = NULL;
-	/*size_t arrSz =*/ readUint32Array(ctx, 3, &imgOffsets, &imgOffsetsBuf);
+	if(!duk_is_undefined(ctx, 3))
+		readUint32Array(ctx, 3, &imgOffsets, &imgOffsetsBuf);
 	if(!duk_is_undefined(ctx, 4))
 		readUint32Array(ctx, 4, &colors, &colorBuf);
 	uint32_t stride = duk_get_uint_default(ctx, 5, tilesX);

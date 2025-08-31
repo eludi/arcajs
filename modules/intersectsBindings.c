@@ -384,12 +384,12 @@ static duk_ret_t dk_sprites(duk_context *ctx) {
 	if(s1.radius<0.0f) {
 		s1.w = getPropFloatDefault(ctx,0,"w",-1.0f);
 		s1.h = getPropFloatDefault(ctx,0,"h",-1.0f);
+		if(s1.w<0.0f || s1.h<0.0f)
+			return duk_error(ctx, DUK_ERR_ERROR,
+				"intersect.sprites() expects either radius or w/h properties of first object");
 		s1.cx = getPropFloatDefault(ctx,0,"cx",0.0f);
 		s1.cy = getPropFloatDefault(ctx,0,"cy",0.0f);
 	}
-	if(s1.radius<0.0f && (s1.w<0.0f || s1.h<0.0f))
-		return duk_error(ctx, DUK_ERR_ERROR,
-			"intersect.sprites() expects either radius or w/h properties of first object");
 
 	s2.x = getPropFloatDefault(ctx,1,"x",0.0f);
 	s2.y = getPropFloatDefault(ctx,1,"y",0.0f);
@@ -398,12 +398,12 @@ static duk_ret_t dk_sprites(duk_context *ctx) {
 	if(s2.radius<0.0f) {
 		s2.w = getPropFloatDefault(ctx,1,"w",-1.0f);
 		s2.h = getPropFloatDefault(ctx,1,"h",-1.0f);
+		if(s2.w<0.0f || s2.h<0.0f)
+			return duk_error(ctx, DUK_ERR_ERROR,
+				"intersect.sprites() expects either radius or w/h properties of second object");
 		s2.cx = getPropFloatDefault(ctx,1,"cx",0.0f);
 		s2.cy = getPropFloatDefault(ctx,1,"cy",0.0f);
 	}
-	if(s2.radius<0.0f && (s2.w<0.0f || s2.h<0.0f))
-		return duk_error(ctx, DUK_ERR_ERROR,
-			"intersect.sprites() expects either radius or w/h properties of second object");
 
 	int intersects = intersectsSpritesCoarse(&s1, &s2);
 	if(intersects) { // consider convex hull and triangles

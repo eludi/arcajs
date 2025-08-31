@@ -698,6 +698,7 @@ void gfxMeasureText(uint32_t font, const char* text, float* width, float* height
 void gfxDrawTiles(uint16_t tilesX, uint16_t tilesY, uint32_t stride,
 	uint32_t imgBase, const uint32_t* imgOffsets, const uint32_t* colors)
 {
+	//printf("tilesX:%u tilesY:%u stride:%u imgBase:%u imgOffsets:%i colors:%i\n", tilesX, tilesY, stride, imgBase, imgOffsets ? 1:0, colors ? 1 : 0);
 	const float w = images[imgBase].src.w, h=images[imgBase].src.h;
 	for(uint16_t j=0; j<tilesY; ++j) for(uint16_t i=0; i<tilesX; ++i) {
 		size_t index = j*stride+i;

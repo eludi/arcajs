@@ -369,6 +369,15 @@ void WindowResizable(int isResizable) {
 	SDL_SetWindowResizable(wnd.window, (SDL_bool)isResizable);
 }
 
+int WindowResize(int width, int height) {
+	if(wnd.fullscreen || !(SDL_GetWindowFlags(wnd.window) & SDL_WINDOW_RESIZABLE))
+		return 0;
+	SDL_SetWindowSize(wnd.window, width, height);
+	wnd.szX = width;
+	wnd.szY = height;
+	return 1;
+}
+
 void WindowToggleFullScreen() {
 	wnd.fullscreen=!wnd.fullscreen;
 	SDL_SetWindowFullscreen(wnd.window, wnd.fullscreen ? SDL_WINDOW_FULLSCREEN : 0);

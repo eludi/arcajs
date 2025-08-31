@@ -5,6 +5,8 @@
 #include "resources.h"
 #include "jsBindings.h"
 #include "value.h"
+#define DUKT_DEBUG_IMPLEMENTATION
+#include "dukt_debug.h"
 
 #include <SDL.h>
 
@@ -15,8 +17,15 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-const char* appVersion = "v0.20250121a";
+const char* appVersion = "v0.20250831a";
 int debug = 0, useJoystickApi = 0;
+
+static void onDebugSession(int evt) {
+	if(evt == DUKT_DEBUG_EVENT_QUIT)
+		WindowClose();
+	else
+		WindowUpdateTimestamp();
+}
 
 static void showError(const char* msg, ...) {
 	char formattedMsg[1024];
@@ -378,6 +387,11 @@ int handleEvents(void* udata) {
 	return ret;
 }
 
+#if defined __WIN32__ || defined WIN32
+#define PATHSEP '\\'
+#else
+#define PATHSEP '/'
+#endif
 //--- main ---------------------------------------------------------
 int main(int argc, char **argv) {
 	const char* scriptName = "main.js";
@@ -390,6 +404,7 @@ int main(int argc, char **argv) {
 	Value* args = NULL;
 
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
+	int debug_port = 0;
 	float windowPerspectivity = 0.0f;
 	int consoleY=0, consoleSzY = winSzY-32;
 	for(int i=1; i<argc; ++i) {
@@ -411,8 +426,10 @@ int main(int argc, char **argv) {
 			else
 				windowFlags &= ~WINDOW_VSYNC;
 		}
-		else if(strcmp(argv[i],"-d")==0 || strcmp(argv[i],"--debug")==0)
+		else if((strcmp(argv[i],"-d")==0 || strcmp(argv[i],"--debug")==0) && i+1<argc) {
 			debug = 1;
+			debug_port = atoi(argv[i+1]);
+		}
 		else if((strcmp(argv[i],"-j")==0 || strcmp(argv[i],"--joystick")==0) && i+1<argc)
 			useJoystickApi = atoi(argv[i+1]);
 		else if(strcmp(argv[i],"-w")==0 && i+1<argc)
@@ -445,14 +462,14 @@ int main(int argc, char **argv) {
 		ar = ResourceArchiveOpen(argv[0]);
 		archiveName = ar ? argv[0] : ".";
 	}
-	else if(archiveName[strlen(archiveName)-1]=='\\')
+	else if(archiveName[strlen(archiveName)-1]==PATHSEP)
 		archiveName[strlen(archiveName)-1]=0;
 	else if(strcmp(ResourceSuffix(archiveName), "js")==0) {
 		isCalledWithScript = true;
 		scriptName = archiveName;
 		size_t pos = strlen(scriptName)-1;
 		while(pos>0) {
-			if(scriptName[pos]=='/' || scriptName[pos]=='\\')
+			if(scriptName[pos]==PATHSEP)
 				break;
 			--pos;
 		}
@@ -592,6 +609,7 @@ int main(int argc, char **argv) {
 		ResourceArchiveClose();
 		return -3;
 	}
+	dukt_debug_init((void*)vm, debug_port, "breakpoint", onDebugSession);
 
 	// load and execute scripts:
 	if(scriptNames) {
@@ -621,6 +639,8 @@ int main(int argc, char **argv) {
 	argUpdate->next = Value_float(0.0);
 	if(hasWindow) {
 		while(WindowIsOpen()) {
+			if (debug_port > 0)
+				dukt_debug_poll();
 			const double now = WindowTimestamp();
 			jsvmUpdateEventListeners(vm);
 			jsvmAsyncCalls(vm, now);
@@ -654,6 +674,8 @@ int main(int argc, char **argv) {
 		SDL_InitSubSystem(SDL_INIT_EVENTS|SDL_INIT_TIMER);
 		bool running = true;
 		while(running) {
+			if (debug_port > 0)
+				dukt_debug_poll();
 			WindowUpdateTimestamp();
 			const double now = WindowTimestamp();
 			jsvmUpdateEventListeners(vm);
@@ -707,6 +729,7 @@ int main(int argc, char **argv) {
 	Value_delete(argUpdate, 1);
 	Value_delete(events, 0);
 	Value_delete(args, 0);
+	dukt_debug_shutdown();
 	jsvmClose(vm);
 	if(debug) {
 		printf(" resources..."); fflush(stdout);

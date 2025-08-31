@@ -77,7 +77,7 @@ modules/os$(DLLSUFFIX): modules/os.o external/duktape.o
 	$(CC) -o $@ $(DLLFLAGS) $^ $(LIBS)
 
 # compilation dependencies:
-arcajs.o: arcajs.c window.h graphics.h audio.h console.h resources.h archive.h jsBindings.h value.h log.h
+arcajs.o: arcajs.c window.h graphics.h audio.h console.h resources.h archive.h jsBindings.h value.h log.h dukt_debug.h
 resources.o: resources.c resources.h archive.h graphics.h audio.h graphicsUtils.h
 archive.o: archive.c archive.h external/miniz.h
 window.o: window.c window.h log.h

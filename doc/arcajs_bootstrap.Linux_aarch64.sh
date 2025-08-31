@@ -1,9 +1,9 @@
 #!/bin/sh
-# experimental arcajs bootstrap script for cross-compiling to Linux aarch64, tested under Ubuntu 20.04 as host and AmberELEC 220627 as target
+# experimental arcajs bootstrap script for cross-compiling to Linux aarch64, tested under Ubuntu 22.04 as host and muOS and rocknix as target
 
-wget https://www.libsdl.org/release/SDL2-2.26.5.tar.gz
-tar xvfz SDL2-2.26.5.tar.gz
-mv SDL2-2.26.5 SDL2
+wget https://www.libsdl.org/release/SDL2-2.32.8.tar.gz
+tar xvfz SDL2-2.32.8.tar.gz
+mv SDL2-2.32.8 SDL2
 cd SDL2 && mkdir build && cd build
 ../configure --disable-static --disable-altivec --disable-oss --disable-jack --disable-jack-shared --disable-esd --disable-esd-shared \
   --disable-arts --disable-arts-shared --disable-nas --disable-nas-shared --disable-libsamplerate-shared --disable-sndio \

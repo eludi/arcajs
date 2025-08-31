@@ -1,8 +1,8 @@
 Rem arcajs bootstrap script for Windows 10 using the MinGW-w64 compiler, obtainable at https://sourceforge.net/projects/mingw-w64/
 
-curl.exe http://libsdl.org/release/SDL2-devel-2.26.5-mingw.tar.gz -o SDL2-devel-2.26.5-mingw.tar.gz
-tar.exe -xf .\SDL2-devel-2.26.5-mingw.tar.gz
-ren SDL2-2.26.5 SDL2
+curl.exe http://libsdl.org/release/SDL2-devel-2.32.8-mingw.tar.gz -o SDL2-devel-2.32.8-mingw.tar.gz
+tar.exe -xf .\SDL2-devel-2.32.8-mingw.tar.gz
+ren SDL2-2.32.8 SDL2
 cd SDL2
 md lib
 md lib\win32-x64

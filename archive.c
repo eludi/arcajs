@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-#ifndef _NO_SQL
+#ifndef _NO_SDL
 #include <SDL_rwops.h>
 #endif
 #ifdef __ANDROID__
@@ -251,7 +251,7 @@ size_t ArchiveFileLoad(Archive *ar, const char* filename, void* ptr) {
 #endif
 
 		size_t ret;
-#ifdef _NO_SQL
+#ifdef _NO_SDL
 		FILE *fp = fopen(url, "rb");
 		free(url);
 		if (!fp)

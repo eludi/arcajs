@@ -262,12 +262,16 @@ size_t ResourceGetFont(const char* name, unsigned fontSize) {
 
 	size_t fsize;
 	void* buf = ArchiveLoadBinary(ra->ar, name, &fsize);
-	if(!buf)
+	if(!buf) {
+		fprintf(stderr, "Could not load font file '%s'.\n", name);
 		return 0;
+	}
 
 	size_t handle = gfxFontUpload(buf, fsize, fontSize);
 	free(buf);
-	if(handle) {
+	if(!handle)
+		fprintf(stderr, "Could not upload font file '%s', size %u.\n", name, fontSize);
+	else {
 		if(ra->numFonts == ra->numFontsMax) {
 			ra->numFontsMax = ra->numFontsMax ? ra->numFontsMax*2 : 1;
 			ra->fonts = (FontResource*)realloc(ra->fonts, ra->numFontsMax*sizeof(FontResource));

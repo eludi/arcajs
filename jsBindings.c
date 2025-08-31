@@ -1055,6 +1055,20 @@ static duk_ret_t dk_appSetResizable(duk_context *ctx) {
 }
 
 /**
+ * @function app.resize
+ * resizes window
+ * @param {number} width
+ * @param {number} height
+ * @returns {bool} true id resize was successful, only if not fullscreen
+ */
+static duk_ret_t dk_appResize(duk_context *ctx) {
+	const int width = duk_to_int(ctx, 0), height = duk_to_int(ctx, 1);
+	const int success = WindowResize(width, height);
+	duk_push_boolean(ctx, success);
+	return 1;
+}
+
+/**
  * @function app.fullscreen
  * toggles window fullscreen or returns fullscreen state
  * @param {bool} [fullscreen]
@@ -1216,8 +1230,11 @@ static duk_ret_t dk_appMessage(duk_context *ctx) {
 /**
  * @function app.close
  * closes window and application
+ * @param {string} [message] - optional error message to be displayed
  */
 static duk_ret_t dk_appClose(duk_context *ctx) {
+	if(duk_is_string(ctx, 0))
+		LogError("%s", duk_get_string(ctx, 0));
 	WindowEmitClose();
 	return 0;
 }
@@ -1561,7 +1578,42 @@ static duk_ret_t dk_appLogError(duk_context *ctx) {
 	return 0;
 }
 
-/// @property {array} app.args - script-relevant command line arguments (or URL parameters), to be passed after a -- as separator as key value pairs, keys start with a -- or -
+/**
+ * @function app.setError
+ * sets or resets central app error state
+ * @param {string|boolean|undefined} err - sets error. Pass false or undefined to reset error state, usually within a catch block
+ */
+static duk_ret_t dk_appSetError(duk_context *ctx) {
+	if(duk_is_undefined(ctx, 0) || (duk_is_boolean(ctx, 0) && !duk_get_boolean(ctx,0)))
+		s_lastError[0] = 0;
+	else {
+		const char* errmsg = duk_to_string(ctx, 0);
+		strncpy(s_lastError, errmsg, ERROR_MAXLEN-1);
+	}
+	return 0;
+}
+
+/// @property {object} app.args - script-relevant command line arguments (or URL parameters), to be passed after a -- as separator as key value pairs, keys start with a -- or -
+
+/// @property {object} app.utils - collection of minor utility functions
+
+/** @function {function} app.utils.lpad
+ * pads a value with leading characters until reaching a given length
+ * @param value - the value to be padded
+ * @param {number} numDigits - overall number of digits after padding
+ * @param [char] {string} - character to be used for padding. Default is 0.
+ * @returns {string} - padded value
+ */
+/** @function {function} app.utils.randf
+*/
+/** @function {function} app.utils.randi
+*/
+/** @function {function} app.utils.dist
+*/
+/** @function {function} app.utils.distSqr
+*/
+/** @function {function} app.utils.clamp
+*/
 
 /// @property {string} app.version - arcajs version
 static duk_ret_t dk_appVersion(duk_context *ctx) {
@@ -1660,6 +1712,8 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_string(ctx, -2, "setTitle");
 	duk_push_c_function(ctx, dk_appSetResizable, 1);
 	duk_put_prop_string(ctx, -2, "resizable");
+	duk_push_c_function(ctx, dk_appResize, 2);
+	duk_put_prop_string(ctx, -2, "resize");
 	duk_push_c_function(ctx, dk_appFullscreen, 1);
 	duk_put_prop_string(ctx, -2, "fullscreen");
 	duk_push_c_function(ctx, dk_appMinimize, 1);
@@ -1672,7 +1726,7 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_string(ctx, -2, "prompt");
 	duk_push_c_function(ctx, dk_appMessage, 2);
 	duk_put_prop_string(ctx, -2, "message");
-	duk_push_c_function(ctx, dk_appClose, 0);
+	duk_push_c_function(ctx, dk_appClose, 1);
 	duk_put_prop_string(ctx, -2, "close");
 	duk_push_c_function(ctx, dk_httpGet, 2);
 	duk_put_prop_string(ctx, -2, "httpGet");
@@ -1696,10 +1750,14 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_string(ctx, -2, "warn");
 	duk_push_c_function(ctx, dk_appLogError, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "error");
+	duk_push_c_function(ctx, dk_appSetError, 1);
+	duk_put_prop_string(ctx, -2, "setError");
 
 	duk_push_literal(ctx, "arcajs_builtin_js_func_emitAsGamepadEvent");
 	duk_compile_string_filename(ctx, DUK_COMPILE_FUNCTION, emitAsGamepadEvent_js);
 	duk_put_prop_literal(ctx, -2, "emitAsGamepadEvent");
+	duk_eval_string(ctx, utils_js);
+	duk_put_prop_literal(ctx, -2, "utils");
 
 	dk_defineReadOnlyProperty(ctx,"width", -1, dk_getWindowWidth);
 	dk_defineReadOnlyProperty(ctx,"height", -1, dk_getWindowHeight);
@@ -2337,9 +2395,9 @@ static unsigned numModules = 0u;
 static unsigned numModulesMax = 0u;
 
 static void* moduleLoad(const char* dllName) {
-	size_t len = strlen(dllName), dllNameWithSuffixLen = len+5;
+	const size_t len = strlen(dllName), dllNameWithSuffixLen = len+5;
 	char* dllNameWithSuffix = malloc(dllNameWithSuffixLen);
-	strncpy(dllNameWithSuffix, dllName, len);
+	strncpy(dllNameWithSuffix, dllName, len+1);
 #if defined __WIN32__ || defined WIN32
 	const char* suffix = ".dll";
 	const char* sep = "\\";
@@ -2397,7 +2455,7 @@ static void* moduleLoad(const char* dllName) {
 
 	const char unloadFuncNameSuffix[] = "_unload";
 	char* unloadFuncName = malloc(len+sizeof(unloadFuncNameSuffix)+1);
-	strncpy(unloadFuncName, dllName, len);
+	strncpy(unloadFuncName, dllName, len+1);
 	strcpy(unloadFuncName+len, unloadFuncNameSuffix);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -2695,10 +2753,10 @@ int jsvmRequire(size_t vm, const char* dllName) {
 		return -1;
 	}
 
-	size_t len = strlen(dllName);
+	const size_t len = strlen(dllName);
 	const char exportsFuncNameSuffix[] = "_exports";
 	char* exportsFuncName = malloc(len+sizeof(exportsFuncNameSuffix)+1);
-	strncpy(exportsFuncName, dllName, len);
+	strncpy(exportsFuncName, dllName, len+1);
 	strcpy(exportsFuncName+len, exportsFuncNameSuffix);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"

@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 //--- struct Value --------------------------------------------------
 
@@ -18,6 +19,7 @@ enum Type {
 	VALUE_LIST = '[',
 	VALUE_MAP = '{',
 	VALUE_ERR = '!',
+	VALUE_BUF = '&',
 
 	CTRL_ERR = '~',
 	CTRL_LISTEND = ']',
@@ -43,6 +45,7 @@ typedef struct Value {
 		signed long long i;
 		double f;
 		char* str;
+		uint8_t* buf;
 		struct Value* child;
 	};
 	/// pointer to next Value
@@ -55,6 +58,8 @@ extern Value* Value_int(signed long long value);
 extern Value* Value_bool(bool value);
 extern Value* Value_float(double value);
 extern Value* Value_err(const char* msg);
+/// creates a byte buffer of a given size. Either initializes it by copying the provided buffer or by setting it to zeros
+extern Value* Value_buf(size_t size, const uint8_t* buf);
 extern Value* Value_parse(const char* text);
 extern Value* Value_parseXML(const char* xmlstr, const char** customCodes);
 
@@ -83,7 +88,7 @@ extern const char* Value_key(const Value* parent, unsigned n);
 /// get list element
 extern Value* Value_at(const Value* parent, unsigned n);
 /// gets value identified by its path, e.g. "/species/1/color/0"
-extern Value* Value_atPath(Value* parent, const char* path);
+extern Value* Value_atPath(const Value* parent, const char* path);
 /// output to a file stream
 extern void Value_print(const Value* v, FILE* stream);
 
@@ -171,6 +176,22 @@ Value* Value_float(double value) {
 	v->f = value;
 	return v;
 }
+Value* Value_buf(size_t size, const uint8_t* buf) {
+	Value* v = (Value*)malloc(sizeof(Value));
+	v->m_size = size;
+	if(size) {
+		v->buf = (uint8_t*)malloc(size);
+		if(buf)
+			memcpy(v->buf, buf, size);
+		else
+			memset(v->buf, 0, size);
+	} else {
+		v->buf = NULL;
+	}
+	v->type = VALUE_BUF;
+	v->next = NULL;
+	return v;
+}
 
 void Value_delete(Value* v, bool deleteChain) {
 	if(!v)
@@ -185,6 +206,10 @@ void Value_delete(Value* v, bool deleteChain) {
 	case VALUE_SYMBOL:
 	case VALUE_STRING:
 		free(v->str);
+		break;
+	case VALUE_BUF:
+		free(v->buf);
+		break;
 	}
 	free(v);
 }
@@ -323,7 +348,7 @@ const char* Value_key(const Value* parent, unsigned n) {
 	return NULL;
 }
 
-Value* Value_atPath(Value* parent, const char* path) {
+Value* Value_atPath(const Value* parent, const char* path) {
 	if(!parent || !path)
 		return 0;
 	size_t pos = 0, sz = strlen(path);
@@ -344,7 +369,7 @@ Value* Value_atPath(Value* parent, const char* path) {
 		parent = Value_getn(parent, &path[pos], nextSep-pos);
 	pos = nextSep+1;
 	if(pos>=sz)
-		return parent;
+		return (Value*)parent;
 	return Value_atPath(parent, &path[pos]);
 }
 

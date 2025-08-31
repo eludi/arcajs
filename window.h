@@ -24,6 +24,8 @@ void WindowMinimize();
 void WindowRestore();
 /// sets window resize policy
 void WindowResizable(int isResizable);
+/// sets window size, if resizable
+int WindowResize(int width, int height);
 /// toggles fullscreen
 void WindowToggleFullScreen();
 /// returns true in case the window is fullscreen

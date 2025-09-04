@@ -205,8 +205,10 @@ const char* ResourceArchiveName() {
 
 size_t ResourceGetImage(const char* name, float scale, int filtering) {
 	int isImage = isImageFile(name);
-	if(!ra || !isImage)
+	if(!ra || !isImage) {
+		fprintf(stderr, "ResourceGetImage ERROR: Unrecognized image format '%s'\n", name);
 		return 0;
+	}
 
 	for(unsigned i=0; i<ra->numImages; ++i) // lookup by name and scale
 		if((strcmp(ra->images[i].name, name)==0) && (isImage==1 || ra->images[i].scale == scale))
@@ -214,8 +216,10 @@ size_t ResourceGetImage(const char* name, float scale, int filtering) {
 	gfxTextureFiltering(filtering);
 	size_t handle = (isImage==1) ?
 		ArchiveLoadImage(ra->ar, name) : ArchiveLoadSVG(ResourceGetText(name), scale);
-	if(!handle)
+	if(!handle) {
+		fprintf(stderr, "ResourceGetImage ERROR: Failed to load image '%s'\n", name);
 		return 0;
+	}
 
 	// buffer:
 	if(ra->numImages == ra->numImagesMax) {

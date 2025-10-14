@@ -668,18 +668,22 @@ void readImageResourceParams(
 }
 
 static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
-	const char* suffix = ResourceSuffix(name);
-	int filtering = 1;
-	float scale = 1.0;
-	float cx = 0.0f, cy=0.0f;
-	readImageResourceParams(ctx, 1, &scale, &filtering, &cx, &cy);
+	size_t handle = 0;
+	ResourceTypeId type = ResourceType(name);
+	if(type == RESOURCE_IMAGE) {
+		int filtering = 1;
+		float scale = 1.0;
+		float cx = 0.0f, cy=0.0f;
+		readImageResourceParams(ctx, 1, &scale, &filtering, &cx, &cy);
 
-	size_t handle = ResourceGetImage(name, scale, filtering);
-	if(handle)
-		gfxImageSetCenter(handle, cx, cy);
-	else
+		handle = ResourceGetImage(name, scale, filtering);
+		if(handle)
+			gfxImageSetCenter(handle, cx, cy);
+	}
+	else if(type == RESOURCE_AUDIO)
 		handle = ResourceGetAudio(name);
-	if(!handle && SDL_strncasecmp(suffix, "ttf", 3)==0) {
+	else if(type == RESOURCE_FONT) {
+		float scale = 1.0;
 		if(duk_is_object(ctx, 1)) {
 			if(duk_get_prop_string(ctx, 1, "size"))
 				scale = duk_to_number(ctx, -1);
@@ -693,6 +697,7 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 	}
 	char* text = ResourceGetText(name);
 	if(text) {
+		const char* suffix = ResourceSuffix(name);
 		if((SDL_strncasecmp(suffix, "html", 4)==0 && strlen(suffix) == 4)
 			|| (SDL_strncasecmp(suffix, "xml", 3)==0 && strlen(suffix) == 3)
 			|| (SDL_strncasecmp(suffix, "xhtml", 5)==0 && strlen(suffix) == 5))

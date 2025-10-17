@@ -24,7 +24,7 @@ ifeq ($(OS),Linux)
   CFLAGS       += -fPIC -no-pie
   DLLFLAGS      = -shared
   DLLSUFFIX     = .so
-  EXESUFFIX     =
+  EXESUFFIX     = .$(shell uname -m)
   RM = rm -f
   SEP = /
 else

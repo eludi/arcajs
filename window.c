@@ -68,6 +68,7 @@ static float getPixelRatio(int displayIndex) {
 	float dpi;
 	if(SDL_GetDisplayDPI(displayIndex, &dpi, NULL, NULL) != 0) {
 		LogWarn("arcajs.pixelRatio SDL_GetDisplayDPI failed: %s", SDL_GetError());
+		SDL_ClearError();
 		return 1.0f;
 	}
 	LogInfo("arcajs.pixelRatio dpi:%.1f", dpi);
@@ -516,27 +517,33 @@ size_t WindowNumControllers() {
 int WindowControllerOpen(size_t id, int useJoystickApi) {
 	if(id >= WindowNumControllers())
 		return -1;
-	SDL_Joystick* pJoy = SDL_JoystickOpen(id);
-	if(!pJoy) {
-		LogWarn("WindowControllerOpen(%zu): cannot initialize controller: %s", id, SDL_GetError());
-		SDL_ClearError();
-		return -1;
+	if(joysticks[id].pJoy) {
+		LogWarn("WindowControllerOpen(%zu): already opened", id);
+		return 0;
 	}
-	joysticks[id].pJoy = pJoy;
-	joysticks[id].nButtons = SDL_JoystickNumButtons(pJoy);
-	if(joysticks[id].nButtons > 8*sizeof(uint32_t))
-		joysticks[id].nButtons = 8*sizeof(uint32_t);
-	joysticks[id].buttons = joysticks[id].buttonsPrev = 0;
-	joysticks[id].nAxes = SDL_JoystickNumAxes(pJoy);
-	joysticks[id].nHats = SDL_JoystickNumHats(pJoy);
-	int nAxesTotal = joysticks[id].nAxes+2*joysticks[id].nHats;
-	joysticks[id].axes = (float*)malloc(sizeof(float)*nAxesTotal);
-	joysticks[id].axesPrev = (float*)malloc(sizeof(float)*nAxesTotal);
-	memset(joysticks[id].axes, 0, sizeof(float)*nAxesTotal);
-	memset(joysticks[id].axesPrev, 0, sizeof(float)*nAxesTotal);
 
-	if(!SDL_IsGameController(id) || useJoystickApi)
+	int nAxesTotal = 0;
+	if(!SDL_IsGameController(id) || useJoystickApi) {
 		joysticks[id].pGamepad = NULL;
+		SDL_Joystick* pJoy = SDL_JoystickOpen(id);
+		if(!pJoy) {
+			LogWarn("WindowControllerOpen(%zu): cannot initialize controller: %s", id, SDL_GetError());
+			SDL_ClearError();
+			return -1;
+		}
+		joysticks[id].pJoy = pJoy;
+		joysticks[id].nButtons = SDL_JoystickNumButtons(pJoy);
+		if(joysticks[id].nButtons > 8*sizeof(uint32_t))
+			joysticks[id].nButtons = 8*sizeof(uint32_t);
+		joysticks[id].buttons = joysticks[id].buttonsPrev = 0;
+		joysticks[id].nAxes = SDL_JoystickNumAxes(pJoy);
+		joysticks[id].nHats = SDL_JoystickNumHats(pJoy);
+		nAxesTotal = joysticks[id].nAxes+2*joysticks[id].nHats;
+		joysticks[id].axes = (float*)malloc(sizeof(float)*nAxesTotal);
+		joysticks[id].axesPrev = (float*)malloc(sizeof(float)*nAxesTotal);
+		memset(joysticks[id].axes, 0, sizeof(float)*nAxesTotal);
+		memset(joysticks[id].axesPrev, 0, sizeof(float)*nAxesTotal);
+	}
 	else {
 		SDL_GameController* gp = joysticks[id].pGamepad = SDL_GameControllerOpen(id);
 		if(!gp) {
@@ -544,24 +551,30 @@ int WindowControllerOpen(size_t id, int useJoystickApi) {
 			SDL_ClearError();
 			return -1;
 		}
-		if(joysticks[id].nButtons>11)
-			joysticks[id].nButtons=11;
-		if(joysticks[id].nAxes<6 && SDL_GameControllerHasAxis(gp, SDL_CONTROLLER_AXIS_TRIGGERRIGHT)) {
+		joysticks[id].pJoy = SDL_GameControllerGetJoystick(gp);
+		joysticks[id].nButtons=11;
+		if(SDL_GameControllerHasAxis(gp, SDL_CONTROLLER_AXIS_TRIGGERRIGHT)) {
 			// assume at least 6 axes + d-pad if right trigger is present
 			joysticks[id].nHats = 1;
 			joysticks[id].nAxes = 6;
 			nAxesTotal = 8;
-			joysticks[id].axes = (float*)realloc(joysticks[id].axes, sizeof(float)*nAxesTotal);
-			joysticks[id].axesPrev = (float*)realloc(joysticks[id].axesPrev, sizeof(float)*nAxesTotal);
+			joysticks[id].axes = (float*)malloc(sizeof(float)*nAxesTotal);
+			joysticks[id].axesPrev = (float*)malloc(sizeof(float)*nAxesTotal);
 			memset(joysticks[id].axes, 0, sizeof(float)*nAxesTotal);
 			memset(joysticks[id].axesPrev, 0, sizeof(float)*nAxesTotal);
 		}
-		else if(!joysticks[id].nHats && SDL_GameControllerHasButton(gp, SDL_CONTROLLER_BUTTON_DPAD_LEFT)) {
+		else if(SDL_GameControllerHasButton(gp, SDL_CONTROLLER_BUTTON_DPAD_LEFT)) {
 			// assume at least 2 axes for d-pad
 			joysticks[id].nHats = 1;
 			nAxesTotal += 2;
-			joysticks[id].axes = (float*)realloc(joysticks[id].axes, sizeof(float)*nAxesTotal);
-			joysticks[id].axesPrev = (float*)realloc(joysticks[id].axesPrev, sizeof(float)*nAxesTotal);
+			if(SDL_GameControllerHasAxis(gp, SDL_CONTROLLER_AXIS_LEFTX)) {
+				joysticks[id].nAxes = 2;
+				nAxesTotal += 2;
+			}
+			else
+				joysticks[id].nAxes = 0;
+			joysticks[id].axes = (float*)malloc(sizeof(float)*nAxesTotal);
+			joysticks[id].axesPrev = (float*)malloc(sizeof(float)*nAxesTotal);
 			memset(joysticks[id].axes, 0, sizeof(float)*nAxesTotal);
 			memset(joysticks[id].axesPrev, 0, sizeof(float)*nAxesTotal);
 		}
@@ -583,7 +596,7 @@ void WindowControllerClose(size_t id) {
 			SDL_GameControllerClose(joysticks[id].pGamepad);
 			joysticks[id].pGamepad = NULL;
 		}
-		SDL_JoystickClose(joysticks[id].pJoy);
+		else SDL_JoystickClose(joysticks[id].pJoy);
 		joysticks[id].pJoy = NULL;
 		free(joysticks[id].axes);
 		free(joysticks[id].axesPrev);
@@ -671,6 +684,7 @@ int WindowControllerInput(size_t id, int* numAxes, float** axes, int* numButtons
 		return -1;
 
 	SDL_JoystickUpdate();
+	SDL_GameControllerUpdate();
 	WindowControllerState(jd, axes, buttons);
 	if(numAxes)
 		*numAxes = jd->nAxes + 2*jd->nHats;
@@ -687,6 +701,7 @@ void WindowControllerEvents(float resolution, void* udata,
 		return;
 
 	SDL_JoystickUpdate();
+	SDL_GameControllerUpdate();
 
 	float* axes;
 	uint32_t buttons;

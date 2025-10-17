@@ -17,7 +17,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-const char* appVersion = "v0.20251014a";
+const char* appVersion = "v0.20251017a";
 int debug = 0, useJoystickApi = 0;
 
 static void onDebugSession(int evt) {

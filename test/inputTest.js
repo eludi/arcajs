@@ -60,7 +60,6 @@ app.on('update', function(deltaT, tNow) {
 	if(tNow-tLastFps<1.0)
 		++frameCounter;
 	else {
-        breakpoint(frameCounter, deltaT, tNow);
 		fps = frameCounter;
 		frameCounter = 0;
 		tLastFps = tNow;

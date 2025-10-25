@@ -589,15 +589,15 @@ void bindGraphics(duk_context *ctx) {
 		{ "FLIP_XY", 3.0 },
 
 /// @constant {number} gfx.BLEND_NONE
-		{ "BLEND_NONE", 0.0 },
+		{ "BLEND_NONE", GFX_BLEND_NONE },
 /// @constant {number} gfx.BLEND_ALPHA
-		{ "BLEND_ALPHA", 1.0 },
+		{ "BLEND_ALPHA", GFX_BLEND_ALPHA },
 /// @constant {number} gfx.BLEND_ADD
-		{ "BLEND_ADD", 2.0 },
+		{ "BLEND_ADD", GFX_BLEND_ADD },
 /// @constant {number} gfx.BLEND_MOD
-		{ "BLEND_MOD", 4.0 },
+		{ "BLEND_MOD", GFX_BLEND_MOD },
 /// @constant {number} gfx.BLEND_MUL
-		{ "BLEND_MUL", 8.0 },
+		{ "BLEND_MUL", GFX_BLEND_MUL },
 
 /// @constant {number} gfx.IMG_CIRCLE
 		{ "IMG_CIRCLE", GFX_IMG_CIRCLE },

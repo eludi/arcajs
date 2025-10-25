@@ -555,6 +555,21 @@ uint32_t AudioSampleRate() {
 	return (uint32_t)audioSpec.freq;
 }
 
+void AudioSampleInfo(uint32_t sample, uint8_t* numChannels, uint32_t* nSamples) {
+	if(!sample || sample>numSamples) {
+		if(numChannels)
+			*numChannels = 0;
+		if(nSamples)
+			*nSamples = 0;
+		return;
+	}
+	--sample;
+	if(numChannels)
+		*numChannels = samples[sample].numChannels;
+	if(nSamples)
+		*nSamples = samples[sample].waveLen - samples[sample].offset;
+}
+
 uint32_t AudioSound(SoundWave waveForm, float freq, float duration, float volume, float balance) {
 	uint32_t ret = UINT_MAX;
 	if(!devId)

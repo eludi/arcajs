@@ -73,6 +73,8 @@ extern uint32_t AudioReplay(uint32_t sample, float volume, float balance, float 
 /** \note For stereo samples, detune and balance must be 0.0f
  * \return track number playing this sound or UINT_MAX if the input is invalid or no track is available */
 extern uint32_t AudioLoop(uint32_t sample, float volume, float balance, float detune);
+/// queries the properties of an uploaded sample buffer
+extern void AudioSampleInfo(uint32_t sample, uint8_t* numChannels, uint32_t* numSamples);
 
 //--- experimental extensions custom sound generators --------------
 

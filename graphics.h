@@ -7,6 +7,12 @@
 #define GFX_IMG_CIRCLE 1
 #define GFX_IMG_SQUARE 2
 
+#define GFX_BLEND_NONE 0
+#define GFX_BLEND_ALPHA 1
+#define GFX_BLEND_ADD 2
+#define GFX_BLEND_MOD 4
+#define GFX_BLEND_MUL 8
+
 ///@{ setup and resource management:
 extern void gfxInit(uint16_t vpWidth, uint16_t vpHeight, float resourceScale, void *arg);
 extern void gfxClose();

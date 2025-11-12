@@ -669,7 +669,20 @@ void readImageResourceParams(
 
 static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 	size_t handle = 0;
-	ResourceTypeId type = ResourceType(name);
+	ResourceTypeId type = RESOURCE_NONE;
+	if(duk_is_string(ctx, 2)) {
+		const char* typeStr = duk_get_string(ctx, 2);
+		if(SDL_strncasecmp(typeStr, "image", 5)==0)
+			type = RESOURCE_IMAGE;
+		else if(SDL_strncasecmp(typeStr, "audio", 5)==0)
+			type = RESOURCE_AUDIO;
+		else if(SDL_strncasecmp(typeStr, "font", 4)==0)
+			type = RESOURCE_FONT;
+		else if(SDL_strncasecmp(typeStr, "text", 4)==0)
+			type = RESOURCE_TEXT;
+	}
+	if(type==RESOURCE_NONE)
+		type = ResourceType(name);
 	if(type == RESOURCE_IMAGE) {
 		int filtering = 1;
 		float scale = 1.0;
@@ -700,6 +713,7 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
 		const char* suffix = ResourceSuffix(name);
 		if((SDL_strncasecmp(suffix, "html", 4)==0 && strlen(suffix) == 4)
 			|| (SDL_strncasecmp(suffix, "xml", 3)==0 && strlen(suffix) == 3)
+			|| (SDL_strncasecmp(suffix, "svg", 3)==0 && strlen(suffix) == 3)
 			|| (SDL_strncasecmp(suffix, "xhtml", 5)==0 && strlen(suffix) == 5))
 		{
 			Value* v = Value_parseXML(text, NULL);
@@ -723,6 +737,7 @@ static duk_ret_t dk_getNamedResource(const char* name, duk_context *ctx) {
  * @param {string|array} name - resource file name or list of resource file names
  * @param {object} [params] - optional additional parameters as key-value pairs such as
  *   filtering for images, scale for SVG images, or size for font resources
+ * @param {string} [type] - optional resource type (image/audio/font/text)
  * @returns {number|array} resource handle(s)
  */
 static duk_ret_t dk_getResource(duk_context *ctx) {
@@ -1215,7 +1230,7 @@ static duk_ret_t dk_appPrompt(duk_context *ctx) {
  * displays a modal message window or popup overlay
  *
  * @param {string|array} message - (multi-line) message to be displayed
- * @param {string} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
+ * @param {object} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
  * @returns {number} index of pressed button
  */
 static duk_ret_t dk_appMessage(duk_context *ctx) {
@@ -1368,7 +1383,8 @@ static duk_ret_t dk_appOpenURL(duk_context *ctx) {
 /**
  * @function app.parse
  * parses an XML or (X)HTML, or JSON string as Javascript object
- * @param {string} url - target URL
+ * @param {string} str - string to be parsed
+ * @returns {object} parsed object
  */
 static duk_ret_t dk_appParse(duk_context *ctx) {
 	const char* str = duk_to_string(ctx, 0);
@@ -1632,7 +1648,7 @@ static duk_ret_t dk_appPlatform(duk_context *ctx) {
 	return 1;
 }
 
-/// @property {string} app.arch - operating system name and architecture, for example Linux_x86_64
+/// @property {string} app.arch - operating system name and architecture, for example Linux_x86_64, Linux_aarch64, win32-x64
 static duk_ret_t dk_appArch(duk_context *ctx) {
 	duk_push_literal(ctx, ARCAJS_ARCH);
 	return 1;
@@ -1678,7 +1694,7 @@ static void bindApp(duk_context *ctx, const Value* args) {
 	duk_put_prop_string(ctx, -2, "on");
 	duk_push_c_function(ctx, dk_appEmit, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "emit");
-	duk_push_c_function(ctx, dk_getResource, 2);
+	duk_push_c_function(ctx, dk_getResource, 3);
 	duk_put_prop_string(ctx, -2, "getResource");
 	duk_push_c_function(ctx, dk_createCircleResource, DUK_VARARGS);
 	duk_put_prop_string(ctx, -2, "createCircleResource");
@@ -1978,7 +1994,7 @@ static duk_ret_t dk_audioSound(duk_context *ctx) {
  * @function audio.createSound
  * creates a complex oscillator-generated sound
  * @param {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
- * @param {number|string} - one or more control points consisting of frequency/time interval/volume/shape 
+ * @param {number|string} - one or more control points consisting of frequency/volume/duration/timbre
  * @returns {number} a handle identifying this sound for later replay
  */
 static duk_ret_t dk_audioCreateSound(duk_context *ctx) {
@@ -2249,7 +2265,8 @@ enum {
 void LocalStorageLoad(duk_context *ctx, const char* fname) {
 	SDL_RWops *io = SDL_RWFromFile(fname, "rb");
 	if (!io || io->size(io)<=0) {
-		fprintf(stderr, "localStorage file \"%s\" not found\n", fname);
+		fprintf(stderr, "localStorage load file \"%s\" error: %s\n", fname, SDL_GetError());
+		SDL_ClearError();
 		return;
 	}
 	const size_t fsize = io->size(io);
@@ -2267,7 +2284,10 @@ void LocalStorageLoad(duk_context *ctx, const char* fname) {
 			duk_put_prop_string(ctx, -2, DUK_HIDDEN_SYMBOL("data"));
 		duk_pop(ctx);
 	}
-	SDL_RWclose(io);
+	if(SDL_RWclose(io) != 0) {
+		fprintf(stderr, "localStorage file \"%s\" close error: %s\n", fname, SDL_GetError());
+		SDL_ClearError();
+	}
 	free(buffer);
 }
 
@@ -2288,16 +2308,22 @@ void LocalStoragePersistChanges(duk_context *ctx) {
 
 	if (!io) {
 		duk_pop(ctx);
-		fprintf(stderr, "localStorage file not writable\n");
+		fprintf(stderr, "localStorage file \"%s\" write open error: %s\n", fname, SDL_GetError());
+		SDL_ClearError();
 		return;
 	}
 	duk_get_prop_string(ctx, -1, DUK_HIDDEN_SYMBOL("data"));
 	const char* json = duk_json_encode(ctx, -1);
 
 	size_t len = strlen(json);
-	if(SDL_RWwrite(io, json, 1, len) != len)
-		fprintf(stderr, "localStorage file write error\n");
-	SDL_RWclose(io);
+	if(SDL_RWwrite(io, json, 1, len) != len) {
+		fprintf(stderr, "localStorage file \"%s\" write error: %s\n", fname, SDL_GetError());
+		SDL_ClearError();
+	}
+	if(SDL_RWclose(io) != 0) {
+		fprintf(stderr, "localStorage file \"%s\" close error: %s\n", fname, SDL_GetError());
+		SDL_ClearError();
+	}
 
 	duk_pop(ctx);
 	duk_push_int(ctx, STORAGE_UNCHANGED);
@@ -2543,7 +2569,7 @@ int jsvmEval(size_t vm, const char* src, const char* fname) {
 int jsvmEvalScript(size_t vm, const char* fname) {
 	char* script = ResourceGetText(fname);
 	if(!script) {
-		snprintf(s_lastError, ERROR_MAXLEN, "Could not find \"%s\" in \"%s\", exiting.\n", fname, ResourceArchiveName());
+		snprintf(s_lastError, ERROR_MAXLEN, "Could not find \"%s\" in \"%s\"", fname, ResourceArchiveName());
 		return -1;
 	}
 	int ret = jsvmEval(vm, script, fname);

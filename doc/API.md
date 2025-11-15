@@ -78,6 +78,10 @@ returns handle to an image/audio/font or text/json resource or array of handles
 
   filtering for images, scale for SVG images, or size for font resources
 
+#### Parameters:
+
+- {string} [type] - optional resource type (image/audio/font/text)
+
 #### Returns:
 
 - {number\|array} resource handle(s)
@@ -233,6 +237,19 @@ sets window resizability
 
 - {bool} isResizable
 
+### function app.resize
+
+resizes window
+
+#### Parameters:
+
+- {number} width
+- {number} height
+
+#### Returns:
+
+- {bool} true id resize was successful, only if not fullscreen
+
 ### function app.fullscreen
 
 toggles window fullscreen or returns fullscreen state
@@ -301,7 +318,7 @@ displays a modal message window or popup overlay
 #### Parameters:
 
 - {string\|array} message - (multi-line) message to be displayed
-- {string} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
+- {object} [options] - display options: font, title, titleFont, color, background, lineBreakAt, icon, button0, button1
 
 #### Returns:
 
@@ -310,6 +327,10 @@ displays a modal message window or popup overlay
 ### function app.close
 
 closes window and application
+
+#### Parameters:
+
+- {string} [message] - optional error message to be displayed
 
 ### function app.httpGet
 
@@ -344,7 +365,11 @@ parses an XML or (X)HTML, or JSON string as Javascript object
 
 #### Parameters:
 
-- {string} url - target URL
+- {string} str - string to be parsed
+
+#### Returns:
+
+- {object} parsed object
 
 ### function app.include
 
@@ -475,12 +500,48 @@ writes an error message to application log
 
 - {any} value - one or more values to write
 
+### function app.setError
+
+sets or resets central app error state
+
+#### Parameters:
+
+- {string\|boolean\|undefined} err - sets error. Pass false or undefined to reset error state, usually within a catch block
+
 ### Properties:
 
-- {array} app.args - script-relevant command line arguments (or URL parameters), to be passed after a -- as separator as key value pairs, keys start with a -- or -
+- {object} app.args - script-relevant command line arguments (or URL parameters), to be passed after a -- as separator as key value pairs, keys start with a -- or -
+- {object} app.utils - collection of minor utility functions
+
+### function {function} app.utils.lpad
+
+pads a value with leading characters until reaching a given length
+
+#### Parameters:
+
+- value - the value to be padded
+- {number} numDigits - overall number of digits after padding
+- [char] {string} - character to be used for padding. Default is 0.
+
+#### Returns:
+
+- {string} - padded value
+
+### function {function} app.utils.randf
+
+### function {function} app.utils.randi
+
+### function {function} app.utils.dist
+
+### function {function} app.utils.distSqr
+
+### function {function} app.utils.clamp
+
+### Properties:
+
 - {string} app.version - arcajs version
 - {string} app.platform - arcajs platform, either 'browser' or 'standalone'
-- {string} app.arch - operating system name and architecture, for example Linux_x86_64
+- {string} app.arch - operating system name and architecture, for example Linux_x86_64, Linux_aarch64, win32-x64
 - {string} app.debug - application debug level, currently 0 or 1
 - {int} app.numControllers - number of currently connected game controllers
 - {number} app.width - window width in logical pixels
@@ -598,7 +659,7 @@ creates a complex oscillator-generated sound
 #### Parameters:
 
 - {string} wave - wave form, either 'sin'(e), 'tri'(angle), 'squ'(are), 'saw'(tooth), or 'noi'(se)
-- {number\|string} - one or more control points consisting of frequency/time interval/volume/shape
+- {number\|string} - one or more control points consisting of frequency/volume/duration/timbre
 
 #### Returns:
 
@@ -927,7 +988,7 @@ draws a rectangular grid of multiple tiled images
 - {number} imgBase - base image handle
 - {number} tilesX - number of tiles in horizontal direction
 - {number} tilesY - number of tiles in vertical direction
-- {Uint32Array} imgOffsets - array of image handle offsets
+- {Uint32Array} [imgOffsets] - array of image handle offsets
 - {Uint32Array} [colors] - optional tile color array
 - {number} [stride=tilesX] - number of array elements to proceed to next row
 

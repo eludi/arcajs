@@ -384,9 +384,10 @@ static duk_ret_t dk_sprites(duk_context *ctx) {
 	if(s1.radius<0.0f) {
 		s1.w = getPropFloatDefault(ctx,0,"w",-1.0f);
 		s1.h = getPropFloatDefault(ctx,0,"h",-1.0f);
-		if(s1.w<0.0f || s1.h<0.0f)
-			return duk_error(ctx, DUK_ERR_ERROR,
-				"intersect.sprites() expects either radius or w/h properties of first object");
+		if(s1.w<0.0f || s1.h<0.0f) {
+			//duk_push_false(ctx); return 1;
+			return duk_error(ctx, DUK_ERR_ERROR, "intersect.sprites() expects either radius or w/h properties of first object");
+		}
 		s1.cx = getPropFloatDefault(ctx,0,"cx",0.0f);
 		s1.cy = getPropFloatDefault(ctx,0,"cy",0.0f);
 	}

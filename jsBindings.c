@@ -290,7 +290,7 @@ static float noteStr2freq(const char* s) {
 	else return -2.0f;
 }
 
-#define ERROR_MAXLEN 512
+#define ERROR_MAXLEN 2048
 char s_lastError[ERROR_MAXLEN];
 
 //--- timeouts -----------------------------------------------------
@@ -2581,12 +2581,10 @@ static void callEventHandler(
 	duk_context *ctx, const char* event, duk_bool_t isMethod, duk_idx_t nargs)
 {
 	if((isMethod ? duk_pcall_method(ctx, nargs) : duk_pcall(ctx, nargs))!=0) {
-		duk_get_prop_string(ctx, -1, "lineNumber");
-		duk_get_prop_string(ctx, -2, "fileName");
-
-		snprintf(s_lastError, ERROR_MAXLEN, "%s:%i: runtime error during '%s' event: %s\n",
-			duk_safe_to_string(ctx, -1), duk_to_int(ctx, -2), event, duk_safe_to_string(ctx, -3));
-		duk_pop_2(ctx);
+		duk_get_prop_string(ctx, -1, "stack");
+		snprintf(s_lastError, ERROR_MAXLEN, "error during '%s' event:\n%s\n",
+			event, duk_safe_to_string(ctx, -1));
+		duk_pop(ctx);
 	}
 }
 
@@ -2595,7 +2593,7 @@ void jsvmDispatchEvent(size_t vm, const char* event, const Value* data) {
 
 	duk_push_global_stash(ctx);
 	if(!duk_get_prop_string(ctx, -1, event) || !duk_is_function(ctx, -1)) { // no function listening
-		duk_pop_n(ctx, 2);
+		duk_pop_2(ctx);
 		return;
 	}
 
@@ -2628,8 +2626,9 @@ void jsvmDispatchDrawEvent(size_t vm) {
 			duk_pop(ctx);
 		duk_get_global_literal(ctx, DUK_HIDDEN_SYMBOL("gfx"));
 		callEventHandler(ctx, "draw", isMethod, 1);
+		duk_pop(ctx); // pop result
 	}
-	duk_pop_2(ctx); // pop result or "draw" and global stash
+	duk_pop(ctx); // pop global stash
 
 	if(++frameCounter%30==0)
 		LocalStoragePersistChanges(ctx);

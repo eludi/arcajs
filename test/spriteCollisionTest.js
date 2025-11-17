@@ -86,6 +86,16 @@ app.on('load', function() {
 		shapes.push(new Circle(app.width*Math.random(), app.height*Math.random(), circleRadius));
 	shapes.push(new Poly(100,100,[0,-32, 32,32, -32,0]), new Poly(200,100,[0,-40, 20,40, -40,0]));
 	testSpriteIntersections();
+
+	// test intersection of two incomplete sprites
+	const inv1 = {x:300,y:300,w:64}; // no radius or height
+	const inv2 = {x:300,y:300,radius:-0.1}; // nnegative radius
+	try {
+		isx.sprites(inv1, inv2);
+		app.close("incomplete sprites did not raise an exception");
+	} catch(e) {
+		console.log("incomplete sprites correctly raised an exception:", e.stack);
+	}
 });
 
 app.on('pointer', function(evt) {

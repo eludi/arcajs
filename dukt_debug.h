@@ -39,7 +39,26 @@ void dukt_debug_shutdown(void);
 // -----------------------------------------------------------------------------
 // Implementation (header-only, define DUKT_DEBUG_IMPLEMENTATION before including)
 // -----------------------------------------------------------------------------
+
 #ifdef DUKT_DEBUG_IMPLEMENTATION
+#ifdef DUKT_DEBUG_DISABLED
+// Empty implementations when disabled
+
+static duk_ret_t dukt_debug_breakpoint(duk_context *ctx) {
+    (void)ctx;
+    return 0;
+}
+void dukt_debug_init(void* vm, int port, const char *breakpointFnName, dukt_debug_session_cb_t cb) {
+    (void)port; (void)cb;
+    // Register breakpoint() in Duktape, does nothing
+    duk_context* ctx = (duk_context*)vm;
+    duk_push_c_function(ctx, dukt_debug_breakpoint, 0);
+    duk_put_global_string(ctx, breakpointFnName);
+}
+void dukt_debug_poll(void) { }
+void dukt_debug_shutdown(void) { }
+
+#else // DUKT_DEBUG_DISABLED
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,7 +119,7 @@ void dukt_debug_init(void* vm, int port, const char *breakpointFnName, dukt_debu
         dukt_debug_break_cb = cb;
         SOCK_INIT();
         dukt_debug_server = socket(AF_INET, SOCK_STREAM, 0);
-        #ifdef _WIN32
+#ifdef _WIN32
         if (dukt_debug_server == INVALID_SOCKET) {
             fprintf(stderr, "socket error: %d\n", SOCKET_ERRNO);
             return;
@@ -121,7 +140,7 @@ void dukt_debug_init(void* vm, int port, const char *breakpointFnName, dukt_debu
         addr.sin_port = htons(port);
 
         if (bind(dukt_debug_server, (struct sockaddr*)&addr, sizeof(addr))
-        #ifdef _WIN32
+#ifdef _WIN32
         == SOCKET_ERROR
 #else
         < 0
@@ -147,7 +166,7 @@ void dukt_debug_init(void* vm, int port, const char *breakpointFnName, dukt_debu
 void dukt_debug_poll(void) {
     if (dukt_debug_server >= 0 && dukt_debug_client < 0) {
         struct sockaddr_in cliaddr;
-        #ifdef _WIN32
+#ifdef _WIN32
         int len = sizeof(cliaddr);
         int fd = accept(dukt_debug_server, (struct sockaddr*)&cliaddr, &len);
         if (fd != INVALID_SOCKET) {
@@ -167,7 +186,7 @@ void dukt_debug_poll(void) {
     }
     if (dukt_debug_client >= 0) {
         char buf[1];
-        #ifdef _WIN32
+#ifdef _WIN32
         int n = recv(dukt_debug_client, buf, 1, MSG_PEEK);
 #else
         ssize_t n = recv(dukt_debug_client, buf, 1, MSG_PEEK);
@@ -285,4 +304,5 @@ static duk_ret_t dukt_debug_breakpoint(duk_context *ctx) {
     return 0;
 }
 
+#endif // DUKT_DEBUG_DISABLED
 #endif // DUKT_DEBUG_IMPLEMENTATION

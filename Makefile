@@ -1,5 +1,5 @@
 CC     = gcc
-CFLAGS = -Wall -Wpedantic -Wno-overlength-strings -O3
+CFLAGS = -Wall -Wpedantic -Wno-overlength-strings -Os
 
 SDL = ../SDL2
 
@@ -102,6 +102,11 @@ modules/fs.o: modules/fs.c
 # generic rules and targets:
 .c.o:
 	$(CC) $(CFLAGS) $(INCDIR) -c $< -o $@
+
+.PHONY: all clean Release
+
+Release: CFLAGS += -O3 -DDUKT_DEBUG_DISABLED -DNDEBUG
+Release: clean all
 
 clean:
 	$(RM) *.o

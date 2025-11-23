@@ -17,7 +17,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-const char* appVersion = "v0.20251122a";
+const char* appVersion = "v0.20251123a";
 int debug = 0, useJoystickApi = 0;
 
 static void onDebugSession(int evt) {
@@ -426,10 +426,12 @@ int main(int argc, char **argv) {
 			else
 				windowFlags &= ~WINDOW_VSYNC;
 		}
+#ifndef DUKT_DEBUG_DISABLED
 		else if((strcmp(argv[i],"-d")==0 || strcmp(argv[i],"--debug")==0) && i+1<argc) {
 			debug = 1;
 			debug_port = atoi(argv[i+1]);
 		}
+#endif
 		else if((strcmp(argv[i],"-j")==0 || strcmp(argv[i],"--joystick")==0) && i+1<argc)
 			useJoystickApi = atoi(argv[i+1]);
 		else if(strcmp(argv[i],"-w")==0 && i+1<argc)

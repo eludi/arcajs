@@ -265,12 +265,14 @@ int httpPost(const char* url, const char* data, char** resp, size_t* respsz) {
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
 	curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
 	int ret = curl_easy_perform(curl);
-	if(ret != CURLE_OK)
+	if(ret != CURLE_OK) {
+		StringBuf_set(sb, curl_easy_strerror(ret));
+		LogWarn("httpPost error: %s", curl_easy_strerror(ret));
 		ret = -ret;
+	}
 	else {
 		long response_code;
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-		LogWarn("httpPost error: %s", curl_easy_strerror(ret));
 		ret = (int)response_code;
 	}
 	curl_easy_cleanup(curl);

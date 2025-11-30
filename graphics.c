@@ -101,6 +101,8 @@ uint32_t gfxSVGUpload(const char* svg, size_t svgLen, float scale) {
 		return 0;
 	}
 	uint32_t img = gfxImageUpload(data, w, h, d, 0xff);
+	if(svg == font12x16)
+		images[img].sc = images[defaultFont].sc;
 	free(data);
 	return img;
 }

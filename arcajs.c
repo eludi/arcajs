@@ -17,7 +17,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-const char* appVersion = "v0.20251123a";
+const char* appVersion = "v0.20251130a";
 int debug = 0, useJoystickApi = 0;
 
 static void onDebugSession(int evt) {
@@ -400,7 +400,7 @@ int main(int argc, char **argv) {
 	char* storageFileName = NULL;
 	char* iconName = NULL;
 	bool isCalledWithScript = false, hasWindow = true;
-	double maxFps = 0.0;
+	double maxFps = 0.0, pixelRatio = 0.0;
 	Value* args = NULL;
 
 	int winSzX = 640, winSzY = 480, windowFlags = WINDOW_VSYNC;
@@ -500,6 +500,7 @@ int main(int argc, char **argv) {
 		iconName = jsonGetString(json, "icon");
 		winSzX = jsonGetNumber(json, "window_width", winSzX);
 		winSzY = jsonGetNumber(json, "window_height", winSzY);
+		pixelRatio = jsonGetNumber(json, "pixel_ratio", pixelRatio);
 		windowPerspectivity = jsonGetNumber(json, "window_perspectivity", windowPerspectivity);
 		consoleY = jsonGetNumber(json, "console_y", consoleY);
 		consoleSzY = jsonGetNumber(json, "console_height", consoleSzY);
@@ -568,7 +569,8 @@ int main(int argc, char **argv) {
 	Value* events = Value_new(VALUE_LIST, NULL);
 	if(hasWindow) {
 		WindowEventHandler(handleEvents, events);
-		const float pixelRatio = SDL_max(SDL_roundf(WindowPixelRatio()), 1.0f);
+		if(pixelRatio<=0.0f)
+			pixelRatio = SDL_max(SDL_roundf(WindowPixelRatio()), 1.0f);
 #ifdef _GRAPHICS_GL
 		gfxInit(winSzX, winSzY, windowPerspectivity, pixelRatio, SDL_GL_GetProcAddress);
 #else

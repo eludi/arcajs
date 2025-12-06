@@ -23,6 +23,7 @@ from their different contexts. Arcajs interprets the following parameters:
 	"orientation":"landscape", // fixates screen orientation on mobile platforms. Either "any" (default), "landscape", or "portrait"
 	"window_width": 640, // initial window width, only relevant if display is "window" or "resizable"
 	"window_height": 480, // initial window height, only relevant if display is "window" or "resizable"
+	"pixel_ratio": 1, // overwrite auto-detected pixel ratio, for supporting high-DPI displays
 	"console_y": 0, // overlay console vertical position
 	"console_height": 448, // overlay debug console height, set 0 to disable
 	"background_color" : "#000", // initial background color

@@ -15,11 +15,7 @@ CFLAGS += -DARCAJS_ARCH=\"$(ARCH)\"
 ifeq ($(OS),Linux)
   INCDIR        = -I$(SDL)/include -D_REENTRANT -Iexternal
   LIBS          = -rdynamic
-  ifeq ($(ARCH),Linux_armv7l)
-    LIBS       += -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -Wl,-rpath,/opt/vc/lib -L/opt/vc/lib -lbcm_host -lpthread -lrt -ldl -lcurl -lm
-  else
-    LIBS       += -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lpthread -ldl -lcurl -lm
-  endif
+  LIBS       += -L$(SDL)/lib/$(ARCH) -Wl,-rpath,$(SDL)/lib/$(ARCH) -Wl,--enable-new-dtags -lSDL2 -Wl,--no-undefined -lpthread -ldl -lcurl -lm
   GLLIBS        = -lGL
   CFLAGS       += -fPIC -no-pie
   DLLFLAGS      = -shared

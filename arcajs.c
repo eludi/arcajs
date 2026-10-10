@@ -17,7 +17,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-const char* appVersion = "v0.20251130a";
+const char* appVersion = "v0.20261010a";
 int debug = 0, useJoystickApi = 0;
 
 static void onDebugSession(int evt) {
@@ -441,7 +441,9 @@ int main(int argc, char **argv) {
 		else if(strcmp(argv[i],"-m")==0 && i+1<argc)
 			maxFps = atof(argv[i+1]);
 		else if(strcmp(argv[i],"--version")==0) {
-			printf("%s\n", appVersion);
+			SDL_version sdlv;
+			SDL_GetVersion(&sdlv);
+			printf("%s SDL%i.%i.%i\n", appVersion, sdlv.major, sdlv.minor, sdlv.patch);
 			return 0;
 		}
 		else if(strcmp(argv[i],"--")==0) {

@@ -1,10 +1,10 @@
 #!/bin/sh
-# arcajs bootstrap script for Linux on x86_64, tested under Ubuntu 18.04 & 20.04
+# arcajs bootstrap script for Linux on x86_64, tested under Ubuntu 22.04
 
 sudo apt -y install libgl1-mesa-dev libudev-dev libxext-dev libasound2-dev libsamplerate-dev libsndio-dev libdbus-1-dev libxext-dev
-wget https://www.libsdl.org/release/SDL2-2.32.8.tar.gz
-tar xvfz SDL2-2.32.8.tar.gz
-mv SDL2-2.32.8 SDL2
+wget https://www.libsdl.org/release/SDL2-2.32.10.tar.gz
+tar xvfz SDL2-2.32.10.tar.gz
+mv SDL2-2.32.10 SDL2
 cd SDL2 && mkdir build && cd build
 ../configure --disable-shared --disable-video-wayland
 make

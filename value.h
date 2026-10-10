@@ -255,6 +255,14 @@ void Value_set(Value* parent, const char* key, Value* value) {
 			sibling->next = value;
 			return;
 		}
+		if(__builtin_expect(!sibling->next, 0)) { // should not happen, corrupted map
+			Value_delete(parent->child, 1);
+			parent->type = VALUE_ERR;
+			const char* msg = "Value_set on corrupted map";
+			parent->str = (char*)malloc(strlen(msg)+1);
+			strcpy(parent->str, msg);
+			return;
+		}
 		if(sibling->next->next)
 			sibling = sibling->next->next;
 		else {

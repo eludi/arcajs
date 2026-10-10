@@ -419,7 +419,7 @@ static void audioCallback(void *user_data, Uint8 *raw_buffer, int bytes) {
 						free(ch);
 						ch = t->queue;
 					}
-					waveData = (t->sample < ch->numSamples) ? ch->waveData : NULL;
+					waveData = (ch && t->sample < ch->numSamples) ? ch->waveData : NULL;
 				}
 				if(waveData) {
 					if(t->playbackRate==1.0f)
@@ -768,20 +768,50 @@ static float* AudioReadMP3(void* mp3data, uint32_t numBytes, uint32_t* samples, 
 		return 0;
 	*samples = *offset = *channels = 0;
 
-	drmp3_config cfg = { 0/*numChannels unknown*/, audioSpec.freq };
-	uint64_t pcmSamples;
+	drmp3_config cfg = { 0 };
+	drmp3_uint64 pcmSamples = 0;
 
 	float* pcmData = drmp3_open_memory_and_read_pcm_frames_f32(mp3data, numBytes, &cfg, &pcmSamples, NULL);
-	if(!pcmSamples || !cfg.outputChannels || cfg.outputChannels>2 || cfg.outputSampleRate!=audioSpec.freq || pcmSamples>SDL_MAX_UINT32) {
+	if(!pcmData || !pcmSamples || !cfg.channels || cfg.channels>2 || !cfg.sampleRate || cfg.sampleRate>INT_MAX || audioSpec.freq<=0 || pcmSamples>SDL_MAX_UINT32) {
 		drmp3_free(pcmData, NULL);
 		return 0;
 	}
+	// dr_mp3 now decodes at the source rate; SDL handles playback-rate conversion.
+	if(cfg.sampleRate!=(uint32_t)audioSpec.freq) {
+		SDL_AudioCVT cvt;
+		if(SDL_BuildAudioCVT(&cvt, AUDIO_F32SYS, cfg.channels, cfg.sampleRate,
+			AUDIO_F32SYS, cfg.channels, audioSpec.freq)<0 ||
+			pcmSamples>INT_MAX/(sizeof(float)*cfg.channels) ||
+			cvt.len_mult<=0) {
+			drmp3_free(pcmData, NULL);
+			return 0;
+		}
+		cvt.len = pcmSamples*sizeof(float)*cfg.channels;
+		if((size_t)cvt.len>SIZE_MAX/(size_t)cvt.len_mult) {
+			drmp3_free(pcmData, NULL);
+			return 0;
+		}
+		cvt.buf = malloc((size_t)cvt.len*cvt.len_mult);
+		if(!cvt.buf) {
+			drmp3_free(pcmData, NULL);
+			return 0;
+		}
+		memcpy(cvt.buf, pcmData, cvt.len);
+		drmp3_free(pcmData, NULL);
+		if(SDL_ConvertAudio(&cvt)<0 || cvt.len_cvt<=0) {
+			free(cvt.buf);
+			return 0;
+		}
+		pcmData = (float*)cvt.buf;
+		pcmSamples = cvt.len_cvt/sizeof(float)/cfg.channels;
+	}
 	*samples = pcmSamples;
-	*channels = cfg.outputChannels;
+	*channels = cfg.channels;
 	// skip initial silence of MP3:
 	for(; *offset<pcmSamples; ++(*offset))
-		if(pcmData[*offset]>0.002 || pcmData[*offset]<-0.002)
-			break;
+		for(uint8_t ch=0; ch<*channels; ++ch)
+			if(fabsf(pcmData[(size_t)*offset*(*channels)+ch])>0.002f)
+				return pcmData;
 	return pcmData;
 }
 

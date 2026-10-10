@@ -264,6 +264,12 @@ size_t ResourceGetFont(const char* name, unsigned fontSize) {
 		if(strcmp(ra->fonts[i].name, name)==0 && fontSize==ra->fonts[i].size)
 			return ra->fonts[i].handle;
 
+	if(isImageFile(name)) {
+		const float scale = (float)fontSize/16.0f;
+		uint32_t parent = ResourceGetImage(name, scale, 1);
+		return parent ? gfxFontFromImage(parent, 0) : 0;
+	}
+
 	size_t fsize;
 	void* buf = ArchiveLoadBinary(ra->ar, name, &fsize);
 	if(!buf) {

@@ -50,11 +50,22 @@ OBJ = $(SRC:.c=.o)
 EXE = arcajs$(EXESUFFIX)
 LIB = libarcajs.a
 
+# executable link rules:
+ifeq ($(OS),win32)
+GLUE_IMPLIB = libarcajs.dllglue.a
+all: $(EXE) $(LIB) $(GLUE_IMPLIB)
+
+# The plugin DLLs import the host API from the executable. Keep the import
+# library as a declared output so it is built with the Windows default target.
+$(EXE) $(GLUE_IMPLIB) &: $(LIB) $(OBJ)
+	$(CC) $(CFLAGS) $(OBJ) $(LIB) $(LIBS) -Wl,--export-all-symbols \
+	  -Wl,--out-implib,$(GLUE_IMPLIB) -o $(EXE) -s
+else
 all: $(EXE) $(LIB)
 
-# executable link rules:
-$(EXE) : $(LIB) $(OBJ)
+$(EXE): $(LIB) $(OBJ)
 	$(CC) $(CFLAGS) $^ $(LIB) $(LIBS) -o $@ -s
+endif
 
 $(LIB) : $(SRCLIB:.c=.o)
 	ar -rcs $@ $^
